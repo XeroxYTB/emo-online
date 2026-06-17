@@ -1,0 +1,5 @@
+/* Émo App overrides */
+.App {
+  height: 100vh;
+  width: 100vw;
+}

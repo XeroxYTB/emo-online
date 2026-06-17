@@ -1,0 +1,37 @@
+# https://render.com — New > Blueprint > connect repo
+services:
+  - type: web
+    name: emo-online
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: emo
+      - key: EMO_DEV_MODE
+        value: "false"
+      - key: EMO_SERVE_FRONTEND
+        value: "true"
+      - key: EMO_PUBLIC_BACKEND_URL
+        sync: false
+      - key: EMO_FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: STRIPE_API_KEY
+        sync: false

@@ -1,0 +1,54 @@
+# Secrets
+.env
+.env.local
+*.env
+!*.env.example
+**/token.txt
+!**/token.txt.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+
+# Build
+emo/frontend/build/
+dist/
+*.msi
+*.wixobj
+*.wixpdb
+
+# Local desktop / MSI (not for cloud repo)
+EmoApp/
+installer/
+agent-local/
+tools/node-*/
+tools/mongodb*/
+tools/wix*/
+tools/wix-cli/
+tools/emo-launch.*
+tools/mongo*.log
+tools/*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Go agent binaries (built in CI/Docker)
+emo/backend/agent_binaries/*
+!emo/backend/agent_binaries/.gitkeep
+emo/agent-go/emo-agent*
