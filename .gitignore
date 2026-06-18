@@ -10,6 +10,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv311/
 venv/
 *.egg-info/
 .mypy_cache/
