@@ -250,14 +250,17 @@ class LlmChat:
     async def _stream_openai_compat(self) -> AsyncIterator[Any]:
         base, headers = self._openai_base()
         headers["Content-Type"] = "application/json"
+        max_tokens = 2048 if self._provider == "groq" else 8192
         body: dict[str, Any] = {
             "model": self._model,
             "messages": self._openai_messages(),
-            "max_tokens": 8192,
+            "max_tokens": max_tokens,
             "stream": True,
         }
         if self._openai_tools:
             body["tools"] = self._openai_tools
+            if self._provider == "groq":
+                body["tool_choice"] = "auto"
 
         tool_calls: dict[int, dict] = {}
         turn_text = ""
@@ -265,7 +268,14 @@ class LlmChat:
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", f"{base}/chat/completions", headers=headers, json=body) as resp:
-                await self._ensure_stream_ok(resp)
+                if resp.is_error:
+                    err_body = await resp.aread()
+                    detail = err_body.decode("utf-8", errors="replace")[:500]
+                    raise httpx.HTTPStatusError(
+                        f"{self._provider} API {resp.status_code}: {detail}",
+                        request=resp.request,
+                        response=resp,
+                    )
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
                         continue

@@ -169,9 +169,15 @@ def parse_model_preference(pref: Optional[str]) -> Optional[tuple[str, str]]:
 def _provider_ready(provider: str, model: str) -> Optional[tuple[str, str, str]]:
     if (provider, model) in BLOCKED_MODELS:
         return None
-    if api_key_available(provider):
-        return provider, model, model
-    return None
+    if not api_key_available(provider):
+        return None
+    try:
+        from llm_health import provider_usable
+        if not provider_usable(provider, True):
+            return None
+    except ImportError:
+        pass
+    return provider, model, model
 
 
 async def resolve_model_candidates(
@@ -192,27 +198,22 @@ async def resolve_model_candidates(
             out.append((p, m, entry.get("label", m)))
 
     pinned = parse_model_preference(preference)
-    if not pinned or not out:
+    if not pinned:
         return out
+
     pp, pm = pinned
     if (pp, pm) in BLOCKED_MODELS:
         return out
+
     pin_label = pm
     for entry in plan["models"] + FREE_MODELS:
         if entry["provider"] == pp and entry["model"] == pm:
             pin_label = entry.get("label", pm)
             break
-    pin_item: Optional[tuple[str, str, str]] = None
-    rest: list[tuple[str, str, str]] = []
-    for item in out:
-        if item[0] == pp and item[1] == pm:
-            pin_item = item
-        else:
-            rest.append(item)
-    if pin_item:
-        return [pin_item] + rest
+
+    rest = [item for item in out if (item[0], item[1]) != (pp, pm)]
     if api_key_available(pp):
-        return [(pp, pm, pin_label)] + out
+        return [(pp, pm, pin_label)] + rest
     return out
 
 

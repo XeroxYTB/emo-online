@@ -46,6 +46,7 @@ from llm_config import (
 )
 import google_auth
 from llm_providers import providers_status, configured_providers
+from llm_health import refresh_probe_cache, mark_provider_failed, mark_provider_ok
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=True)
@@ -144,6 +145,7 @@ async def _settings_startup():
         "OK" if google_auth.has_client_id() else "non configuré",
         ", ".join(llm_ok) if llm_ok else "aucune clé (.env)",
     )
+    asyncio.create_task(refresh_probe_cache())
 
 logger = logging.getLogger("emo")
 logging.basicConfig(level=logging.INFO)
@@ -548,7 +550,7 @@ def _friendly_llm_error(exc: Exception) -> str:
         if code == 413:
             return "Requete trop volumineuse pour ce modele. Emo reessaie avec un modele plus leger."
         if code == 404:
-            return "Modele IA introuvable ou retire. Emo bascule sur un autre modele."
+            return "Modele IA indisponible. Emo bascule sur un autre modele."
         if code == 400:
             lower = _http_response_snippet(exc.response, 500).lower()
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
@@ -572,22 +574,46 @@ def _friendly_llm_error(exc: Exception) -> str:
 
 def _retryable_llm_error(exc: Exception) -> bool:
     code = _llm_http_status(exc)
-    if code in (429, 402, 413, 404, 503, 500, 502, 504):
+    if code in (429, 402, 413, 404, 403, 503, 500, 502, 504, 408):
         return True
     msg = str(exc).lower()
     if code == 400 and any(k in msg for k in (
         "credit balance", "too low", "insufficient credit",
         "insufficient balance", "billing", "payment required",
+        "model", "decommissioned", "not found", "context length",
+        "maximum context", "token", "quota", "rate limit",
     )):
         return True
     if code == 401:
+        return True
+    if isinstance(exc, (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError)):
         return True
     return (
         "429" in msg or "rate limit" in msg or "quota" in msg
         or "too many requests" in msg or "credit balance" in msg
         or "too low" in msg or "insufficient" in msg
         or "not found" in msg or "is not supported" in msg
+        or "tpm" in msg or "tokens per minute" in msg
+        or "model unavailable" in msg or "overloaded" in msg
     )
+
+
+def _should_fallback_llm(exc: Exception, *, has_output: bool, manual_pick: bool) -> bool:
+    if has_output:
+        return False
+    if _retryable_llm_error(exc):
+        return True
+    if manual_pick:
+        code = _llm_http_status(exc)
+        if code in (400, 401, 402, 403, 404, 429, 500, 502, 503):
+            return True
+    return False
+
+
+def _block_provider_models(blocked: set[tuple[str, str]], provider: str, candidates: list) -> None:
+    for p, m, _ in candidates:
+        if p == provider:
+            blocked.add((p, m))
 
 
 def _today_key() -> str:
@@ -728,7 +754,19 @@ async def license_status(user: User = Depends(get_current_user)):
 
 @api.get("/llm/status")
 async def llm_status():
+    from llm_health import _probe_cache, _PROBE_TTL_SEC
     status = await providers_status()
+    live: dict[str, dict] = {}
+    now = __import__("time").monotonic()
+    for name, configured in status.items():
+        row = _probe_cache.get(name)
+        if row:
+            ok, ts, detail = row
+            fresh = (now - ts) <= _PROBE_TTL_SEC
+            live[name] = {"ok": ok and fresh, "detail": detail if fresh else "stale"}
+        else:
+            live[name] = {"ok": configured, "detail": "not probed"}
+    status["live"] = live
     status["plans"] = plans_for_api()
     return status
 
@@ -1542,11 +1580,12 @@ def _compact_llm_payload(
     agent_online: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq free tier has strict TPM limits — short prompt + essential tools only."""
-    if provider != "groq":
+    if provider not in ("groq", "gemini"):
         return system_msg, initial_messages, tools
     compact_sys = build_compact_system_prompt(mode, user_name=user_name, agent_online=agent_online)
     non_system = [m for m in initial_messages if m.get("role") != "system"]
-    compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-4:]
+    keep = 3 if provider == "groq" else 6
+    compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-keep:]
     essential = {
         "web_search", "web_fetch", "read_file", "exec_shell", "grep",
         "list_dir", "edit_file", "write_file", "find_files", "get_datetime",
@@ -1648,7 +1687,8 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
 
     tier = get_user_tier(lic, is_admin=user.email.lower() in ADMIN_EMAILS)
     pref = (body.model_preference or "auto").strip() or "auto"
-    candidates = await resolve_model_candidates(tier, pref if pref != "auto" else None)
+    manual_pick = pref != "auto"
+    candidates = await resolve_model_candidates(tier, pref if manual_pick else None)
     if not candidates:
         raise HTTPException(status_code=503, detail="Aucune clé IA configurée dans backend/.env")
 
@@ -1750,6 +1790,7 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                     )
                     if clean.strip():
                         background_tasks.add_task(_extract_and_store_memories, user.user_id, body.content, clean)
+                    mark_provider_ok(provider)
                     yield _sse({
                         "type": "done",
                         "mood": mood or "neutre",
@@ -1763,22 +1804,23 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                 except Exception as e:
                     last_error = e
                     logger.warning("LLM %s/%s failed: %s", provider, model, e)
-                    if not started and _retryable_llm_error(e):
+                    has_output = bool(full_text_parts)
+                    if _should_fallback_llm(e, has_output=has_output, manual_pick=manual_pick):
                         blocked.add((provider, model))
-                        if _llm_http_status(e) == 401:
-                            for p, m, _ in candidates:
-                                if p == provider:
-                                    blocked.add((p, m))
+                        code = _llm_http_status(e)
+                        if code in (401, 402, 403, 429):
+                            _block_provider_models(blocked, provider, candidates)
+                        mark_provider_failed(provider, str(e)[:200])
                         remaining = [
                             c for c in candidates[cand_idx + 1:]
                             if (c[0], c[1]) not in blocked
                         ]
                         if remaining:
                             next_label = remaining[0][2]
-                            logger.info("Fallback LLM %s -> %s", provider, next_label)
-                            yield _sse({"type": "info", "content": f"Bascule sur {next_label}..."})
+                            logger.info("Fallback LLM %s/%s -> %s", provider, model, next_label)
+                            yield _sse({"type": "info", "content": f"{model_label} indisponible — bascule sur {next_label}..."})
                             yield _sse({"type": "ping"})
-                            await asyncio.sleep(1.5)
+                            await asyncio.sleep(0.8)
                             continue
                     logger.exception("Erreur stream")
                     yield _sse({"type": "error", "content": _friendly_llm_error(e)})
@@ -1954,13 +1996,24 @@ async def ping():
 
 @api.get("/health")
 async def health_check():
-    from llm_providers import providers_status, configured_providers
+    from llm_health import _probe_cache, _PROBE_TTL_SEC
     llm = await providers_status()
+    now = __import__("time").monotonic()
+    live = {}
+    for name in llm:
+        row = _probe_cache.get(name)
+        if row:
+            ok, ts, detail = row
+            live[name] = ok and (now - ts) <= _PROBE_TTL_SEC
+        else:
+            live[name] = llm[name]
+    working = [k for k, v in live.items() if v]
     return {
         "status": "ok",
         "mongodb": True,
         "llm_providers": llm,
-        "llm_ready": len(configured_providers()) > 0,
+        "llm_providers_live": live,
+        "llm_ready": len(working) > 0,
         "google_oauth": google_auth.has_client_id(),
     }
 

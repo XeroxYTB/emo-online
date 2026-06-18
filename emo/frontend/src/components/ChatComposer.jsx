@@ -208,6 +208,9 @@ export const ChatComposer = ({
                         {m.id === "auto" && (
                           <p className="text-[10px] mt-0.5 text-muted-em">Bascule auto si quota / erreur</p>
                         )}
+                        {m.id !== "auto" && (
+                          <p className="text-[10px] mt-0.5 text-muted-em">Fallback si indisponible</p>
+                        )}
                       </div>
                     </button>
                   );
