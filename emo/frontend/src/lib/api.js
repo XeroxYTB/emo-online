@@ -42,7 +42,7 @@ http.interceptors.response.use(
   }
 );
 
-export async function streamChat({ conversation_id, content, mode, onEvent }) {
+export async function streamChat({ conversation_id, content, mode, model_preference, onEvent }) {
   const headers = { "Content-Type": "application/json", Accept: "text/event-stream" };
   const token = getSessionToken();
   if (token) {
@@ -55,7 +55,12 @@ export async function streamChat({ conversation_id, content, mode, onEvent }) {
       method: "POST",
       credentials: "include",
       headers,
-      body: JSON.stringify({ conversation_id, content, mode }),
+      body: JSON.stringify({
+        conversation_id,
+        content,
+        mode,
+        model_preference: model_preference || "auto",
+      }),
     });
   } catch (e) {
     onEvent?.({

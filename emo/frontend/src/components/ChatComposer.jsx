@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown } from "lucide-react";
+import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown, Cpu } from "lucide-react";
 
 const MODES = [
   { id: "tech", label: "Tech", Icon: Code, hint: "Code, debug, archi — par défaut" },
@@ -25,11 +25,21 @@ const QUICK_SUGGESTIONS = {
   ],
 };
 
-export const ChatComposer = ({ mode, onChangeMode, onSend, disabled, showSuggestions }) => {
+export const ChatComposer = ({
+  mode, onChangeMode,
+  modelPreference, onChangeModelPreference, availableModels,
+  onSend, disabled, showSuggestions,
+}) => {
   const [value, setValue] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const textareaRef = useRef(null);
   const pickerRef = useRef(null);
+  const modelPickerRef = useRef(null);
+
+  const models = availableModels?.length
+    ? availableModels
+    : [{ id: "auto", label: "Auto (fallback)" }];
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -39,13 +49,14 @@ export const ChatComposer = ({ mode, onChangeMode, onSend, disabled, showSuggest
   }, [value]);
 
   useEffect(() => {
-    if (!pickerOpen) return;
+    if (!pickerOpen && !modelPickerOpen) return;
     const onClick = (e) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target)) setPickerOpen(false);
+      if (modelPickerRef.current && !modelPickerRef.current.contains(e.target)) setModelPickerOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [pickerOpen]);
+  }, [pickerOpen, modelPickerOpen]);
 
   const submit = () => {
     const v = value.trim();
@@ -56,6 +67,10 @@ export const ChatComposer = ({ mode, onChangeMode, onSend, disabled, showSuggest
 
   const currentMode = MODES.find((m) => m.id === mode) || MODES[0];
   const CurrentIcon = currentMode.Icon;
+  const currentModel = models.find((m) => m.id === (modelPreference || "auto")) || models[0];
+  const modelShort = currentModel.id === "auto"
+    ? "Auto"
+    : (currentModel.label || currentModel.id).split("(")[0].trim().slice(0, 18);
 
   return (
     <div className={`mode-${mode} w-full`}>
@@ -100,6 +115,7 @@ export const ChatComposer = ({ mode, onChangeMode, onSend, disabled, showSuggest
           style={{ maxHeight: 180, color: "var(--emo-text)" }}
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
           <div className="relative" ref={pickerRef}>
             <button
               type="button"
@@ -147,6 +163,58 @@ export const ChatComposer = ({ mode, onChangeMode, onSend, disabled, showSuggest
                 })}
               </div>
             )}
+          </div>
+          <div className="relative" ref={modelPickerRef}>
+            <button
+              type="button"
+              data-testid="model-picker-trigger"
+              onClick={() => setModelPickerOpen((o) => !o)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition"
+              style={{
+                background: "rgba(59,130,246,0.10)",
+                border: "1px solid rgba(59,130,246,0.25)",
+                color: "#93c5fd",
+              }}
+              title={currentModel.label || "Modèle IA"}
+            >
+              <Cpu size={12} />
+              <span className="hidden sm:inline max-w-[120px] truncate">{modelShort}</span>
+              <ChevronDown size={11} className={`transition-transform ${modelPickerOpen ? "rotate-180" : ""}`} />
+            </button>
+            {modelPickerOpen && (
+              <div
+                data-testid="model-picker-menu"
+                className="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto rounded-xl py-1 z-30 glass-panel scrollbar-thin"
+                style={{ background: "var(--emo-surface)" }}
+              >
+                {models.map((m) => {
+                  const active = m.id === (modelPreference || "auto");
+                  return (
+                    <button
+                      key={m.id}
+                      data-testid={`model-picker-${m.id.replace(/[:/]/g, "-")}`}
+                      onClick={() => {
+                        onChangeModelPreference?.(m.id);
+                        setModelPickerOpen(false);
+                      }}
+                      className={`w-full flex items-start gap-2 px-3 py-2 text-left text-xs transition ${active ? "" : "hover:bg-white/[0.04]"}`}
+                      style={{ background: active ? "rgba(59,130,246,0.12)" : "transparent" }}
+                    >
+                      <Cpu size={13} className="mt-0.5 flex-shrink-0" style={{ color: active ? "#93c5fd" : "var(--emo-text-secondary)" }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>
+                          {m.label || m.id}
+                        </p>
+                        {m.id === "auto" && (
+                          <p className="text-[10px] mt-0.5 text-muted-em">Bascule auto si quota / erreur</p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           </div>
           <button
             data-testid="send-message-btn"

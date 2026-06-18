@@ -33,7 +33,6 @@ BASIC_MODELS = [
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "anthropic", "model": "claude-3-5-haiku-20241022", "label": "Claude 3.5 Haiku"},
     {"provider": "openrouter", "model": "openai/gpt-4o-mini", "label": "ChatGPT 4o mini (OpenRouter)"},
-    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
 ]
 
 PREMIUM_MODELS = [
@@ -57,8 +56,16 @@ ULTRA_MODELS = [
     {"provider": "deepseek", "model": "deepseek-reasoner", "label": "DeepSeek R1 (Reasoner)"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "openrouter", "model": "openai/gpt-4o", "label": "ChatGPT 4o (OpenRouter)"},
-    {"provider": "gemini", "model": "gemini-2.5-pro-preview-03-25", "label": "Gemini 2.5 Pro"},
+    {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
+    {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite"},
 ]
+
+# Modeles retires / invalides (404 API) — jamais proposes
+BLOCKED_MODELS = frozenset({
+    ("gemini", "gemini-2.5-pro-preview-03-25"),
+    ("gemini", "gemini-1.5-flash"),
+    ("gemini", "gemini-1.5-pro"),
+})
 
 SUBSCRIPTION_PLANS = {
     "free": {
@@ -143,31 +150,88 @@ def tier_allows_local_agent(tier: str) -> bool:
     return tier in PAID_TIERS
 
 
+def model_preference_id(provider: str, model: str) -> str:
+    return f"{provider}:{model}"
+
+
+def parse_model_preference(pref: Optional[str]) -> Optional[tuple[str, str]]:
+    if not pref or pref.strip().lower() in ("", "auto"):
+        return None
+    if ":" not in pref:
+        return None
+    provider, model = pref.split(":", 1)
+    provider, model = provider.strip(), model.strip()
+    if provider and model:
+        return provider, model
+    return None
+
+
 def _provider_ready(provider: str, model: str) -> Optional[tuple[str, str, str]]:
+    if (provider, model) in BLOCKED_MODELS:
+        return None
     if api_key_available(provider):
         return provider, model, model
     return None
 
 
-async def resolve_model_candidates(tier: str) -> list[tuple[str, str, str]]:
+async def resolve_model_candidates(
+    tier: str, preference: Optional[str] = None,
+) -> list[tuple[str, str, str]]:
     """Liste ordonnée des modèles disponibles pour un palier (fallback 429/quota)."""
     plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS["free"])
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str, str]] = []
     for entry in plan["models"] + FREE_MODELS:
         key = (entry["provider"], entry["model"])
-        if key in seen:
+        if key in seen or key in BLOCKED_MODELS:
             continue
         res = _provider_ready(entry["provider"], entry["model"])
         if res:
             seen.add(key)
             p, m, _ = res
             out.append((p, m, entry.get("label", m)))
+
+    pinned = parse_model_preference(preference)
+    if not pinned or not out:
+        return out
+    pp, pm = pinned
+    if (pp, pm) in BLOCKED_MODELS:
+        return out
+    pin_label = pm
+    for entry in plan["models"] + FREE_MODELS:
+        if entry["provider"] == pp and entry["model"] == pm:
+            pin_label = entry.get("label", pm)
+            break
+    pin_item: Optional[tuple[str, str, str]] = None
+    rest: list[tuple[str, str, str]] = []
+    for item in out:
+        if item[0] == pp and item[1] == pm:
+            pin_item = item
+        else:
+            rest.append(item)
+    if pin_item:
+        return [pin_item] + rest
+    if api_key_available(pp):
+        return [(pp, pm, pin_label)] + out
     return out
 
 
-async def resolve_model(tier: str) -> tuple[str, str, str]:
+async def models_for_tier(tier: str) -> list[dict]:
+    """Catalogue UI : auto + modèles disponibles pour le palier."""
     candidates = await resolve_model_candidates(tier)
+    items = [{"id": "auto", "label": "Auto (fallback intelligent)", "provider": None, "model": None}]
+    seen_ids: set[str] = set()
+    for provider, model, label in candidates:
+        mid = model_preference_id(provider, model)
+        if mid in seen_ids:
+            continue
+        seen_ids.add(mid)
+        items.append({"id": mid, "label": label, "provider": provider, "model": model})
+    return items
+
+
+async def resolve_model(tier: str, preference: Optional[str] = None) -> tuple[str, str, str]:
+    candidates = await resolve_model_candidates(tier, preference)
     if not candidates:
         raise ValueError(_MISSING_KEYS_HINT)
     p, m, label = candidates[0]

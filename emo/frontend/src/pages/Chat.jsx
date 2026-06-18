@@ -48,6 +48,10 @@ export default function Chat() {
   const [themeMode, setThemeMode] = useState(
     typeof window !== "undefined" ? (localStorage.getItem("emo_theme_mode") || "dark") : "dark"
   );
+  const [modelPreference, setModelPreference] = useState(
+    typeof window !== "undefined" ? (localStorage.getItem("emo_model_preference") || "auto") : "auto"
+  );
+  const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto (fallback intelligent)" }]);
   const chatAreaRef = useRef(null);
 
   useEffect(() => {
@@ -64,6 +68,19 @@ export default function Chat() {
       if (p.theme_mode) setThemeMode(p.theme_mode);
     });
   }, [authState]);
+
+  useEffect(() => {
+    if (authState !== "ok") return;
+    http.get("/llm/models").then((r) => {
+      if (r.data?.models?.length) setAvailableModels(r.data.models);
+    }).catch(() => {});
+  }, [authState]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("emo_model_preference", modelPreference || "auto");
+    }
+  }, [modelPreference]);
 
   // Apply theme (dark/light/system) to <html>
   useEffect(() => {
@@ -234,6 +251,7 @@ export default function Chat() {
     try {
       await streamChat({
         conversation_id: convId, content: text, mode,
+        model_preference: modelPreference || "auto",
         onEvent: (evt) => {
           pushDebug(evt);
           if (evt.type === "delta") {
@@ -496,6 +514,9 @@ export default function Chat() {
             <ChatComposer
               mode={mode}
               onChangeMode={setMode}
+              modelPreference={modelPreference}
+              onChangeModelPreference={setModelPreference}
+              availableModels={availableModels}
               onSend={handleSend}
               disabled={streaming}
               showSuggestions={!hasMessages}

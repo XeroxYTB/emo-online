@@ -40,7 +40,7 @@ from web_tools import (
     WEB_TOOLS,
 )
 from llm_config import (
-    SUBSCRIPTION_PLANS, get_user_tier, resolve_model, resolve_model_candidates, plans_for_api,
+    SUBSCRIPTION_PLANS, get_user_tier, resolve_model, resolve_model_candidates, models_for_tier, plans_for_api,
     parse_client_reference, tier_allows_local_agent, TIER_RANK, PAID_TIERS,
     stripe_link_for_tier,
 )
@@ -188,6 +188,7 @@ class SendMessageBody(BaseModel):
     conversation_id: str
     content: str
     mode: Optional[str] = "tech"
+    model_preference: Optional[str] = "auto"
 
 
 class MemoryBody(BaseModel):
@@ -544,6 +545,8 @@ def _friendly_llm_error(exc: Exception) -> str:
             return "Credits API epuises sur ce provider. Recharge ton compte ou change de cle."
         if code == 413:
             return "Requete trop volumineuse pour ce modele. Emo reessaie avec un modele plus leger."
+        if code == 404:
+            return "Modele IA introuvable ou retire. Emo bascule sur un autre modele."
         if code == 400:
             lower = _http_response_snippet(exc.response, 500).lower()
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
@@ -567,7 +570,7 @@ def _friendly_llm_error(exc: Exception) -> str:
 
 def _retryable_llm_error(exc: Exception) -> bool:
     code = _llm_http_status(exc)
-    if code in (429, 402, 413, 503, 500, 502, 504):
+    if code in (429, 402, 413, 404, 503, 500, 502, 504):
         return True
     msg = str(exc).lower()
     if code == 400 and any(k in msg for k in (
@@ -581,6 +584,7 @@ def _retryable_llm_error(exc: Exception) -> bool:
         "429" in msg or "rate limit" in msg or "quota" in msg
         or "too many requests" in msg or "credit balance" in msg
         or "too low" in msg or "insufficient" in msg
+        or "not found" in msg or "is not supported" in msg
     )
 
 
@@ -725,6 +729,14 @@ async def llm_status():
     status = await providers_status()
     status["plans"] = plans_for_api()
     return status
+
+
+@api.get("/llm/models")
+async def llm_models(user: User = Depends(get_current_user)):
+    lic = await _get_or_init_license(user.user_id, email=user.email)
+    tier = get_user_tier(lic, is_admin=user.email.lower() in ADMIN_EMAILS)
+    models = await models_for_tier(tier)
+    return {"tier": tier, "models": models, "default": "auto"}
 
 
 @api.get("/subscriptions/plans")
@@ -1633,7 +1645,8 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
         initial_messages.append({"role": role, "content": content})
 
     tier = get_user_tier(lic, is_admin=user.email.lower() in ADMIN_EMAILS)
-    candidates = await resolve_model_candidates(tier)
+    pref = (body.model_preference or "auto").strip() or "auto"
+    candidates = await resolve_model_candidates(tier, pref if pref != "auto" else None)
     if not candidates:
         raise HTTPException(status_code=503, detail="Aucune clé IA configurée dans backend/.env")
 
