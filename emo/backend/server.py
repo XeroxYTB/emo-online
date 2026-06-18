@@ -1506,7 +1506,7 @@ def _compact_llm_payload(
     """Groq free tier has strict TPM limits — shrink prompt/history/tools."""
     if provider != "groq":
         return system_msg, initial_messages, tools
-    max_chars = 7000
+    max_chars = 5000
     compact_sys = system_msg[:max_chars]
     if len(system_msg) > max_chars:
         compact_sys += "\n\n[Contexte tronque pour Groq — reste Émo, tutoie, directe.]"
@@ -1609,11 +1609,11 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
 
     async def event_gen():
         last_error: Optional[Exception] = None
-        blocked_providers: set[str] = set()
+        blocked: set[tuple[str, str]] = set()
         try:
             yield _sse({"type": "ping"})
             for cand_idx, (provider, model, model_label) in enumerate(candidates):
-                if provider in blocked_providers:
+                if (provider, model) in blocked:
                     continue
                 tool_set = (EMO_TOOLS + WEB_TOOLS) if tier_allows_local_agent(tier) or agent_online else WEB_TOOLS
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
@@ -1718,10 +1718,14 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                     last_error = e
                     logger.warning("LLM %s/%s failed: %s", provider, model, e)
                     if not started and _retryable_llm_error(e):
-                        blocked_providers.add(provider)
+                        blocked.add((provider, model))
+                        if _llm_http_status(e) == 401:
+                            for p, m, _ in candidates:
+                                if p == provider:
+                                    blocked.add((p, m))
                         remaining = [
                             c for c in candidates[cand_idx + 1:]
-                            if c[0] not in blocked_providers
+                            if (c[0], c[1]) not in blocked
                         ]
                         if remaining:
                             next_label = remaining[0][2]
