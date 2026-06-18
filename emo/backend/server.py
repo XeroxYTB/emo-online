@@ -328,6 +328,8 @@ async def google_auth_status():
             "javascript_origins": [
                 "http://127.0.0.1:3000",
                 "http://localhost:3000",
+                "http://127.0.0.1:8010",
+                "https://xeroxytb.github.io",
             ],
             "redirect_uris": [google_auth.redirect_uri()],
             "script": "tools/setup-google-oauth.ps1",

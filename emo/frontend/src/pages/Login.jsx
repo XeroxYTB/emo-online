@@ -62,7 +62,6 @@ export default function Login() {
       })
       .catch(() => {
         setGoogleReady(false);
-        toast.error("Backend inaccessible. Relance Emo Online.bat et attends la fin du chargement.");
       });
   }, [navigate]);
 
@@ -121,7 +120,7 @@ export default function Login() {
         style={{ animation: "fadeIn 0.6s ease" }}
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="login-eyes-ring mb-2">
+          <div className="mb-2">
             <EmoEyes mode="normal" mood="curieuse" size={96} />
           </div>
           <h1 className="font-heading text-4xl mt-2 font-semibold tracking-tight">
@@ -134,35 +133,25 @@ export default function Login() {
           </p>
         </div>
 
-        {!desktop && googleReady && (
-          <button
-            type="button"
-            onClick={handleGoogleRedirect}
-            data-testid="google-login-btn"
-            className="login-submit w-full py-3.5 rounded-2xl text-sm font-semibold transition-all hover:brightness-110 mb-2"
-          >
-            Continuer avec Google
-          </button>
-        )}
-
-        {desktop && googleReady && (
-          <button
-            type="button"
-            onClick={handleGoogleRedirect}
-            className="login-submit w-full py-3.5 rounded-2xl text-sm font-semibold transition-all hover:brightness-110 mb-2"
-          >
-            Continuer avec Google
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleGoogleRedirect}
+          data-testid="google-login-btn"
+          className="google-btn w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl text-sm font-medium transition-all hover:brightness-105 mb-2"
+        >
+          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.24 5.45-4.78 7.12l7.73 6.01C43.44 37.74 46.98 31.64 46.98 24.55z" />
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+          </svg>
+          Continuer avec Google
+        </button>
 
         {!googleReady && (
-          <button
-            type="button"
-            disabled
-            className="w-full flex items-center justify-center gap-3 py-3 rounded-2xl glass-card text-sm font-medium opacity-40"
-          >
-            Google non configure
-          </button>
+          <p className="text-[11px] text-center text-muted-em mb-1 -mt-1">
+            Connexion Google disponible quand l&apos;API backend est en ligne.
+          </p>
         )}
 
         <div className="flex items-center my-5">
