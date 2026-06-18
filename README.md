@@ -1,17 +1,27 @@
+---
+title: Emo Online API
+emoji: 🧠
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 8010
+pinned: false
+---
+
 # Emo Online
 
-IA personnelle — **frontend** sur GitHub Pages, **API + agent** sur Koyeb.
+IA personnelle — **frontend** sur GitHub Pages, **API + agent** sur Hugging Face Spaces (gratuit, sans carte).
 
 - Site : https://xeroxytb.github.io/emo-online
-- API : https://emo-online-api.koyeb.app
+- API : https://xeroxytb-emo-online-api.hf.space
 - Guide complet : [DEPLOY.md](DEPLOY.md)
 
 ## Déploiement rapide
 
 1. **GitHub Pages** : Settings → Pages → Source = GitHub Actions
-2. **Secrets** : `KOYEB_TOKEN`, `MONGO_URL`, `GOOGLE_CLIENT_*`, `OPENAI_API_KEY`, `STRIPE_*`
-3. **Koyeb** : compte gratuit + token API
-4. Push sur `main` → workflow **Deploy**
+2. **Hugging Face Space** : [créer le Space Docker](https://huggingface.co/new-space?sdk=docker) lié au repo `emo-online`
+3. **Secrets HF Space** : `MONGO_URL`, `GOOGLE_CLIENT_*`, clés LLM (Settings → Variables)
+4. Push sur `main` → API rebuild HF + frontend GitHub Pages
 
 ## Dev local
 
@@ -33,6 +43,5 @@ npm start
 emo/backend/     FastAPI + MongoDB + LLM + Stripe + agent relay
 emo/frontend/    React (GitHub Pages)
 emo/agent-go/    Agent local (Windows/macOS/Linux)
-Dockerfile       Image API pour Koyeb
-scripts/         koyeb-deploy.sh
+Dockerfile       Image API pour Hugging Face Spaces
 ```

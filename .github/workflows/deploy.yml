@@ -16,35 +16,29 @@ concurrency:
 
 env:
   FRONTEND_URL: https://xeroxytb.github.io/emo-online
-  KOYEB_APP_NAME: emo-online-api
-  BACKEND_URL: https://emo-online-api.koyeb.app
+  BACKEND_URL: https://xeroxytb-emo-online-api.hf.space
 
 jobs:
   deploy-backend:
-    name: Backend (Koyeb)
+    name: Backend (Hugging Face)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy API to Koyeb
+      - name: Push to Hugging Face Space
         env:
-          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
-          MONGO_URL: ${{ secrets.MONGO_URL }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
-          STRIPE_BASIC_LINK: ${{ secrets.STRIPE_BASIC_LINK }}
-          STRIPE_PREMIUM_LINK: ${{ secrets.STRIPE_PREMIUM_LINK }}
-          STRIPE_ULTRA_LINK: ${{ secrets.STRIPE_ULTRA_LINK }}
-          EMO_ADMIN_EMAILS: ${{ secrets.EMO_ADMIN_EMAILS }}
-          EMO_PUBLIC_BACKEND_URL: ${{ env.BACKEND_URL }}
-          EMO_FRONTEND_URL: ${{ env.FRONTEND_URL }}
-        run: bash scripts/koyeb-deploy.sh
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::warning::HF_TOKEN absent — crée le Space sur huggingface.co puis ajoute HF_TOKEN dans GitHub Secrets"
+            echo "Space: https://huggingface.co/spaces/XeroxYTB/emo-online-api"
+            exit 0
+          fi
+          git config user.email "emo@users.noreply.github.com"
+          git config user.name "Emo Online"
+          git remote remove space 2>/dev/null || true
+          git remote add space "https://XeroxYTB:${HF_TOKEN}@huggingface.co/spaces/XeroxYTB/emo-online-api"
+          git push space HEAD:main --force
 
   deploy-pages:
     name: Frontend (GitHub Pages)

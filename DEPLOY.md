@@ -1,48 +1,55 @@
-# Déploiement Emo Online — GitHub Pages + Koyeb
+# Déploiement Emo Online — GitHub Pages + Hugging Face Spaces
 
 ## Architecture
 
 | Composant | Hébergement | URL |
 |-----------|-------------|-----|
 | **Frontend** (React) | GitHub Pages | https://xeroxytb.github.io/emo-online |
-| **API** (FastAPI, LLM, Stripe, agent) | Koyeb (Docker) | https://emo-online-api.koyeb.app |
+| **API** (FastAPI, LLM, Stripe, agent) | Hugging Face Spaces (Docker) | https://xeroxytb-emo-online-api.hf.space |
 | **MongoDB** | MongoDB Atlas | cluster EmoCluster |
 
-GitHub Pages ne peut pas exécuter Python — l’API tourne sur **Koyeb** (gratuit, sans carte bancaire).
+**Gratuit, sans carte bancaire** (Fly.io et Koyeb demandent une carte).
 
 ---
 
-## 1. Activer GitHub Pages
+## 1. GitHub Pages
 
-1. Repo **Settings** → **Pages**
-2. **Source** : **GitHub Actions**
+Settings → **Pages** → Source = **GitHub Actions**
 
 ---
 
-## 2. Secrets GitHub (Settings → Secrets → Actions)
+## 2. Créer le Space Hugging Face (1 fois)
 
-| Secret | Description |
-|--------|-------------|
-| `KOYEB_TOKEN` | Token API depuis [app.koyeb.com/settings/api](https://app.koyeb.com/settings/api) |
+1. Compte gratuit : [huggingface.co/join](https://huggingface.co/join) (GitHub OK)
+2. Crée un Space : [new-space?sdk=docker](https://huggingface.co/new-space?sdk=docker)
+   - Owner : `XeroxYTB`
+   - Name : `emo-online-api`
+   - SDK : **Docker**
+   - Visibility : **Public**
+3. Token HF : [Settings → Access Tokens](https://huggingface.co/settings/tokens) (Write)
+   - Secret GitHub : `HF_TOKEN`
+
+---
+
+## 3. Secrets du Space HF (Settings → Variables and secrets)
+
+Dans le Space `emo-online-api` → **Settings** → **Variables and secrets** :
+
+| Variable | Valeur |
+|----------|--------|
 | `MONGO_URL` | URI MongoDB Atlas |
 | `DB_NAME` | `emo` |
-| `GOOGLE_CLIENT_ID` | Google Cloud Console |
+| `EMO_PUBLIC_BACKEND_URL` | `https://xeroxytb-emo-online-api.hf.space` |
+| `EMO_FRONTEND_URL` | `https://xeroxytb.github.io/emo-online` |
+| `CORS_ORIGINS` | `https://xeroxytb.github.io` |
+| `GOOGLE_CLIENT_ID` | Google Console |
 | `GOOGLE_CLIENT_SECRET` | idem |
 | `OPENAI_API_KEY` | au moins une clé LLM |
-| `STRIPE_*` | optionnel |
+| `ANTHROPIC_API_KEY` | optionnel |
+| `GEMINI_API_KEY` | optionnel |
+| `EMO_ADMIN_EMAILS` | ton email |
 
-Optionnel : `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, liens Stripe.
-
----
-
-## 3. Koyeb (backend API)
-
-1. Compte gratuit : [app.koyeb.com](https://app.koyeb.com) → **Continue with GitHub**
-2. Installe l’app Koyeb sur le repo `emo-online`
-3. **Settings → API** → crée un token → secret GitHub `KOYEB_TOKEN`
-4. Atlas **Network Access** : autorise `0.0.0.0/0`
-
-Premier déploiement : push sur `main` ou **Actions → Deploy → Run workflow**.
+Atlas **Network Access** : autorise `0.0.0.0/0`.
 
 ---
 
@@ -50,22 +57,28 @@ Premier déploiement : push sur `main` ou **Actions → Deploy → Run workflow*
 
 [Google Cloud Console](https://console.cloud.google.com/apis/credentials) :
 
-- **Origines JavaScript** : `https://xeroxytb.github.io`
-- **URI de redirection** : `https://emo-online-api.koyeb.app/api/auth/google/callback`
+- **Origines JS** : `https://xeroxytb.github.io`
+- **Redirect URI** : `https://xeroxytb-emo-online-api.hf.space/api/auth/google/callback`
 
 ---
 
-## 5. Vérifier
+## 5. Déployer
 
-- Site : https://xeroxytb.github.io/emo-online
-- API : https://emo-online-api.koyeb.app/api/health
-- Agent : panneau **Agent** → télécharger `Emo-Agent.exe`
+Push sur `main` → workflow **Deploy** :
+
+1. Push le code vers le Space HF (si `HF_TOKEN` configuré)
+2. HF rebuild le Docker automatiquement
+3. Publie le frontend sur GitHub Pages
+
+Test API : https://xeroxytb-emo-online-api.hf.space/api/health
+
+**Important** : utilise l’URL `*.hf.space`, pas la page Hub (`huggingface.co/spaces/...`).
 
 ---
 
-## Déploiement manuel (local)
+## Dev local
 
-```bash
-# Token Koyeb + secrets dans l'environnement, puis :
-bash scripts/koyeb-deploy.sh
+```cmd
+cd emo\backend && start.bat
+cd emo\frontend && npm start
 ```
