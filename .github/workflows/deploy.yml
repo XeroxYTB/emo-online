@@ -16,21 +16,19 @@ concurrency:
 
 env:
   FRONTEND_URL: https://xeroxytb.github.io/emo-online
-  FLY_APP: emo-online-xeroxytb
-  BACKEND_URL: https://emo-online-xeroxytb.fly.dev
+  KOYEB_APP_NAME: emo-online-api
+  BACKEND_URL: https://emo-online-api.koyeb.app
 
 jobs:
   deploy-backend:
-    name: Backend (Fly.io)
+    name: Backend (Koyeb)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy API to Fly.io
+      - name: Deploy API to Koyeb
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
           MONGO_URL: ${{ secrets.MONGO_URL }}
           DB_NAME: ${{ secrets.DB_NAME }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
@@ -44,36 +42,9 @@ jobs:
           STRIPE_PREMIUM_LINK: ${{ secrets.STRIPE_PREMIUM_LINK }}
           STRIPE_ULTRA_LINK: ${{ secrets.STRIPE_ULTRA_LINK }}
           EMO_ADMIN_EMAILS: ${{ secrets.EMO_ADMIN_EMAILS }}
-        run: |
-          set -e
-          if [ -z "$FLY_API_TOKEN" ]; then
-            echo "::warning::FLY_API_TOKEN absent — ajoute-le dans GitHub Secrets puis relance Deploy"
-            exit 0
-          fi
-          if [ -z "$MONGO_URL" ]; then
-            echo "::warning::MONGO_URL absent — ajoute MongoDB Atlas dans GitHub Secrets"
-            exit 0
-          fi
-          flyctl apps list 2>/dev/null | grep -q "${{ env.FLY_APP }}" || flyctl apps create "${{ env.FLY_APP }}" --org personal
-          flyctl secrets set \
-            MONGO_URL="$MONGO_URL" \
-            DB_NAME="${DB_NAME:-emo}" \
-            EMO_PUBLIC_BACKEND_URL="${{ env.BACKEND_URL }}" \
-            EMO_FRONTEND_URL="${{ env.FRONTEND_URL }}" \
-            CORS_ORIGINS="https://xeroxytb.github.io" \
-            GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
-            GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
-            OPENAI_API_KEY="$OPENAI_API_KEY" \
-            ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-            GEMINI_API_KEY="$GEMINI_API_KEY" \
-            GROQ_API_KEY="$GROQ_API_KEY" \
-            STRIPE_API_KEY="$STRIPE_API_KEY" \
-            STRIPE_BASIC_LINK="$STRIPE_BASIC_LINK" \
-            STRIPE_PREMIUM_LINK="$STRIPE_PREMIUM_LINK" \
-            STRIPE_ULTRA_LINK="$STRIPE_ULTRA_LINK" \
-            EMO_ADMIN_EMAILS="$EMO_ADMIN_EMAILS" \
-            --app "${{ env.FLY_APP }}"
-          flyctl deploy --remote-only --app "${{ env.FLY_APP }}"
+          EMO_PUBLIC_BACKEND_URL: ${{ env.BACKEND_URL }}
+          EMO_FRONTEND_URL: ${{ env.FRONTEND_URL }}
+        run: bash scripts/koyeb-deploy.sh
 
   deploy-pages:
     name: Frontend (GitHub Pages)

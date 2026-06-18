@@ -1,16 +1,16 @@
 # Emo Online
 
-IA personnelle — **frontend** sur GitHub Pages, **API + agent** sur Fly.io (ou AWS/GCP/Azure).
+IA personnelle — **frontend** sur GitHub Pages, **API + agent** sur Koyeb.
 
 - Site : https://xeroxytb.github.io/emo-online
-- API : https://emo-online-xeroxytb.fly.dev
+- API : https://emo-online-api.koyeb.app
 - Guide complet : [DEPLOY.md](DEPLOY.md)
 
 ## Déploiement rapide
 
 1. **GitHub Pages** : Settings → Pages → Source = GitHub Actions
-2. **Secrets** : `FLY_API_TOKEN`, `MONGO_URL`, `GOOGLE_CLIENT_*`, `OPENAI_API_KEY`, `STRIPE_*`
-3. **Fly.io** : `fly apps create emo-online-xeroxytb`
+2. **Secrets** : `KOYEB_TOKEN`, `MONGO_URL`, `GOOGLE_CLIENT_*`, `OPENAI_API_KEY`, `STRIPE_*`
+3. **Koyeb** : compte gratuit + token API
 4. Push sur `main` → workflow **Deploy**
 
 ## Dev local
@@ -32,7 +32,7 @@ npm start
 ```
 emo/backend/     FastAPI + MongoDB + LLM + Stripe + agent relay
 emo/frontend/    React (GitHub Pages)
-emo/agent-go/    Agent local (1 exe + permissions)
+emo/agent-go/    Agent local (Windows/macOS/Linux)
+Dockerfile       Image API pour Koyeb
+scripts/         koyeb-deploy.sh
 ```
-
-Voir [DEPLOY.md](DEPLOY.md) pour OAuth Google, Atlas, et alternatives cloud.

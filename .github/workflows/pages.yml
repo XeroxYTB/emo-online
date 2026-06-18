@@ -34,7 +34,7 @@ jobs:
         env:
           CI: false
           DISABLE_ESLINT_PLUGIN: true
-          REACT_APP_BACKEND_URL: https://emo-online-xeroxytb.fly.dev
+          REACT_APP_BACKEND_URL: https://emo-online-api.koyeb.app
         run: |
           npm ci --legacy-peer-deps || npm install
           npm run build
