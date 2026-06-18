@@ -1580,7 +1580,7 @@ def _compact_llm_payload(
     agent_online: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq free tier has strict TPM limits — short prompt + essential tools only."""
-    if provider not in ("groq", "gemini"):
+    if provider not in ("groq", "gemini", "huggingface"):
         return system_msg, initial_messages, tools
     compact_sys = build_compact_system_prompt(mode, user_name=user_name, agent_online=agent_online)
     non_system = [m for m in initial_messages if m.get("role") != "system"]

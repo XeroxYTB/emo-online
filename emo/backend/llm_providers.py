@@ -18,6 +18,7 @@ PROVIDER_KEYS = {
     "groq": ["GROQ_API_KEY"],
     "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
     "openrouter": ["OPENROUTER_API_KEY"],
+    "huggingface": ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
 }
 
 

@@ -11,6 +11,11 @@ from typing import Any, AsyncIterator, Optional
 import httpx
 
 try:
+    from huggingface_hub import InferenceClient
+except ImportError:
+    InferenceClient = None  # type: ignore
+
+try:
     from anthropic import AsyncAnthropic
 except ImportError:
     AsyncAnthropic = None  # type: ignore
@@ -149,6 +154,9 @@ class LlmChat:
                 yield ev
         elif self._provider == "gemini":
             async for ev in self._stream_gemini():
+                yield ev
+        elif self._provider == "huggingface":
+            async for ev in self._stream_huggingface():
                 yield ev
         elif self._provider in ("groq", "openrouter", "openai", "deepseek"):
             async for ev in self._stream_openai_compat():
@@ -357,6 +365,52 @@ class LlmChat:
                             if part.get("text"):
                                 turn_text += part["text"]
                                 yield TextDelta(content=part["text"])
+
+        self._messages.append({"role": "assistant", "content": turn_text})
+        yield StreamDone(tool_calls=[])
+
+    async def _stream_huggingface(self) -> AsyncIterator[Any]:
+        if InferenceClient is None:
+            raise ValueError("Package huggingface_hub non installé")
+        key = self._key()
+        client = InferenceClient(token=key)
+        messages = []
+        if self._system_message:
+            messages.append({"role": "system", "content": self._system_message})
+        for m in self._messages:
+            role = m.get("role")
+            content = m.get("content")
+            if role in ("user", "assistant") and content is not None:
+                messages.append({"role": role, "content": content if isinstance(content, str) else str(content)})
+
+        turn_text = ""
+        try:
+            stream = client.chat_completion(
+                messages=messages,
+                model=self._model,
+                max_tokens=2048,
+                stream=True,
+            )
+            for chunk in stream:
+                delta = ""
+                try:
+                    choices = getattr(chunk, "choices", None) or []
+                    if choices:
+                        choice = choices[0]
+                        msg = getattr(choice, "delta", None) or getattr(choice, "message", None)
+                        if msg is not None:
+                            delta = getattr(msg, "content", None) or ""
+                except Exception:
+                    delta = ""
+                if delta:
+                    turn_text += delta
+                    yield TextDelta(content=delta)
+        except Exception as exc:
+            raise httpx.HTTPStatusError(
+                f"huggingface API: {exc}",
+                request=httpx.Request("POST", "https://router.huggingface.co"),
+                response=httpx.Response(503, text=str(exc)),
+            ) from exc
 
         self._messages.append({"role": "assistant", "content": turn_text})
         yield StreamDone(tool_calls=[])

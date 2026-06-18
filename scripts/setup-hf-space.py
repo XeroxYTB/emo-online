@@ -21,6 +21,8 @@ SECRETS = [
     "ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
     "GROQ_API_KEY",
+    "OPENROUTER_API_KEY",
+    "HF_TOKEN",
     "STRIPE_API_KEY",
 ]
 

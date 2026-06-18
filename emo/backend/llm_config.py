@@ -13,8 +13,23 @@ from llm_providers import api_key_available
 
 # Modèles cloud reconnus (ChatGPT, Claude, DeepSeek, Gemini…)
 # Priorite fallback : Groq gratuit d'abord, puis OpenAI/Gemini, Claude en dernier
+# Fallback gratuit : Groq → HF Inference → OpenRouter free → APIs payantes
+HF_FREE_MODELS = [
+    {"provider": "huggingface", "model": "HuggingFaceH4/zephyr-7b-beta", "label": "Zephyr 7B (HF — gratuit)"},
+    {"provider": "huggingface", "model": "Qwen/Qwen2.5-7B-Instruct", "label": "Qwen 2.5 7B (HF — gratuit)"},
+    {"provider": "huggingface", "model": "microsoft/Phi-3-mini-4k-instruct", "label": "Phi-3 Mini (HF — gratuit)"},
+]
+
+OPENROUTER_FREE_MODELS = [
+    {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct:free", "label": "Llama 3.3 70B Free (OpenRouter)"},
+    {"provider": "openrouter", "model": "google/gemma-2-9b-it:free", "label": "Gemma 2 9B Free (OpenRouter)"},
+    {"provider": "openrouter", "model": "qwen/qwen-2.5-72b-instruct:free", "label": "Qwen 2.5 72B Free (OpenRouter)"},
+]
+
 FREE_MODELS = [
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    *HF_FREE_MODELS,
+    *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
@@ -27,6 +42,8 @@ FREE_MODELS = [
 
 BASIC_MODELS = [
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    *HF_FREE_MODELS,
+    *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
@@ -37,6 +54,7 @@ BASIC_MODELS = [
 
 PREMIUM_MODELS = [
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    *HF_FREE_MODELS,
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
     {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022", "label": "Claude 3.5 Sonnet"},
@@ -49,6 +67,8 @@ PREMIUM_MODELS = [
 
 ULTRA_MODELS = [
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    *HF_FREE_MODELS,
+    *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "anthropic", "model": "claude-opus-4-20250514", "label": "Claude Opus 4"},
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
@@ -187,7 +207,7 @@ async def resolve_model_candidates(
     plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS["free"])
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str, str]] = []
-    for entry in plan["models"] + FREE_MODELS:
+    for entry in plan["models"] + FREE_MODELS + HF_FREE_MODELS + OPENROUTER_FREE_MODELS:
         key = (entry["provider"], entry["model"])
         if key in seen or key in BLOCKED_MODELS:
             continue
@@ -206,7 +226,7 @@ async def resolve_model_candidates(
         return out
 
     pin_label = pm
-    for entry in plan["models"] + FREE_MODELS:
+    for entry in plan["models"] + FREE_MODELS + HF_FREE_MODELS + OPENROUTER_FREE_MODELS:
         if entry["provider"] == pp and entry["model"] == pm:
             pin_label = entry.get("label", pm)
             break
@@ -247,6 +267,7 @@ def get_api_key(provider: str, fallback: str = "") -> str:
         "groq": ["GROQ_API_KEY"],
         "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
         "openrouter": ["OPENROUTER_API_KEY"],
+        "huggingface": ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
     }
     for key in mapping.get(provider, []):
         val = os.environ.get(key, "").strip()
