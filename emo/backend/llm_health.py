@@ -23,7 +23,7 @@ _PROBE_MODELS = {
     "anthropic": ("claude-3-5-haiku-20241022", None),
     "deepseek": ("https://api.deepseek.com/chat/completions", "deepseek-chat"),
     "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "meta-llama/llama-3.3-70b-instruct:free"),
-    "huggingface": ("https://router.huggingface.co/v1/chat/completions", "meta-llama/Llama-3.2-3B-Instruct"),
+    "huggingface": ("https://router.huggingface.co/v1/chat/completions", "meta-llama/Llama-3.3-70B-Instruct"),
 }
 
 

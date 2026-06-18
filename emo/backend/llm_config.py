@@ -15,9 +15,8 @@ from llm_providers import api_key_available
 # Priorite fallback : Groq gratuit d'abord, puis OpenAI/Gemini, Claude en dernier
 # Fallback gratuit : Groq → HF Inference → OpenRouter free → APIs payantes
 HF_FREE_MODELS = [
-    {"provider": "huggingface", "model": "meta-llama/Llama-3.2-3B-Instruct", "label": "Llama 3.2 3B (HF — gratuit)"},
     {"provider": "huggingface", "model": "meta-llama/Llama-3.3-70B-Instruct", "label": "Llama 3.3 70B (HF — gratuit)"},
-    {"provider": "huggingface", "model": "Qwen/Qwen2.5-7B-Instruct", "label": "Qwen 2.5 7B (HF — gratuit)"},
+    {"provider": "huggingface", "model": "moonshotai/Kimi-K2-Instruct-0905", "label": "Kimi K2 (HF — gratuit)"},
 ]
 
 OPENROUTER_FREE_MODELS = [
