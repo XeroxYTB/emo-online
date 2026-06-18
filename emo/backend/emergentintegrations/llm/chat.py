@@ -163,6 +163,11 @@ class LlmChat:
             raise ValueError(f"Clé API manquante pour {self._provider}")
         return key
 
+    async def _ensure_stream_ok(self, resp: httpx.Response) -> None:
+        if resp.is_error:
+            await resp.aread()
+        resp.raise_for_status()
+
     async def _stream_anthropic(self) -> AsyncIterator[Any]:
         if AsyncAnthropic is None:
             raise ValueError("Package anthropic non installé")
@@ -260,7 +265,7 @@ class LlmChat:
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", f"{base}/chat/completions", headers=headers, json=body) as resp:
-                resp.raise_for_status()
+                await self._ensure_stream_ok(resp)
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
                         continue
@@ -329,7 +334,7 @@ class LlmChat:
         turn_text = ""
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", url, json=payload) as resp:
-                resp.raise_for_status()
+                await self._ensure_stream_ok(resp)
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
                         continue

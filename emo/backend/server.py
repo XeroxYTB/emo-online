@@ -510,6 +510,19 @@ def _llm_http_status(exc: Exception) -> Optional[int]:
     return None
 
 
+def _http_response_snippet(resp: httpx.Response, max_len: int = 200) -> str:
+    try:
+        text = resp.text or ""
+    except httpx.ResponseNotRead:
+        try:
+            text = resp.read().decode("utf-8", errors="replace")
+        except Exception:
+            return ""
+    except Exception:
+        return ""
+    return text[:max_len]
+
+
 def _friendly_llm_error(exc: Exception) -> str:
     code = _llm_http_status(exc)
     if isinstance(exc, httpx.HTTPStatusError):
@@ -521,12 +534,15 @@ def _friendly_llm_error(exc: Exception) -> str:
         if code == 402:
             return "Credits API epuises sur ce provider. Recharge ton compte ou change de cle."
         if code == 400:
-            lower = exc.response.text.lower()
+            lower = _http_response_snippet(exc.response, 500).lower()
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
                 return "Credits Anthropic epuises. Emo bascule sur ChatGPT ou Gemini."
-        return _sanitize_error_msg(f"Erreur API ({code}): {exc.response.text[:200]}")
+        snippet = _http_response_snippet(exc.response)
+        return _sanitize_error_msg(f"Erreur API ({code}): {snippet}" if snippet else f"Erreur API ({code})")
     msg = _sanitize_error_msg(str(exc))
     lower = msg.lower()
+    if "attempted to access streaming response content" in lower:
+        return "Erreur temporaire de l'API IA. Reessaie — Emo bascule sur un autre modele si besoin."
     if code == 400 and any(k in lower for k in ("credit balance", "too low", "insufficient", "billing")):
         return "Credits Anthropic epuises. Emo bascule sur ChatGPT ou Gemini."
     if "429" in msg or "rate limit" in lower or "quota" in lower or "too many requests" in lower:
