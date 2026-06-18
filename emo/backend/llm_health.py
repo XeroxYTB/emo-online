@@ -23,7 +23,7 @@ _PROBE_MODELS = {
     "anthropic": ("claude-3-5-haiku-20241022", None),
     "deepseek": ("https://api.deepseek.com/chat/completions", "deepseek-chat"),
     "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "meta-llama/llama-3.3-70b-instruct:free"),
-    "huggingface": ("HuggingFaceH4/zephyr-7b-beta", None),
+    "huggingface": ("https://router.huggingface.co/v1/chat/completions", "meta-llama/Llama-3.2-3B-Instruct"),
 }
 
 
@@ -110,27 +110,6 @@ async def _probe_anthropic(model: str, key: str) -> tuple[bool, str]:
         return False, str(e)[:200]
 
 
-async def _probe_huggingface(model: str, key: str) -> tuple[bool, str]:
-    try:
-        from huggingface_hub import InferenceClient
-    except ImportError:
-        return False, "huggingface_hub missing"
-    try:
-        client = InferenceClient(token=key)
-        out = client.chat_completion(
-            messages=[{"role": "user", "content": "Reply OK"}],
-            model=model,
-            max_tokens=8,
-            stream=False,
-        )
-        text = ""
-        if out and getattr(out, "choices", None):
-            text = getattr(out.choices[0].message, "content", "") or ""
-        return (True, "ok") if text else (False, "empty response")
-    except Exception as e:
-        return False, str(e)[:200]
-
-
 async def probe_provider(provider: str) -> tuple[bool, str]:
     key = get_api_key(provider)
     if not key:
@@ -142,7 +121,8 @@ async def probe_provider(provider: str) -> tuple[bool, str]:
     elif provider == "anthropic":
         ok, msg = await _probe_anthropic(_PROBE_MODELS["anthropic"][0], key)
     elif provider == "huggingface":
-        ok, msg = await _probe_huggingface(_PROBE_MODELS["huggingface"][0], key)
+        url, model = _PROBE_MODELS["huggingface"]
+        ok, msg = await _probe_openai_compat("huggingface", url, model, key)
     else:
         url, model = _PROBE_MODELS[provider]
         ok, msg = await _probe_openai_compat(provider, url, model, key)
