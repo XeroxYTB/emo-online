@@ -23,10 +23,10 @@ FREE_MODELS = [
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "openrouter", "model": "openai/gpt-4o-mini", "label": "ChatGPT 4o mini (OpenRouter)"},
     {"provider": "openrouter", "model": "deepseek/deepseek-chat", "label": "DeepSeek Chat (OpenRouter)"},
-    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
 ]
 
 BASIC_MODELS = [
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
@@ -37,6 +37,7 @@ BASIC_MODELS = [
 ]
 
 PREMIUM_MODELS = [
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
     {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022", "label": "Claude 3.5 Sonnet"},
@@ -48,6 +49,7 @@ PREMIUM_MODELS = [
 ]
 
 ULTRA_MODELS = [
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "anthropic", "model": "claude-opus-4-20250514", "label": "Claude Opus 4"},
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},

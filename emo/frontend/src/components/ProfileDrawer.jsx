@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { http, API, BACKEND_URL } from "../lib/api";
-import { X, User as UserIcon, Sparkles, Palette, ShieldCheck, AlertTriangle, Trash2, LogOut, Save, Moon, Sun, Monitor, Package, Download } from "lucide-react";
+import { X, User as UserIcon, Sparkles, Palette, ShieldCheck, AlertTriangle, Trash2, LogOut, Save, Moon, Sun, Monitor, Package, Download, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { SubscriptionSection } from "./SubscriptionPlans";
+import AgentPermissionsPanel from "./AgentPermissionsPanel";
 
 const THEME_OPTIONS = [
   { id: "dark", label: "Sombre", Icon: Moon },
@@ -10,7 +11,7 @@ const THEME_OPTIONS = [
   { id: "system", label: "Système", Icon: Monitor },
 ];
 
-export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesChange }) {
+export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesChange, agentOnline }) {
   const [profile, setProfile] = useState(null);
   const [name, setName] = useState("");
   const [addon, setAddon] = useState("");
@@ -143,6 +144,14 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                   onRefresh={refreshProfile}
                   onReset={profile.license.is_admin ? resetLicense : null}
                 />
+              </Section>
+
+              {/* Agent local — permissions */}
+              <Section icon={Shield} label="Agent local & permissions">
+                <AgentPermissionsPanel agentOnline={agentOnline} />
+                <p className="text-[10px] text-muted-em mt-2">
+                  Les permissions s&apos;appliquent sur ton PC via Emo-Agent (127.0.0.1:17841). Le chat et les LLM restent sur le cloud.
+                </p>
               </Section>
 
               {/* Theme mode */}

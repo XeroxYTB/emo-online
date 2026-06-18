@@ -37,12 +37,28 @@ func runGUI(initialBackend, initialToken string) {
 		st.token = resolveToken("")
 	}
 
+	withCORS := func(h http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin == "https://xeroxytb.github.io" || strings.HasPrefix(origin, "http://127.0.0.1") || strings.HasPrefix(origin, "http://localhost") {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			h(w, r)
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(guiHTML))
 	})
-	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/state", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		st.mu.Lock()
 		defer st.mu.Unlock()
 		writeJSON(w, map[string]interface{}{
@@ -53,8 +69,8 @@ func runGUI(initialBackend, initialToken string) {
 			"error":     st.lastError,
 			"permissions": st.perms,
 		})
-	})
-	mux.HandleFunc("/api/save", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	mux.HandleFunc("/api/save", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -86,8 +102,8 @@ func runGUI(initialBackend, initialToken string) {
 		}
 		st.mu.Unlock()
 		writeJSON(w, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("/api/start", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	mux.HandleFunc("/api/start", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -108,8 +124,8 @@ func runGUI(initialBackend, initialToken string) {
 		st.lastError = ""
 		go st.runAgent(ctx)
 		writeJSON(w, map[string]bool{"ok": true})
-	})
-	mux.HandleFunc("/api/stop", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	mux.HandleFunc("/api/stop", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method", http.StatusMethodNotAllowed)
 			return
@@ -122,7 +138,7 @@ func runGUI(initialBackend, initialToken string) {
 		st.connected = false
 		st.mu.Unlock()
 		writeJSON(w, map[string]bool{"ok": true})
-	})
+	}))
 
 	addr := "127.0.0.1:17841"
 	go func() {
@@ -138,13 +154,6 @@ func (st *guiState) runAgent(ctx context.Context) {
 	backend, token := st.backend, st.token
 	st.mu.Unlock()
 
-	go func() {
-		time.Sleep(2 * time.Second)
-		st.mu.Lock()
-		st.connected = true
-		st.mu.Unlock()
-	}()
-
 	defer func() {
 		st.mu.Lock()
 		st.running = false
@@ -152,7 +161,11 @@ func (st *guiState) runAgent(ctx context.Context) {
 		st.mu.Unlock()
 	}()
 
-	run(ctx, backend, token)
+	runWithStatus(ctx, backend, token, func(ok bool) {
+		st.mu.Lock()
+		st.connected = ok
+		st.mu.Unlock()
+	})
 }
 
 func (st *guiState) checkPermissions(tool string) bool {

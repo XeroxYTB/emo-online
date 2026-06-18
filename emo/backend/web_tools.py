@@ -2,9 +2,14 @@
 import ssl_fix  # noqa: F401
 
 import asyncio
+import ast
 import httpx
-import re
+import json
 import logging
+import math
+import operator
+import re
+from datetime import datetime, timezone
 from urllib.parse import quote_plus, urljoin, urlparse
 from bs4 import BeautifulSoup
 
@@ -220,6 +225,89 @@ async def web_fetch(url: str, max_chars: int = 12000) -> dict:
         return {"ok": False, "error": str(e), "url": url}
 
 
+async def get_datetime(tz_hint: str = "UTC") -> dict:
+    now = datetime.now(timezone.utc)
+    return {
+        "ok": True,
+        "iso": now.isoformat(),
+        "unix": int(now.timestamp()),
+        "timezone": tz_hint or "UTC",
+        "weekday": now.strftime("%A"),
+    }
+
+
+async def web_fetch_json(url: str, max_chars: int = 8000) -> dict:
+    if not url or not url.startswith(("http://", "https://")):
+        return {"ok": False, "error": "URL invalide"}
+    try:
+        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}, follow_redirects=True) as client:
+            r = await client.get(url)
+        if r.status_code >= 400:
+            return {"ok": False, "error": f"HTTP {r.status_code}", "url": url}
+        text = r.text[:max_chars]
+        try:
+            data = json.loads(text)
+            return {"ok": True, "url": str(r.url), "json": data}
+        except json.JSONDecodeError:
+            return {"ok": True, "url": str(r.url), "text": text, "note": "not valid JSON"}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "url": url}
+
+
+async def github_search(query: str, limit: int = 8) -> dict:
+    q = (query or "").strip()
+    if not q:
+        return {"ok": False, "error": "query missing"}
+    return await web_search(q, limit=min(limit, 15), focus="code")
+
+
+async def stackoverflow_search(query: str, limit: int = 8) -> dict:
+    q = (query or "").strip()
+    if not q:
+        return {"ok": False, "error": "query missing"}
+    return await web_search(f"{q} site:stackoverflow.com", limit=min(limit, 15), focus="code")
+
+
+_SAFE_OPS = {
+    ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+    ast.Div: operator.truediv, ast.Pow: operator.pow, ast.Mod: operator.mod,
+    ast.USub: operator.neg, ast.UAdd: operator.pos,
+}
+
+
+def _safe_eval(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_OPS:
+        return _SAFE_OPS[type(node.op)](_safe_eval(node.left), _safe_eval(node.right))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_OPS:
+        return _SAFE_OPS[type(node.op)](_safe_eval(node.operand))
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        fn = node.func.id
+        args = [_safe_eval(a) for a in node.args]
+        if fn == "sqrt" and len(args) == 1:
+            return math.sqrt(args[0])
+        if fn == "abs" and len(args) == 1:
+            return abs(args[0])
+        if fn == "round" and 1 <= len(args) <= 2:
+            return round(*args)
+    raise ValueError("expression non supportée")
+
+
+def calculate_expression(expression: str) -> dict:
+    expr = (expression or "").strip()
+    if not expr:
+        return {"ok": False, "error": "expression missing"}
+    if len(expr) > 200:
+        return {"ok": False, "error": "expression trop longue"}
+    try:
+        tree = ast.parse(expr, mode="eval")
+        val = _safe_eval(tree.body)
+        return {"ok": True, "expression": expr, "result": val}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "expression": expr}
+
+
 WEB_TOOLS = [
     {
         "type": "function",
@@ -263,6 +351,78 @@ WEB_TOOLS = [
                     "max_chars": {"type": "integer", "description": "Limite de caractères du texte extrait (défaut 12000)."},
                 },
                 "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_fetch_json",
+            "description": "Récupère une URL JSON (API REST, GitHub raw, etc.) et parse le JSON.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL JSON."},
+                    "max_chars": {"type": "integer", "description": "Limite taille réponse."},
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_datetime",
+            "description": "Date/heure UTC actuelle (pour deadlines, logs, planification).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "timezone": {"type": "string", "description": "Indication fuseau (info seulement)."},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "github_search",
+            "description": "Recherche GitHub (repos, issues, code) via web search ciblée.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Requête GitHub."},
+                    "limit": {"type": "integer", "description": "Max résultats."},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "stackoverflow_search",
+            "description": "Recherche Stack Overflow pour bugs et solutions code.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Question / erreur."},
+                    "limit": {"type": "integer", "description": "Max résultats."},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate",
+            "description": "Calculatrice sûre (+ - * / ^ sqrt abs round). Pas de code arbitraire.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {"type": "string", "description": "Ex: (42 * 1.2) + sqrt(16)"},
+                },
+                "required": ["expression"],
             },
         },
     },

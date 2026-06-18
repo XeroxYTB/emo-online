@@ -62,9 +62,11 @@ func (p Permissions) allowsTool(tool string) bool {
 	switch tool {
 	case "exec_shell", "run_terminal_cmd", "bash", "shell":
 		return p.AllowShell
-	case "read_file", "list_dir", "find_files", "codebase_search", "file_search":
+	case "read_file", "list_dir", "find_files", "codebase_search", "file_search",
+		"file_info", "get_env", "system_info", "git_status", "git_diff":
 		return p.AllowRead
-	case "write_file", "edit_file", "move_path":
+	case "write_file", "edit_file", "move_path", "append_file", "create_dir",
+		"copy_path", "apply_patch", "download_url", "create_file":
 		return p.AllowWrite
 	case "delete_path":
 		return p.AllowDelete

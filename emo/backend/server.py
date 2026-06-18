@@ -27,9 +27,18 @@ from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionRequest, CheckoutSessionResponse,
 )
 
-from emo_prompts import build_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT
+from emo_prompts import build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT
 from agent_relay import registry as agent_registry
-from web_tools import web_search as do_web_search, web_fetch as do_web_fetch, WEB_TOOLS
+from web_tools import (
+    web_search as do_web_search,
+    web_fetch as do_web_fetch,
+    web_fetch_json as do_web_fetch_json,
+    get_datetime as do_get_datetime,
+    github_search as do_github_search,
+    stackoverflow_search as do_stackoverflow_search,
+    calculate_expression as do_calculate,
+    WEB_TOOLS,
+)
 from llm_config import (
     SUBSCRIPTION_PLANS, get_user_tier, resolve_model, resolve_model_candidates, plans_for_api,
     parse_client_reference, tier_allows_local_agent, TIER_RANK, PAID_TIERS,
@@ -1432,7 +1441,8 @@ async def agent_fs_write(body: FileWriteBody, user: User = Depends(get_current_u
 LOCAL_AGENT_TOOLS = {
     "exec_shell", "read_file", "write_file", "list_dir",
     "grep", "edit_file", "delete_path", "move_path", "find_files",
-    "codebase_search",
+    "codebase_search", "append_file", "create_dir", "copy_path", "file_info",
+    "get_env", "system_info", "git_status", "git_diff", "apply_patch", "download_url",
     "run_terminal_cmd", "bash", "file_search", "delete_file", "create_file",
     "grep_search", "run_terminal_command",
 }
@@ -1463,6 +1473,16 @@ async def execute_tool(user_id: str, tool_name: str, args: dict) -> dict:
         )
     if tool_name == "web_fetch":
         return await do_web_fetch(args.get("url", ""), int(args.get("max_chars", 12000) or 12000))
+    if tool_name == "web_fetch_json":
+        return await do_web_fetch_json(args.get("url", ""), int(args.get("max_chars", 8000) or 8000))
+    if tool_name == "get_datetime":
+        return await do_get_datetime(str(args.get("timezone") or "UTC"))
+    if tool_name == "github_search":
+        return await do_github_search(args.get("query", ""), int(args.get("limit", 8) or 8))
+    if tool_name == "stackoverflow_search":
+        return await do_stackoverflow_search(args.get("query", ""), int(args.get("limit", 8) or 8))
+    if tool_name == "calculate":
+        return do_calculate(args.get("expression", ""))
 
     # Local-machine tools require the agent
     if tool_name not in LOCAL_AGENT_TOOLS:
@@ -1502,18 +1522,28 @@ def _compact_llm_payload(
     system_msg: str,
     initial_messages: list[dict],
     tools: list[dict],
+    *,
+    mode: str = "tech",
+    user_name: str = "",
+    agent_online: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
-    """Groq free tier has strict TPM limits — shrink prompt/history/tools."""
+    """Groq free tier has strict TPM limits — short prompt + essential tools only."""
     if provider != "groq":
         return system_msg, initial_messages, tools
-    max_chars = 5000
-    compact_sys = system_msg[:max_chars]
-    if len(system_msg) > max_chars:
-        compact_sys += "\n\n[Contexte tronque pour Groq — reste Émo, tutoie, directe.]"
+    compact_sys = build_compact_system_prompt(mode, user_name=user_name, agent_online=agent_online)
     non_system = [m for m in initial_messages if m.get("role") != "system"]
-    compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-6:]
-    # Tools JSON is huge; Groq chat works without tools for simple replies
-    return compact_sys, compact_msgs, []
+    compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-4:]
+    essential = {
+        "web_search", "web_fetch", "read_file", "exec_shell", "grep",
+        "list_dir", "edit_file", "write_file", "find_files", "get_datetime",
+        "calculate", "github_search",
+    }
+    compact_tools = []
+    for tool in tools:
+        fn = (tool.get("function") or {}).get("name", "")
+        if fn in essential:
+            compact_tools.append(tool)
+    return compact_sys, compact_msgs, compact_tools[:12]
 
 
 async def _iter_with_keepalive(agen, interval: float = 12.0):
@@ -1618,6 +1648,7 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                 tool_set = (EMO_TOOLS + WEB_TOOLS) if tier_allows_local_agent(tier) or agent_online else WEB_TOOLS
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
                     provider, system_msg, initial_messages, tool_set,
+                    mode=mode, user_name=user.name, agent_online=agent_online,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,

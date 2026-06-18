@@ -207,6 +207,24 @@ def build_system_prompt(mode: str = "tech", memories: list[str] | None = None, a
     return "\n".join(sections)
 
 
+def build_compact_system_prompt(
+    mode: str = "tech",
+    user_name: str | None = None,
+    agent_online: bool = False,
+) -> str:
+    """Prompt court pour Groq (limites TPM free tier)."""
+    raw = (user_name or "").strip()
+    first_name = raw.split()[0].capitalize() if raw else "Hugo"
+    mode_hint = MODE_PROMPTS.get(mode, MODE_PROMPTS.get("tech", ""))[:800]
+    status = "agent local EN LIGNE — tools PC dispo" if agent_online else "agent local HORS LIGNE — web tools seulement"
+    return f"""Tu es Émo, l'IA perso de {first_name}. Tutoiement, français, directe, zéro bullshit corporate.
+Ne dis jamais "je suis Claude" ou "modèle Anthropic". Mode {mode}.
+{mode_hint}
+Statut: {status}
+Réponds concrètement. Utilise les tools quand utile. Mood en fin: [MOOD:neutre|curieuse|ironique|etc]
+"""
+
+
 # Tools definition for Claude (Anthropic format via emergentintegrations passthrough)
 EMO_TOOLS = [
     {
@@ -365,8 +383,144 @@ EMO_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "append_file",
+            "description": "Ajoute du texte à la fin d'un fichier (crée le fichier s'il n'existe pas).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Chemin du fichier."},
+                    "content": {"type": "string", "description": "Texte à ajouter."},
+                },
+                "required": ["path", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_dir",
+            "description": "Crée un répertoire (parents inclus).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Chemin du dossier à créer."},
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "copy_path",
+            "description": "Copie un fichier ou dossier vers une destination.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "from": {"type": "string", "description": "Source."},
+                    "to": {"type": "string", "description": "Destination."},
+                },
+                "required": ["from", "to"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_info",
+            "description": "Métadonnées d'un fichier/dossier: taille, dates, permissions, type.",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string", "description": "Chemin cible."}},
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_env",
+            "description": "Lit une ou plusieurs variables d'environnement du PC.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "names": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Noms de variables (vide = PATH, USER, HOME, OS).",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "system_info",
+            "description": "Infos système: OS, arch, hostname, disques, mémoire (via shell).",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_status",
+            "description": "git status + branche courante dans un repo.",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string", "description": "Racine du repo (défaut .)."}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_diff",
+            "description": "git diff (staged ou unstaged) dans un repo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Racine du repo."},
+                    "staged": {"type": "boolean", "description": "Diff index (--cached)."},
+                    "file": {"type": "string", "description": "Fichier spécifique (optionnel)."},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "apply_patch",
+            "description": "Applique un patch unified diff sur un fichier (ou crée-le).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Fichier cible."},
+                    "patch": {"type": "string", "description": "Contenu unified diff."},
+                },
+                "required": ["path", "patch"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "download_url",
+            "description": "Télécharge une URL vers un fichier local.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL http(s)."},
+                    "path": {"type": "string", "description": "Chemin destination."},
+                },
+                "required": ["url", "path"],
+            },
+        },
+    },
 ]
-
 
 MEMORY_EXTRACTION_PROMPT = """Tu analyses une conversation entre Hugo et son IA Émo. Extrais UNIQUEMENT les faits durables, utiles pour les prochaines conversations.
 

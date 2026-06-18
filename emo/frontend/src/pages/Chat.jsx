@@ -577,6 +577,7 @@ export default function Chat() {
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
         onLogout={handleLogout}
+        agentOnline={agentOnline}
         onPreferencesChange={(prefs) => {
           if (prefs?.theme_mode) setThemeMode(prefs.theme_mode);
         }}

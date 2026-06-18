@@ -59,7 +59,7 @@ class AgentRegistry:
     async def dispatch(self, user_id: str, tool: str, args: dict, timeout: int = 90) -> dict:
         """Enqueue a tool request and wait for the agent's response."""
         if not self.is_online(user_id):
-            return {"ok": False, "error": "Agent local non connecté. Lance emo-agent.py sur ton PC."}
+            return {"ok": False, "error": "Agent local non connecté. Télécharge et lance Emo-Agent depuis Profil > Agent ou le panneau Agent."}
 
         request_id = uuid.uuid4().hex
         loop = asyncio.get_event_loop()

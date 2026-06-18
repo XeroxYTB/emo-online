@@ -31,7 +31,7 @@ import (
 
 // Default backend — override at build: -ldflags "-X main.defaultBackend=http://127.0.0.1:8010"
 var defaultBackend = "http://127.0.0.1:8010"
-var version = "2.1.0"
+var version = "2.2.0"
 
 type ToolRequest struct {
 	ID   string                 `json:"id"`
@@ -276,7 +276,12 @@ func isBinarySample(data []byte) bool {
 func toolGrep(args map[string]interface{}) ToolResult {
 	pattern, _ := args["pattern"].(string)
 	if pattern == "" {
-		return ToolResult{"ok": false, "error": "pattern missing"}
+		if q, ok := args["query"].(string); ok && q != "" {
+			pattern = q
+		}
+	}
+	if pattern == "" {
+		return ToolResult{"ok": false, "error": "pattern or query missing"}
 	}
 	root := "."
 	if p, ok := args["path"].(string); ok && p != "" {
@@ -478,6 +483,257 @@ func toolFindFiles(args map[string]interface{}) ToolResult {
 	return ToolResult{"ok": true, "pattern": pattern, "files": found, "truncated": len(found) >= maxResults}
 }
 
+func toolCodebaseSearch(args map[string]interface{}) ToolResult {
+	query, _ := args["query"].(string)
+	if query == "" {
+		return ToolResult{"ok": false, "error": "query missing"}
+	}
+	if p, ok := args["path"].(string); ok && p != "" {
+		args["path"] = p
+	}
+	args["pattern"] = query
+	args["ignore_case"] = true
+	if args["glob"] == nil {
+		args["glob"] = "*"
+	}
+	res := toolGrep(args)
+	res["query"] = query
+	res["note"] = "recherche texte (grep) — pas sémantique vectorielle"
+	return res
+}
+
+func toolAppendFile(args map[string]interface{}) ToolResult {
+	path, _ := args["path"].(string)
+	content, _ := args["content"].(string)
+	if path == "" {
+		return ToolResult{"ok": false, "error": "path required"}
+	}
+	p := expand(path)
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	defer f.Close()
+	n, err := f.WriteString(content)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	abs, _ := filepath.Abs(p)
+	return ToolResult{"ok": true, "path": abs, "bytes_written": n}
+}
+
+func toolCreateDir(args map[string]interface{}) ToolResult {
+	path, _ := args["path"].(string)
+	if path == "" {
+		return ToolResult{"ok": false, "error": "path missing"}
+	}
+	p := expand(path)
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	abs, _ := filepath.Abs(p)
+	return ToolResult{"ok": true, "path": abs}
+}
+
+func toolCopyPath(args map[string]interface{}) ToolResult {
+	src, _ := args["from"].(string)
+	dst, _ := args["to"].(string)
+	if src == "" || dst == "" {
+		return ToolResult{"ok": false, "error": "from and to required"}
+	}
+	from := expand(src)
+	to := expand(dst)
+	info, err := os.Stat(from)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	if err := os.MkdirAll(filepath.Dir(to), 0755); err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	if info.IsDir() {
+		var cpCmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cpCmd = exec.Command("xcopy", from, to, "/E", "/I", "/Y")
+		} else {
+			cpCmd = exec.Command("cp", "-r", from, to)
+		}
+		out, err := cpCmd.CombinedOutput()
+		if err != nil {
+			return ToolResult{"ok": false, "error": err.Error(), "output": string(out)}
+		}
+	} else {
+		in, err := os.Open(from)
+		if err != nil {
+			return ToolResult{"ok": false, "error": err.Error()}
+		}
+		defer in.Close()
+		out, err := os.Create(to)
+		if err != nil {
+			return ToolResult{"ok": false, "error": err.Error()}
+		}
+		defer out.Close()
+		if _, err := io.Copy(out, in); err != nil {
+			return ToolResult{"ok": false, "error": err.Error()}
+		}
+	}
+	return ToolResult{"ok": true, "from": from, "to": to}
+}
+
+func toolFileInfo(args map[string]interface{}) ToolResult {
+	path, _ := args["path"].(string)
+	if path == "" {
+		return ToolResult{"ok": false, "error": "path missing"}
+	}
+	p := expand(path)
+	info, err := os.Stat(p)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	abs, _ := filepath.Abs(p)
+	return ToolResult{
+		"ok": true, "path": abs, "size": info.Size(),
+		"is_dir": info.IsDir(), "mod_time": info.ModTime().Format(time.RFC3339),
+		"mode": info.Mode().String(),
+	}
+}
+
+func toolGetEnv(args map[string]interface{}) ToolResult {
+	names := []string{}
+	if raw, ok := args["names"].([]interface{}); ok {
+		for _, n := range raw {
+			if s, ok := n.(string); ok && s != "" {
+				names = append(names, s)
+			}
+		}
+	}
+	if len(names) == 0 {
+		names = []string{"PATH", "USER", "USERNAME", "HOME", "USERPROFILE", "OS", "COMPUTERNAME", "HOSTNAME"}
+	}
+	out := map[string]string{}
+	for _, n := range names {
+		if v := os.Getenv(n); v != "" {
+			out[n] = v
+		}
+	}
+	out["go_os"] = runtime.GOOS
+	out["go_arch"] = runtime.GOARCH
+	return ToolResult{"ok": true, "env": out}
+}
+
+func toolSystemInfo(args map[string]interface{}) ToolResult {
+	hostname, _ := os.Hostname()
+	home, _ := os.UserHomeDir()
+	return ToolResult{
+		"ok": true, "os": runtime.GOOS, "arch": runtime.GOARCH,
+		"hostname": hostname, "home": home, "agent_version": version,
+	}
+}
+
+func toolGit(args map[string]interface{}, subcmd string) ToolResult {
+	root := "."
+	if p, ok := args["path"].(string); ok && p != "" {
+		root = expand(p)
+	}
+	extra := []string{subcmd}
+	if subcmd == "diff" {
+		if staged, ok := args["staged"].(bool); ok && staged {
+			extra = append(extra, "--cached")
+		}
+		if f, ok := args["file"].(string); ok && f != "" {
+			extra = append(extra, "--", f)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", extra...)
+	cmd.Dir = root
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	exitCode := 0
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	}
+	so, _ := capString(stdout.String(), 48*1024)
+	se, _ := capString(stderr.String(), 16*1024)
+	if err != nil && exitCode != 0 && so == "" {
+		return ToolResult{"ok": false, "error": se, "exit_code": exitCode}
+	}
+	return ToolResult{"ok": true, "stdout": so, "stderr": se, "exit_code": exitCode, "path": root}
+}
+
+func toolDownloadURL(args map[string]interface{}) ToolResult {
+	url, _ := args["url"].(string)
+	path, _ := args["path"].(string)
+	if url == "" || path == "" {
+		return ToolResult{"ok": false, "error": "url and path required"}
+	}
+	p := expand(path)
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return ToolResult{"ok": false, "error": fmt.Sprintf("HTTP %d", resp.StatusCode)}
+	}
+	f, err := os.Create(p)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	defer f.Close()
+	n, err := io.Copy(f, resp.Body)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	abs, _ := filepath.Abs(p)
+	return ToolResult{"ok": true, "path": abs, "bytes": n, "url": url}
+}
+
+func toolApplyPatch(args map[string]interface{}) ToolResult {
+	path, _ := args["path"].(string)
+	patch, _ := args["patch"].(string)
+	if path == "" || patch == "" {
+		return ToolResult{"ok": false, "error": "path and patch required"}
+	}
+	tmp, err := os.CreateTemp("", "emo-patch-*.diff")
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmp.WriteString(patch); err != nil {
+		tmp.Close()
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	tmp.Close()
+	p := expand(path)
+	dir := filepath.Dir(p)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "apply", "--unsafe-paths", tmpPath)
+	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return ToolResult{"ok": false, "error": "git apply failed: " + stderr.String()}
+	}
+	return ToolResult{"ok": true, "path": p, "method": "git apply"}
+}
+
 func expand(p string) string {
 	if strings.HasPrefix(p, "~") {
 		home, _ := os.UserHomeDir()
@@ -500,15 +756,37 @@ func dispatch(req *ToolRequest) ToolResult {
 		return toolExecShell(args)
 	case "read_file", "file_search":
 		return toolReadFile(args)
-	case "write_file":
+	case "write_file", "create_file":
 		return toolWriteFile(args)
+	case "append_file":
+		return toolAppendFile(args)
+	case "create_dir":
+		return toolCreateDir(args)
+	case "copy_path":
+		return toolCopyPath(args)
+	case "file_info":
+		return toolFileInfo(args)
+	case "get_env":
+		return toolGetEnv(args)
+	case "system_info":
+		return toolSystemInfo(args)
+	case "git_status":
+		return toolGit(args, "status")
+	case "git_diff":
+		return toolGit(args, "diff")
+	case "apply_patch":
+		return toolApplyPatch(args)
+	case "download_url":
+		return toolDownloadURL(args)
 	case "list_dir":
 		return toolListDir(args)
-	case "grep", "codebase_search", "search":
+	case "grep", "search":
 		return toolGrep(args)
+	case "codebase_search":
+		return toolCodebaseSearch(args)
 	case "edit_file":
 		return toolEditFile(args)
-	case "delete_path":
+	case "delete_path", "delete_file":
 		return toolDeletePath(args)
 	case "move_path":
 		return toolMovePath(args)
@@ -540,11 +818,14 @@ func postJSON(url string, payload interface{}) error {
 	return nil
 }
 
-func heartbeatLoop(ctx context.Context, backend, token string, wg *sync.WaitGroup) {
+func heartbeatLoop(ctx context.Context, backend, token string, wg *sync.WaitGroup, onStatus func(bool)) {
 	defer wg.Done()
 	url := backend + "/api/agent/heartbeat?token=" + token
 	for {
-		if err := postJSON(url, nil); err != nil {
+		err := postJSON(url, nil)
+		if onStatus != nil {
+			onStatus(err == nil)
+		} else if err != nil {
 			debugf("heartbeat error: %v", err)
 		}
 		select {
@@ -590,18 +871,25 @@ func pollOnce(backend, token string) (*ToolRequest, error) {
 	return p.Request, nil
 }
 
-func run(ctx context.Context, backend, token string) {
+func runWithStatus(ctx context.Context, backend, token string, onStatus func(bool)) {
 	logf("Émo agent v%s — backend = %s", version, backend)
 
 	if err := postJSON(backend+"/api/agent/heartbeat?token="+token, nil); err != nil {
 		logf("auth/connectivity failed: %v", err)
+		if onStatus != nil {
+			onStatus(false)
+			return
+		}
 		os.Exit(2)
+	}
+	if onStatus != nil {
+		onStatus(true)
 	}
 	logf("online. Émo can now pilot this machine.")
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go heartbeatLoop(ctx, backend, token, &wg)
+	go heartbeatLoop(ctx, backend, token, &wg, onStatus)
 
 	for {
 		select {
@@ -624,6 +912,10 @@ func run(ctx context.Context, backend, token string) {
 		}
 		go executeAndPost(backend, token, req)
 	}
+}
+
+func run(ctx context.Context, backend, token string) {
+	runWithStatus(ctx, backend, token, nil)
 }
 
 func summarizeArgs(tool string, args map[string]interface{}) string {

@@ -184,8 +184,8 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           </p>
         ) : null}
         <p className="text-muted-em">
-          Le chat, les LLM et les paiements restent sur le site. L&apos;agent local ne fait qu&apos;exécuter les actions
-          autorisées sur ton PC.
+          Le chat, les LLM et les paiements restent sur le site. Configure les permissions dans{" "}
+          <strong>Profil → Agent local & permissions</strong>.
         </p>
       </div>
 
