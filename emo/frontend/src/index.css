@@ -129,6 +129,16 @@ body::after {
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.4); }
 
+.chat-scroll-area {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+.chat-scroll-area:focus-visible {
+  outline: none;
+}
+
 @keyframes blink {
   0%, 92%, 100% { transform: scaleY(1); }
   94% { transform: scaleY(0.1); }

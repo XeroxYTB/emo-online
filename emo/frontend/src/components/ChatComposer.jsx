@@ -2,33 +2,33 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown, Cpu } from "lucide-react";
 
 const MODES = [
-  { id: "tech", label: "Tech", Icon: Code, hint: "Code, debug, archi — par défaut" },
-  { id: "creatif", label: "Créatif", Icon: Lightbulb, hint: "Brainstorming sans filtre" },
-  { id: "brutal", label: "Brutal", Icon: Flame, hint: "Vérité absolue, zéro diplomatie" },
+  { id: "tech", label: "Tech", Icon: Code, hint: "Code, debug, systèmes" },
+  { id: "creatif", label: "Créatif", Icon: Lightbulb, hint: "Brainstorming et idées" },
+  { id: "brutal", label: "Brutal", Icon: Flame, hint: "Feedback sans filtre" },
 ];
 
 const QUICK_SUGGESTIONS = {
   tech: [
-    "Code-moi un mini-projet de A à Z",
-    "Trouve la doc officielle de X et résume",
-    "Architecture pour une feature X",
+    "Crée un mini-projet de A à Z",
+    "Trouve la doc officielle et résume",
+    "Propose une architecture pour ma feature",
   ],
   creatif: [
     "10 idées de projets perso",
-    "Brainstorm un nom pour mon prochain projet",
+    "Trouve un nom pour mon projet",
     "Concepts visuels originaux",
   ],
   brutal: [
-    "Est-ce que mon idée tient la route ?",
+    "Mon idée tient-elle la route ?",
     "Pourquoi je procrastine ?",
-    "Critique honnête sur mon dernier choix",
+    "Critique honnête de mon dernier choix",
   ],
 };
 
 export const ChatComposer = ({
   mode, onChangeMode,
   modelPreference, onChangeModelPreference, availableModels,
-  onSend, disabled, showSuggestions,
+  onSend, disabled, streaming, showSuggestions,
 }) => {
   const [value, setValue] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -39,7 +39,7 @@ export const ChatComposer = ({
 
   const models = availableModels?.length
     ? availableModels
-    : [{ id: "auto", label: "Auto (fallback)" }];
+    : [{ id: "auto", label: "Auto (meilleur modèle disponible)" }];
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -109,9 +109,9 @@ export const ChatComposer = ({
             }
           }}
           rows={1}
-          placeholder="Parle à Émo…"
+          placeholder={streaming ? "Émo répond…" : "Écris ton message…"}
           disabled={disabled}
-          className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none py-3 px-3 text-base placeholder:text-muted-em"
+          className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none py-3 px-3 text-base placeholder:text-muted-em disabled:opacity-60"
           style={{ maxHeight: 180, color: "var(--emo-text)" }}
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-1">
@@ -206,10 +206,7 @@ export const ChatComposer = ({
                           {m.label || m.id}
                         </p>
                         {m.id === "auto" && (
-                          <p className="text-[10px] mt-0.5 text-muted-em">Bascule auto si quota / erreur</p>
-                        )}
-                        {m.id !== "auto" && (
-                          <p className="text-[10px] mt-0.5 text-muted-em">Fallback si indisponible</p>
+                          <p className="text-[10px] mt-0.5 text-muted-em">Choisit le meilleur modèle, bascule si besoin</p>
                         )}
                       </div>
                     </button>
@@ -235,7 +232,7 @@ export const ChatComposer = ({
         </div>
       </div>
       <p className="hidden sm:block text-[11px] text-muted-em text-center mt-2">
-        Émo tutoie. Émo dit ce qu&apos;elle pense. ⏎ pour envoyer · ⇧⏎ pour saut de ligne
+        Entrée pour envoyer · Maj+Entrée pour un saut de ligne
       </p>
     </div>
   );

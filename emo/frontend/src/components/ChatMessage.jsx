@@ -89,10 +89,10 @@ export const ChatMessage = ({ message, isStreaming }) => {
   return (
     <div
       data-testid="chat-message-emo"
-      className={`flex gap-4 max-w-[92%] mr-auto animate-in fade-in slide-in-from-bottom-2 duration-300 mode-${message.mode || "normal"}`}
+      className={`flex gap-4 max-w-[92%] mr-auto animate-in fade-in slide-in-from-bottom-2 duration-300 mode-${message.mode || "tech"}`}
     >
       <div className="flex-shrink-0 mt-1">
-        <EmoEyes mode={message.mode || "normal"} mood={mood} thinking={isStreaming} size={56} />
+        <EmoEyes mode={message.mode || "tech"} mood={mood} thinking={isStreaming} size={56} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
@@ -113,9 +113,9 @@ export const ChatMessage = ({ message, isStreaming }) => {
               data-testid="verified-badge"
               className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full flex items-center gap-1"
               style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}
-              title="Émo a testé son code avec ses outils"
+              title="Émo a vérifié avec ses outils"
             >
-              ✓ vérifié
+              Vérifié
             </span>
           )}
           {message.verified === "partial" && (
@@ -125,7 +125,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
               style={{ background: "rgba(245,158,11,0.12)", color: "#fbbf24" }}
               title="Vérification partielle"
             >
-              ~ partiel
+              Partiel
             </span>
           )}
           {isStreaming && (

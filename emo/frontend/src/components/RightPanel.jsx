@@ -72,11 +72,11 @@ const ActivityTab = ({ tools, agentOnline }) => {
           className={`w-1.5 h-1.5 rounded-full ${agentOnline ? "bg-emerald-400" : "bg-zinc-600"}`}
           style={{ boxShadow: agentOnline ? "0 0 6px #34d39988" : "none" }}
         />
-        Agent {agentOnline ? "en ligne" : "hors ligne"} · {tools.length} appels
+        Agent {agentOnline ? "connecté" : "hors ligne"} · {tools.length} action{tools.length !== 1 ? "s" : ""}
       </div>
       {tools.length === 0 ? (
         <p className="text-xs text-muted-em text-center pt-8 px-4">
-          Quand Émo utilise des outils (exec_shell, write_file…), ils apparaissent ici en temps réel.
+          Quand Émo utilise un outil (fichiers, shell, web…), l&apos;activité s&apos;affiche ici en direct.
         </p>
       ) : (
         <div className="space-y-1">

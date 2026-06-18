@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { http, streamChat, clearSessionToken } from "../lib/api";
 import { toast } from "sonner";
-import { PanelRightOpen, PanelRightClose, Bug, Clock, User as UserIcon, Menu, Settings } from "lucide-react";
+import { PanelRightOpen, PanelRightClose, Bug, Clock, User as UserIcon, Menu, Settings, ArrowDown } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ChatComposer from "../components/ChatComposer";
 import ChatMessage from "../components/ChatMessage";
@@ -15,9 +15,9 @@ import ProfileDrawer from "../components/ProfileDrawer";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
 
 const MODE_TAGLINES = {
-  tech: "Chirurgicale sur le code, les bugs, les systèmes.",
-  creatif: "Brainstorming sans filtre. Idées audacieuses.",
-  brutal: "Vérité absolue. Pas de diplomatie inutile.",
+  tech: "Code, debug et architecture — précision chirurgicale.",
+  creatif: "Idées sans filtre, brainstorming audacieux.",
+  brutal: "Vérité directe, zéro langue de bois.",
 };
 
 export default function Chat() {
@@ -51,8 +51,35 @@ export default function Chat() {
   const [modelPreference, setModelPreference] = useState(
     typeof window !== "undefined" ? (localStorage.getItem("emo_model_preference") || "auto") : "auto"
   );
-  const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto (fallback intelligent)" }]);
+  const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto (meilleur modèle disponible)" }]);
   const chatAreaRef = useRef(null);
+  const stickyBottomRef = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  const isNearBottom = useCallback((el, threshold = 140) => {
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior = "smooth") => {
+    const el = chatAreaRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    stickyBottomRef.current = true;
+    setShowScrollBtn(false);
+  }, []);
+
+  useEffect(() => {
+    const el = chatAreaRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const near = isNearBottom(el);
+      stickyBottomRef.current = near;
+      setShowScrollBtn(!near && (messages.length > 0 || streaming));
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [isNearBottom, messages.length, streaming]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -137,7 +164,7 @@ export default function Chat() {
     try {
       const r = await http.get(`/license/checkout/status/${sessionId}`);
       if (r.data.payment_status === "paid") {
-        toast.success("Paiement validé. Émo est à toi à vie. 🚀");
+        toast.success("Paiement confirmé — bienvenue dans Émo Online.");
         const lr = await http.get("/license/status");
         setLicense(lr.data);
         return;
@@ -198,11 +225,16 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  // Auto-scroll
+  // Auto-scroll uniquement si l'utilisateur est déjà en bas (ne bloque pas la lecture)
   useEffect(() => {
+    if (!stickyBottomRef.current) return;
     const el = chatAreaRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, streamingMsg, streamingTools]);
+    if (!el) return;
+    const behavior = streaming ? "auto" : "smooth";
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    });
+  }, [messages, streamingMsg, streamingTools, streaming]);
 
   const handleNew = async () => {
     const r = await http.post("/conversations", { title: "Nouvelle conversation", mode });
@@ -241,6 +273,8 @@ export default function Chat() {
       message_id: `tmp_${Date.now()}`, role: "user", content: text, mode,
     };
     setMessages((m) => [...m, optimistic]);
+    stickyBottomRef.current = true;
+    scrollToBottom("auto");
     setStreaming(true);
     setStreamingMsg({ content: "" });
     setStreamingTools([]);
@@ -307,16 +341,16 @@ export default function Chat() {
           } else if (evt.type === "ping") {
             // keepalive SSE — connexion toujours active
           } else if (evt.type === "info") {
-            toast.info(evt.content || "Info");
+            toast.info(evt.content || "Changement de modèle…");
           } else if (evt.type === "error") {
-            toast.error("Émo : " + (evt.content || "erreur"));
+            toast.error(evt.content || "Une erreur est survenue.");
             setStreamingMsg(null);
             setStreamingTools([]);
           }
         },
       });
     } catch (e) {
-      toast.error("Émo : " + (e?.message || "Erreur réseau"));
+      toast.error(e?.message || "Connexion interrompue. Réessaie.");
       setStreamingMsg(null);
       setStreamingTools([]);
     } finally {
@@ -354,7 +388,7 @@ export default function Chat() {
         onOpenProfile={() => setProfileOpen(true)}
       />
 
-      <main className="flex-1 flex flex-col h-full relative min-w-0">
+      <main className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden relative">
         {/* Header */}
         <header
           data-testid="chat-header"
@@ -387,12 +421,13 @@ export default function Chat() {
                     background: agentOnline ? "rgba(52,211,153,0.15)" : "rgba(127,127,127,0.12)",
                     color: agentOnline ? "#34d399" : "var(--emo-text-muted)",
                   }}
-                  title="Agent local — appuie pour télécharger / configurer"
+                  title="Agent local — télécharger et configurer"
                 >
                   <span
                     className={`w-1 h-1 rounded-full ${agentOnline ? "bg-emerald-400" : "bg-zinc-500"}`}
                   />
-                  agent {agentOnline ? "on" : "off"}
+                  <span className="hidden sm:inline">{agentOnline ? "Agent connecté" : "Agent hors ligne"}</span>
+                  <span className="sm:hidden">{agentOnline ? "On" : "Off"}</span>
                 </button>
               </div>
               <p className="hidden sm:block text-[11px] text-muted-em mt-0.5 truncate">{MODE_TAGLINES[mode]}</p>
@@ -406,7 +441,7 @@ export default function Chat() {
                 className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
                 style={{ background: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}
               >
-                <Clock size={10} /> essai terminé
+                <Clock size={10} /> Essai terminé
               </button>
             )}
             {license && license.active && license.tier === "free" && !license.is_admin && (
@@ -415,7 +450,7 @@ export default function Chat() {
                 className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
                 style={{ background: "rgba(168,85,247,0.1)", color: "var(--mode-color)" }}
               >
-                <Clock size={10} /> {license.messages_left_today}/{license.messages_per_day} · Gratuit
+                <Clock size={10} /> {license.messages_left_today}/{license.messages_per_day} restants
               </span>
             )}
             {license && license.active && license.tier && !["free"].includes(license.tier) && !license.is_admin && (
@@ -434,9 +469,9 @@ export default function Chat() {
                 data-testid="admin-pill"
                 className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
                 style={{ background: "rgba(245,158,11,0.1)", color: "#fbbf24" }}
-                title="Compte lifetime admin"
+                title="Accès illimité"
               >
-                ∞ lifetime
+                Admin
               </span>
             )}
             {license?.is_admin && (
@@ -475,41 +510,73 @@ export default function Chat() {
           </div>
         </header>
 
-        {/* Chat area */}
-        <div ref={chatAreaRef} data-testid="chat-area" className="flex-1 overflow-y-auto scrollbar-thin" style={{ paddingBottom: 200 }}>
-          {!hasMessages && (
-            <div className="h-full flex flex-col items-center justify-center px-6 text-center">
-              <EmoEyes mode={mode} mood={null} size={130} />
-              <h2 className="font-heading text-3xl md:text-4xl mt-6 font-medium tracking-tight">
-                Salut {(user?.name?.split(" ")[0] || "toi").replace(/^./, (c) => c.toUpperCase())}.
-              </h2>
-              <p className="text-secondary-em mt-2 max-w-md">
-                {agentOnline ? "Agent en ligne — je peux toucher à ton PC." : "Lance ton agent local pour que je puisse coder direct chez toi."}
-              </p>
-            </div>
-          )}
-
-          <div className="max-w-4xl mx-auto px-4 md:px-8 pt-8 space-y-6">
-            {messages.map((m) => (
-              <ChatMessage key={m.message_id} message={m} />
-            ))}
-            {(streamingMsg || streamingTools.length > 0) && (
-              <ChatMessage
-                key="streaming"
-                message={{
-                  role: "emo",
-                  content: streamingMsg?.content || "",
-                  mood: null, mode,
-                  tool_calls_live: streamingTools,
-                }}
-                isStreaming
-              />
+        {/* Zone messages — flex au lieu de position absolute pour un scroll fiable */}
+        <div className="flex-1 min-h-0 relative flex flex-col">
+          <div
+            ref={chatAreaRef}
+            data-testid="chat-area"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin chat-scroll-area"
+          >
+            {!hasMessages && (
+              <div className="h-full min-h-[280px] flex flex-col items-center justify-center px-6 text-center">
+                <EmoEyes mode={mode} mood={null} size={130} />
+                <h2 className="font-heading text-3xl md:text-4xl mt-6 font-medium tracking-tight">
+                  Salut {(user?.name?.split(" ")[0] || "toi").replace(/^./, (c) => c.toUpperCase())}.
+                </h2>
+                <p className="text-secondary-em mt-3 max-w-md leading-relaxed">
+                  {agentOnline
+                    ? "Ton agent est connecté — je peux coder et explorer ton PC."
+                    : "Connecte l'agent local pour que je travaille directement sur ta machine."}
+                </p>
+              </div>
             )}
+
+            <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-4 space-y-6">
+              {messages.map((m) => (
+                <ChatMessage key={m.message_id} message={m} />
+              ))}
+              {(streamingMsg || streamingTools.length > 0) && (
+                <ChatMessage
+                  key="streaming"
+                  message={{
+                    role: "emo",
+                    content: streamingMsg?.content || "",
+                    mood: null, mode,
+                    tool_calls_live: streamingTools,
+                  }}
+                  isStreaming
+                />
+              )}
+            </div>
           </div>
+
+          {showScrollBtn && (
+            <button
+              type="button"
+              onClick={() => scrollToBottom("smooth")}
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg transition hover:scale-105"
+              style={{
+                background: "var(--emo-surface)",
+                border: "1px solid var(--emo-border)",
+                color: "var(--emo-text-secondary)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+              }}
+              aria-label="Revenir en bas"
+            >
+              <ArrowDown size={14} />
+              {streaming ? "Nouveaux messages" : "Descendre"}
+            </button>
+          )}
         </div>
 
-        {/* Composer */}
-        <div className="absolute bottom-0 left-0 right-0 z-10 px-3 md:px-4 pb-3 md:pb-4 pt-2">
+        {/* Composer — dans le flux flex, plus en absolute */}
+        <div
+          className="flex-shrink-0 z-10 px-3 md:px-4 pb-3 md:pb-4 pt-2"
+          style={{
+            borderTop: "1px solid var(--emo-border)",
+            background: "linear-gradient(to top, var(--emo-bg) 70%, transparent)",
+          }}
+        >
           <div className="max-w-4xl mx-auto">
             <ChatComposer
               mode={mode}
@@ -519,6 +586,7 @@ export default function Chat() {
               availableModels={availableModels}
               onSend={handleSend}
               disabled={streaming}
+              streaming={streaming}
               showSuggestions={!hasMessages}
             />
           </div>

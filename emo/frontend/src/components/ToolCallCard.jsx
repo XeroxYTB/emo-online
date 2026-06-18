@@ -38,7 +38,7 @@ export const ToolCallCard = ({ event }) => {
   const isExecuting = event.state === "executing";
 
   const summary = (() => {
-    if (isExecuting) return "exécution…";
+    if (isExecuting) return "En cours…";
     if (isError) return event.result?.error || "erreur";
     if (event.result?.exit_code !== undefined) return `exit ${event.result.exit_code}`;
     if (event.result?.count !== undefined) return `${event.result.count} résultats`;
@@ -75,7 +75,7 @@ export const ToolCallCard = ({ event }) => {
         {isExecuting ? (
           <span className="inline-flex items-center gap-1 text-[10px] text-secondary-em">
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: color }} />
-            run
+            En cours
           </span>
         ) : (
           <span

@@ -40,13 +40,13 @@ export default function Login() {
     if (err) {
       setGoogleAuto(false);
       const msgs = {
-        google_auth_failed: "Connexion Google echouee. Verifie les identifiants dans backend/.env",
-        access_denied: "Connexion Google annulee",
-        no_email: "Google n'a pas fourni d'email",
-        missing_code: "Reponse Google invalide",
-        missing_token: "Session Google expiree - reessaie",
-        redirect_uri_mismatch: "URI redirect incorrecte dans Google Cloud Console",
-        invalid_client: "GOOGLE_CLIENT_ID ou GOOGLE_CLIENT_SECRET incorrect",
+        google_auth_failed: "Connexion Google échouée. Vérifie la config OAuth.",
+        access_denied: "Connexion Google annulée.",
+        no_email: "Google n'a pas fourni d'email.",
+        missing_code: "Réponse Google invalide.",
+        missing_token: "Session expirée — réessaie.",
+        redirect_uri_mismatch: "URI de redirection incorrecte dans Google Cloud Console.",
+        invalid_client: "Identifiants Google invalides.",
       };
       toast.error(msgs[err] || `Erreur Google (${err})`);
     }
@@ -129,7 +129,7 @@ export default function Login() {
             <span className="text-lg font-normal text-muted-em ml-2">Online</span>
           </h1>
           <p className="text-sm text-secondary-em mt-2 text-center max-w-xs leading-relaxed">
-            Ton IA locale. Code, création, projets massifs — pilotés sur ton PC.
+            Ton assistant IA. Code, création et projets — sur le cloud ou ton PC.
           </p>
         </div>
 
@@ -150,7 +150,7 @@ export default function Login() {
 
         {!googleReady && (
           <p className="text-[11px] text-center text-muted-em mb-1 -mt-1">
-            Connexion Google disponible quand l&apos;API backend est en ligne.
+            Connexion Google indisponible — l&apos;API backend est hors ligne.
           </p>
         )}
 
