@@ -16,7 +16,7 @@ concurrency:
 
 env:
   FRONTEND_URL: https://xeroxytb.github.io/emo-online
-  BACKEND_URL: https://xeroxytb-emo-online-api.hf.space
+  BACKEND_URL: https://xroxx-emo-online-api.hf.space
 
 jobs:
   deploy-backend:
@@ -31,13 +31,13 @@ jobs:
         run: |
           if [ -z "$HF_TOKEN" ]; then
             echo "::warning::HF_TOKEN absent — crée le Space sur huggingface.co puis ajoute HF_TOKEN dans GitHub Secrets"
-            echo "Space: https://huggingface.co/spaces/XeroxYTB/emo-online-api"
+            echo "Space: https://huggingface.co/spaces/Xroxx/emo-online-api"
             exit 0
           fi
           git config user.email "emo@users.noreply.github.com"
           git config user.name "Emo Online"
           git remote remove space 2>/dev/null || true
-          git remote add space "https://XeroxYTB:${HF_TOKEN}@huggingface.co/spaces/XeroxYTB/emo-online-api"
+          git remote add space "https://Xroxx:${HF_TOKEN}@huggingface.co/spaces/Xroxx/emo-online-api"
           git push space HEAD:main --force
 
   deploy-pages:
