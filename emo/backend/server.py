@@ -533,6 +533,8 @@ def _friendly_llm_error(exc: Exception) -> str:
             return "Cle API invalide pour ce provider. Verifie backend/.env"
         if code == 402:
             return "Credits API epuises sur ce provider. Recharge ton compte ou change de cle."
+        if code == 413:
+            return "Requete trop volumineuse pour ce modele. Emo reessaie avec un modele plus leger."
         if code == 400:
             lower = _http_response_snippet(exc.response, 500).lower()
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
@@ -556,7 +558,7 @@ def _friendly_llm_error(exc: Exception) -> str:
 
 def _retryable_llm_error(exc: Exception) -> bool:
     code = _llm_http_status(exc)
-    if code in (429, 402, 503, 500, 502, 504):
+    if code in (429, 402, 413, 503, 500, 502, 504):
         return True
     msg = str(exc).lower()
     if code == 400 and any(k in msg for k in (
@@ -1495,6 +1497,25 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def _compact_llm_payload(
+    provider: str,
+    system_msg: str,
+    initial_messages: list[dict],
+    tools: list[dict],
+) -> tuple[str, list[dict], list[dict]]:
+    """Groq free tier has strict TPM limits — shrink prompt/history/tools."""
+    if provider != "groq":
+        return system_msg, initial_messages, tools
+    max_chars = 7000
+    compact_sys = system_msg[:max_chars]
+    if len(system_msg) > max_chars:
+        compact_sys += "\n\n[Contexte tronque pour Groq — reste Émo, tutoie, directe.]"
+    non_system = [m for m in initial_messages if m.get("role") != "system"]
+    compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-6:]
+    # Tools JSON is huge; Groq chat works without tools for simple replies
+    return compact_sys, compact_msgs, []
+
+
 async def _iter_with_keepalive(agen, interval: float = 12.0):
     """Yield ('data', item) or ('keepalive', None) while waiting on slow LLM streams."""
     it = agen.__aiter__()
@@ -1594,16 +1615,18 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
             for cand_idx, (provider, model, model_label) in enumerate(candidates):
                 if provider in blocked_providers:
                     continue
+                tool_set = (EMO_TOOLS + WEB_TOOLS) if tier_allows_local_agent(tier) or agent_online else WEB_TOOLS
+                prov_system, prov_messages, prov_tools = _compact_llm_payload(
+                    provider, system_msg, initial_messages, tool_set,
+                )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
                     session_id=body.conversation_id,
-                    system_message=system_msg,
-                    initial_messages=initial_messages,
+                    system_message=prov_system,
+                    initial_messages=prov_messages,
                     provider=provider,
                     model=model,
-                ).with_model(provider, model).with_tools(
-                    (EMO_TOOLS + WEB_TOOLS) if tier_allows_local_agent(tier) or agent_online else WEB_TOOLS
-                )
+                ).with_model(provider, model).with_tools(prov_tools)
                 full_text_parts: list[str] = []
                 tool_call_log: list[dict] = []
                 user_message_for_iter: Optional[UserMessage] = UserMessage(text=body.content)

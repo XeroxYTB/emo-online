@@ -12,8 +12,10 @@ load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
 from llm_providers import api_key_available
 
 # Modèles cloud reconnus (ChatGPT, Claude, DeepSeek, Gemini…)
-# Priorite fallback : Claude et ChatGPT avant Gemini (quotas Gemini souvent satures)
+# Priorite fallback : Groq gratuit d'abord, puis OpenAI/Gemini, Claude en dernier
 FREE_MODELS = [
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
     {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite"},
@@ -25,6 +27,7 @@ FREE_MODELS = [
 ]
 
 BASIC_MODELS = [
+    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
@@ -34,6 +37,7 @@ BASIC_MODELS = [
 ]
 
 PREMIUM_MODELS = [
+    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
     {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022", "label": "Claude 3.5 Sonnet"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
@@ -44,6 +48,7 @@ PREMIUM_MODELS = [
 ]
 
 ULTRA_MODELS = [
+    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
     {"provider": "anthropic", "model": "claude-opus-4-20250514", "label": "Claude Opus 4"},
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
     {"provider": "openai", "model": "gpt-4o", "label": "ChatGPT 4o"},
