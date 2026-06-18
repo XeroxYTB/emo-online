@@ -12,7 +12,7 @@ pinned: false
 
 IA personnelle — **frontend** sur GitHub Pages, **API + agent** sur Hugging Face Spaces (gratuit, sans carte).
 
-- Site : https://xeroxytb.github.io/emo-online
+- Site : https://xeroxytb.com
 - API : https://xroxx-emo-online-api.hf.space
 - Guide complet : [DEPLOY.md](DEPLOY.md)
 

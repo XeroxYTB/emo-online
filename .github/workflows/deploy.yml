@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FRONTEND_URL: https://xeroxytb.github.io/emo-online
+  FRONTEND_URL: https://xeroxytb.com
   BACKEND_URL: https://xroxx-emo-online-api.hf.space
 
 jobs:

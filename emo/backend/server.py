@@ -339,6 +339,8 @@ async def google_auth_status():
                 "http://127.0.0.1:3000",
                 "http://localhost:3000",
                 "http://127.0.0.1:8010",
+                "https://xeroxytb.com",
+                "https://www.xeroxytb.com",
                 "https://xeroxytb.github.io",
             ],
             "redirect_uris": [google_auth.redirect_uri()],
