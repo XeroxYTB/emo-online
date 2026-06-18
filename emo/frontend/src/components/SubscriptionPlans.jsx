@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { http } from "../lib/api";
+import { frontendUrl } from "../lib/paths";
 import {
   Check, Zap, Crown, Sparkles, Loader2, RefreshCw, Clock, ShieldCheck,
   Infinity as InfinityIcon, AlertTriangle, RotateCcw,
@@ -19,7 +20,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
     setLoading(tier);
     try {
       const r = await http.post("/license/checkout", {
-        origin_url: window.location.origin,
+        origin_url: frontendUrl("/chat"),
         tier,
       });
       if (r.data.already_paid) {

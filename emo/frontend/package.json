@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://xeroxytb.github.io/emo-online",
   "dependencies": {
     "@hookform/resolvers": "5.0.1",
     "@monaco-editor/react": "^4.7.0",

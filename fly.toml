@@ -1,0 +1,29 @@
+# Fly.io — API Emo Online (frontend sur GitHub Pages)
+# Crée l'app : fly apps create emo-online-xeroxytb
+# Secrets : fly secrets set MONGO_URL=... GOOGLE_CLIENT_ID=... etc.
+
+app = "emo-online-xeroxytb"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  PORT = "8010"
+  DB_NAME = "emo"
+  EMO_DEV_MODE = "false"
+  EMO_SERVE_FRONTEND = "false"
+  EMO_FRONTEND_URL = "https://xeroxytb.github.io/emo-online"
+
+[http_service]
+  internal_port = 8010
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

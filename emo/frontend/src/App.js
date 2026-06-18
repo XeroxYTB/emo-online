@@ -1,6 +1,7 @@
 import React from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ROUTER_BASENAME } from "@/lib/paths";
 import { Toaster } from "sonner";
 import Login from "@/pages/Login";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
@@ -20,7 +21,7 @@ function App() {
           },
         }}
       />
-      <BrowserRouter>
+      <BrowserRouter basename={ROUTER_BASENAME}>
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/login" element={<Login />} />

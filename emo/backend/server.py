@@ -53,6 +53,25 @@ STRIPE_PREMIUM_LINK = os.environ.get('STRIPE_PREMIUM_LINK', '')
 STRIPE_ULTRA_LINK = os.environ.get('STRIPE_ULTRA_LINK', '')
 EMO_PUBLIC_BACKEND_URL = os.environ.get('EMO_PUBLIC_BACKEND_URL', 'http://127.0.0.1:8001').rstrip('/')
 
+
+def _cors_origins() -> list[str]:
+    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    if raw and raw != "*":
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    front = os.environ.get("EMO_FRONTEND_URL", "").strip().rstrip("/")
+    if front:
+        from urllib.parse import urlparse
+        u = urlparse(front)
+        origin = f"{u.scheme}://{u.netloc}"
+        return [origin]
+    return [
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "http://127.0.0.1:8010",
+        "http://localhost:8010",
+    ]
+
+
 # License config — €15/month subscription
 DAILY_MESSAGES = 10  # free trial quota per day for non-subscribers
 LICENSE_PRICE_EUR = float(os.environ.get('LICENSE_PRICE_EUR', '15.00'))
@@ -1895,7 +1914,7 @@ if SERVE_FRONTEND:
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

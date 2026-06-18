@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { http } from "../lib/api";
+import { http, API, BACKEND_URL } from "../lib/api";
 import { X, User as UserIcon, Sparkles, Palette, ShieldCheck, AlertTriangle, Trash2, LogOut, Save, Moon, Sun, Monitor, Package, Download } from "lucide-react";
 import { toast } from "sonner";
 import { SubscriptionSection } from "./SubscriptionPlans";
@@ -205,7 +205,8 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                       <button
                         data-testid="download-source-btn"
                         onClick={() => {
-                          const url = `${process.env.REACT_APP_BACKEND_URL}/api/admin/project-export`;
+                          const base = BACKEND_URL || window.location.origin;
+                          const url = `${base}/api/admin/project-export`;
                           const w = window.open(url, "_blank");
                           if (!w) window.location.href = url;
                           toast.success("Téléchargement du code source lancé");

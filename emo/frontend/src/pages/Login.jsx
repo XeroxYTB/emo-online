@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { http, API, saveSessionToken } from "../lib/api";
+import { frontendUrl } from "../lib/paths";
 import EmoEyes from "../components/EmoEyes";
 import { toast } from "sonner";
 
@@ -29,8 +30,7 @@ export default function Login() {
   const autoGoogleTried = useRef(false);
 
   const handleGoogleRedirect = useCallback(() => {
-    const origin = window.location.origin.replace("localhost", "127.0.0.1");
-    const redirectUrl = `${origin}/auth/google/callback`;
+    const redirectUrl = frontendUrl("/auth/google/callback");
     const desktopFlag = desktop ? "&desktop=1" : "";
     window.location.href = `${API}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`;
   }, [desktop]);

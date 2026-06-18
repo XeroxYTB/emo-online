@@ -1,6 +1,7 @@
 import axios from "axios";
 
 const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
+export { BACKEND_URL };
 export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 const SESSION_KEY = "emo_session_token";
 
