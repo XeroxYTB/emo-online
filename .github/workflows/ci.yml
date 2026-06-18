@@ -12,6 +12,9 @@ jobs:
     defaults:
       run:
         working-directory: emo/backend
+    env:
+      MONGO_URL: mongodb://127.0.0.1:27017
+      DB_NAME: emo_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
