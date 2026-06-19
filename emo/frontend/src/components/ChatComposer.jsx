@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle } from "lucide-react";
+import { Send, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle } from "lucide-react";
 
 const MODES = [
   { id: "tech", label: "Tech", Icon: Code, hint: "Code, debug, systèmes" },
@@ -76,16 +76,16 @@ export const ChatComposer = ({
   return (
     <div className={`mode-${mode} w-full`}>
       {showSuggestions && (
-        <div data-testid="quick-suggestions" className="flex flex-wrap gap-2 mb-4 justify-center">
+        <div data-testid="quick-suggestions" className="flex flex-wrap gap-2 mb-3 justify-center">
           {(QUICK_SUGGESTIONS[mode] || QUICK_SUGGESTIONS.tech).map((s) => (
             <button
               key={s}
               data-testid={`suggestion-${s.slice(0, 20)}`}
               onClick={() => onSend(s)}
               disabled={disabled}
-              className="text-xs px-3 py-1.5 rounded-full glass-card text-secondary-em hover:text-white"
+              className="text-xs px-3 py-1.5 rounded-lg border text-secondary-em hover:text-white hover:border-white/20 transition-colors"
+              style={{ borderColor: "var(--emo-border)", background: "var(--emo-surface)" }}
             >
-              <Sparkles size={11} className="inline mr-1.5 opacity-70" />
               {s}
             </button>
           ))}
@@ -93,9 +93,10 @@ export const ChatComposer = ({
       )}
       <div
         data-testid="chat-composer"
-        className="glass-panel rounded-3xl p-2 flex flex-col gap-1 transition-all"
+        className="rounded-xl p-2 flex flex-col gap-1 transition-colors"
         style={{
-          boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)",
+          background: "var(--emo-surface)",
+          border: "1px solid var(--emo-border)",
         }}
       >
         <textarea
@@ -122,11 +123,11 @@ export const ChatComposer = ({
               type="button"
               data-testid="mode-picker-trigger"
               onClick={() => setPickerOpen((o) => !o)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition border"
               style={{
-                background: "rgba(168,85,247,0.10)",
-                border: "1px solid rgba(168,85,247,0.25)",
-                color: "var(--mode-color)",
+                background: "var(--emo-surface-raised)",
+                borderColor: "var(--emo-border)",
+                color: "var(--emo-text-secondary)",
               }}
               title={currentMode.hint}
             >
@@ -137,8 +138,8 @@ export const ChatComposer = ({
             {pickerOpen && (
               <div
                 data-testid="mode-picker-menu"
-                className="absolute bottom-full left-0 mb-2 w-56 rounded-xl py-1 z-30 glass-panel"
-                style={{ background: "var(--emo-surface)" }}
+                className="absolute bottom-full left-0 mb-2 w-56 rounded-lg py-1 z-30 border"
+                style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
               >
                 {MODES.map((m) => {
                   const Icon = m.Icon;
@@ -151,8 +152,7 @@ export const ChatComposer = ({
                         onChangeMode?.(m.id);
                         setPickerOpen(false);
                       }}
-                      className={`w-full flex items-start gap-2.5 px-3 py-2 text-left text-xs transition ${active ? "" : "hover:bg-white/[0.04]"}`}
-                      style={{ background: active ? "rgba(168,85,247,0.12)" : "transparent" }}
+                      className={`w-full flex items-start gap-2.5 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
                     >
                       <Icon size={13} className="mt-0.5 flex-shrink-0" style={{ color: active ? "var(--mode-color)" : "var(--emo-text-secondary)" }} />
                       <div className="flex-1 min-w-0">
@@ -170,11 +170,11 @@ export const ChatComposer = ({
               type="button"
               data-testid="model-picker-trigger"
               onClick={() => setModelPickerOpen((o) => !o)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition border"
               style={{
-                background: "rgba(59,130,246,0.10)",
-                border: "1px solid rgba(59,130,246,0.25)",
-                color: "#93c5fd",
+                background: "var(--emo-surface-raised)",
+                borderColor: "var(--emo-border)",
+                color: "var(--emo-text-secondary)",
               }}
               title={currentModel.label || "Modèle IA"}
             >
@@ -185,8 +185,8 @@ export const ChatComposer = ({
             {modelPickerOpen && (
               <div
                 data-testid="model-picker-menu"
-                className="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto rounded-xl py-1 z-30 glass-panel scrollbar-thin"
-                style={{ background: "var(--emo-surface)" }}
+                className="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto rounded-lg py-1 z-30 border scrollbar-thin"
+                style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
               >
                 {models.map((m) => {
                   const active = m.id === (modelPreference || "auto");
@@ -198,8 +198,7 @@ export const ChatComposer = ({
                         onChangeModelPreference?.(m.id);
                         setModelPickerOpen(false);
                       }}
-                      className={`w-full flex items-start gap-2 px-3 py-2 text-left text-xs transition ${active ? "" : "hover:bg-white/[0.04]"}`}
-                      style={{ background: active ? "rgba(59,130,246,0.12)" : "transparent" }}
+                      className={`w-full flex items-start gap-2 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
                     >
                       <Cpu size={13} className="mt-0.5 flex-shrink-0" style={{ color: active ? "#93c5fd" : "var(--emo-text-secondary)" }} />
                       <div className="flex-1 min-w-0">
@@ -220,11 +219,11 @@ export const ChatComposer = ({
             type="button"
             data-testid="agent-mode-toggle"
             onClick={() => onChangeUseAgentTools?.(!useAgentTools)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition border"
             style={{
-              background: useAgentTools ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
-              border: useAgentTools ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(255,255,255,0.08)",
-              color: useAgentTools ? "#6ee7b7" : "var(--emo-text-muted)",
+              background: useAgentTools ? "var(--emo-surface-raised)" : "transparent",
+              borderColor: useAgentTools ? "var(--emo-accent)" : "var(--emo-border)",
+              color: useAgentTools ? "var(--emo-text)" : "var(--emo-text-muted)",
             }}
             title={useAgentTools ? "Mode Agent — tools actifs (Cursor/Claude)" : "Mode Chat — réponse directe sans tools"}
           >
@@ -237,11 +236,11 @@ export const ChatComposer = ({
               type="button"
               data-testid="stop-stream-btn"
               onClick={() => onCancel?.()}
-              className="h-9 px-3 flex-shrink-0 flex items-center justify-center gap-1.5 rounded-2xl transition-all text-xs font-medium"
+              className="h-9 px-3 flex-shrink-0 flex items-center justify-center gap-1.5 rounded-lg transition-colors text-xs font-medium border"
               style={{
-                background: "rgba(239,68,68,0.15)",
-                border: "1px solid rgba(239,68,68,0.35)",
-                color: "#fca5a5",
+                background: "transparent",
+                borderColor: "var(--emo-border)",
+                color: "var(--emo-text-secondary)",
               }}
               title="Arrêter la réponse"
             >
@@ -253,11 +252,10 @@ export const ChatComposer = ({
               data-testid="send-message-btn"
               onClick={submit}
               disabled={disabled || !value.trim()}
-              className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-2xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
-                background: "var(--mode-color)",
-                color: "#0A0510",
-                boxShadow: "0 0 18px var(--mode-glow)",
+                background: "var(--emo-accent)",
+                color: "#fff",
               }}
             >
               <Send size={15} />

@@ -16,7 +16,7 @@ concurrency:
 
 env:
   FRONTEND_URL: https://xeroxytb.com
-  # Apres deploy Koyeb: GitHub > Settings > Variables > EMO_API_URL = https://xxx.koyeb.app
+  # API Hugging Face Spaces (gratuit, sans carte). Override optionnel via EMO_API_URL.
   BACKEND_URL: ${{ vars.EMO_API_URL || 'https://xroxx-emo-online-api.hf.space' }}
   BACKEND_FALLBACK_URL: https://xroxx-emo-online-api.hf.space
 

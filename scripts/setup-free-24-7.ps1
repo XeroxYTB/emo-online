@@ -1,19 +1,20 @@
-# Setup gratuit 24/7 — Koyeb (sans carte) + HF backup
+# Setup gratuit 24/7 — Hugging Face Spaces (sans carte bancaire)
 # Usage: powershell -ExecutionPolicy Bypass -File scripts\setup-free-24-7.ps1
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $EnvFile = Join-Path $Root "emo\backend\.env"
-$KoyebUrl = "https://app.koyeb.com"
+$HfSpaceUrl = "https://xroxx-emo-online-api.hf.space"
 
 Write-Host ""
-Write-Host "=== Emo Online — Setup gratuit 24/7 (Koyeb) ===" -ForegroundColor Cyan
+Write-Host "=== Emo Online — Setup gratuit (HF Spaces, sans carte) ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "NOTE: Render suspendu (impayes) — on utilise Koyeb a la place." -ForegroundColor Yellow
+Write-Host "Koyeb, Fly.io et Render demandent une carte bancaire." -ForegroundColor Yellow
+Write-Host "Solution 100% gratuite : Hugging Face Spaces (deja configure)." -ForegroundColor Green
 Write-Host ""
 
 if (-not (Test-Path $EnvFile)) {
-    Write-Host ".env introuvable" -ForegroundColor Red
+    Write-Host ".env introuvable : copie emo\backend\.env.example vers emo\backend\.env" -ForegroundColor Red
     exit 1
 }
 
@@ -28,45 +29,36 @@ function Get-EnvValue($key) {
     return ""
 }
 
-# 1. HF backup
-Write-Host "[1/3] Sync HF Space (backup)..." -ForegroundColor Yellow
-try {
-    py -3 (Join-Path $Root "scripts\sync-hf-secrets.py") 2>$null
-    py -3 (Join-Path $Root "scripts\push-hf-clean.py") 2>$null
-    Write-Host "  HF OK" -ForegroundColor Green
-} catch {
-    Write-Host "  HF skip" -ForegroundColor DarkYellow
-}
-
-# 2. Koyeb primary
-Write-Host "[2/3] Koyeb (API principale gratuite)..." -ForegroundColor Yellow
-$koyebToken = Get-EnvValue "KOYEB_TOKEN"
-$koyebCli = Get-Command koyeb -ErrorAction SilentlyContinue
-
-if ($koyebToken -and $koyebCli) {
-    py -3 (Join-Path $Root "scripts\sync-koyeb-secrets.py")
-    Write-Host "  Koyeb env sync OK" -ForegroundColor Green
+# 1. Sync secrets + deploy HF
+Write-Host "[1/2] Sync HF Space..." -ForegroundColor Yellow
+$hfToken = Get-EnvValue "HF_TOKEN"
+if (-not $hfToken) {
+    Write-Host "  HF_TOKEN manquant dans emo\backend\.env" -ForegroundColor Red
+    Write-Host "  Cree un token Write : https://huggingface.co/settings/tokens" -ForegroundColor White
+    Write-Host "  Ajoute aussi HF_TOKEN dans GitHub > Settings > Secrets (repo emo-online)" -ForegroundColor White
 } else {
-    Write-Host "  Deploy Koyeb (gratuit, sans carte) :" -ForegroundColor Yellow
-    Write-Host "  1. Va sur https://app.koyeb.com/stores/github" -ForegroundColor White
-    Write-Host "  2. Connecte GitHub > repo XeroxYTB/emo-online" -ForegroundColor White
-    Write-Host "  3. Create Web Service :" -ForegroundColor White
-    Write-Host "     - Builder: Dockerfile" -ForegroundColor DarkGray
-    Write-Host "     - Dockerfile path: Dockerfile.render" -ForegroundColor DarkGray
-    Write-Host "     - Port: 8010" -ForegroundColor DarkGray
-    Write-Host "     - Instance: Free / Eco" -ForegroundColor DarkGray
-    Write-Host "     - Region: Washington ou Frankfurt" -ForegroundColor DarkGray
-    Write-Host "  4. Colle les secrets depuis emo\backend\.env" -ForegroundColor White
-    Write-Host "  5. API token Koyeb > ajoute KOYEB_TOKEN dans .env > relance ce script" -ForegroundColor White
-    try { Start-Process "https://app.koyeb.com/stores/github" } catch {}
+    try {
+        py -3 (Join-Path $Root "scripts\sync-hf-secrets.py")
+        py -3 (Join-Path $Root "scripts\push-hf-clean.py")
+        Write-Host "  HF deploy OK" -ForegroundColor Green
+    } catch {
+        Write-Host "  HF deploy echoue (SSL local ?) — le push GitHub Actions le fera au prochain push main" -ForegroundColor DarkYellow
+    }
 }
 
-# 3. Deploy hook info
-Write-Host "[3/3] Keepalive GitHub Actions : actif (ping toutes les 8 min)" -ForegroundColor Green
+# 2. Keepalive info
+Write-Host "[2/2] Keepalive GitHub Actions (ping toutes les 12 min)" -ForegroundColor Yellow
+Write-Host "  Workflow : .github/workflows/free-24-7.yml" -ForegroundColor DarkGray
+Write-Host "  Pas besoin de EMO_API_URL si tu restes sur HF (defaut deja bon)" -ForegroundColor DarkGray
 
 Write-Host ""
 Write-Host "=== Termine ===" -ForegroundColor Green
 Write-Host "Frontend : https://xeroxytb.com" -ForegroundColor Cyan
-Write-Host "Apres deploy Koyeb, ajoute redirect Google OAuth :" -ForegroundColor Yellow
-Write-Host "  https://TON-SERVICE.koyeb.app/api/auth/google/callback" -ForegroundColor White
+Write-Host "API      : $HfSpaceUrl" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Checklist :" -ForegroundColor Yellow
+Write-Host "  1. Space HF public + secrets (MONGO_URL, GOOGLE_*, GROQ_API_KEY, etc.)" -ForegroundColor White
+Write-Host "  2. GitHub secret HF_TOKEN (Write)" -ForegroundColor White
+Write-Host "  3. Google OAuth redirect : $HfSpaceUrl/api/auth/google/callback" -ForegroundColor White
+Write-Host "  4. Test : $HfSpaceUrl/api/ping" -ForegroundColor White
 Write-Host ""

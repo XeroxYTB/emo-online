@@ -15,9 +15,9 @@ function App() {
         position="top-right"
         toastOptions={{
           style: {
-            background: "rgba(18, 11, 26, 0.95)",
-            border: "1px solid rgba(168, 85, 247, 0.2)",
-            color: "#F3E8FF",
+            background: "var(--emo-surface)",
+            border: "1px solid var(--emo-border)",
+            color: "var(--emo-text)",
           },
         }}
       />

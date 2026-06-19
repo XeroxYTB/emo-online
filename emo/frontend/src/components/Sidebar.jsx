@@ -1,5 +1,6 @@
 import React from "react";
 import { Plus, MessageSquare, Trash2, Pencil, LogOut, ChevronLeft, ChevronRight, User as UserIcon, Settings } from "lucide-react";
+import EmoLogo from "./EmoLogo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,11 +39,12 @@ export const Sidebar = ({
         >
           <ChevronRight size={16} />
         </button>
+        <EmoLogo size="sm" showText={false} className="mb-3" />
         <button
           data-testid="new-conversation-mini-btn"
           onClick={onNew}
-          className="p-2 rounded-lg mb-2 transition"
-          style={{ background: "rgba(168,85,247,0.12)", color: "var(--mode-color)" }}
+          className="p-2 rounded-lg mb-2 transition border"
+          style={{ borderColor: "var(--emo-border)", color: "var(--emo-text-secondary)" }}
           title="Nouvelle conversation"
         >
           <Plus size={16} />
@@ -74,11 +76,8 @@ export const Sidebar = ({
       className={`w-72 flex-shrink-0 h-full ${mobile ? "flex" : "hidden md:flex"} flex-col glass-panel`}
       style={{ borderRight: "1px solid var(--emo-border)", borderRadius: 0 }}
     >
-      <div className="px-4 py-4 flex items-center justify-between">
-        <div className="font-heading text-2xl font-semibold tracking-tight">
-          <span style={{ color: "var(--emo-text)" }}>Ém</span>
-          <span style={{ color: "var(--mode-color)", textShadow: "0 0 12px var(--mode-glow)" }}>o</span>
-        </div>
+      <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: "var(--emo-border)" }}>
+        <EmoLogo size="sm" showSubtitle={false} />
         <div className="flex items-center gap-1">
           <span className="text-[10px] tracking-[0.25em] uppercase text-muted-em">v1</span>
           <button
@@ -96,9 +95,10 @@ export const Sidebar = ({
         <button
           data-testid="new-conversation-btn"
           onClick={onNew}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl glass-card text-sm font-medium hover:scale-[1.01] active:scale-[0.99] transition-transform"
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors hover:bg-white/[0.03]"
+          style={{ borderColor: "var(--emo-border)" }}
         >
-          <Plus size={16} style={{ color: "var(--mode-color)" }} />
+          <Plus size={16} className="text-muted-em" />
           <span>Nouvelle conversation</span>
         </button>
       </div>

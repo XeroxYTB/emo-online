@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  # Definir EMO_API_URL dans GitHub > Settings > Variables (URL Koyeb apres deploy)
+  # Hugging Face Spaces — gratuit, sans carte bancaire
   API_URL: ${{ vars.EMO_API_URL || 'https://xroxx-emo-online-api.hf.space' }}
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
             cat /tmp/ping.json
             exit 0
           fi
-          echo "::notice::API pas pret (cold start ou 429 HF). Si Render suspendu, deploy Koyeb."
+          echo "::notice::API pas pret (cold start HF ou 429). Attends 30-60s et reessaie."
 
   sync-hf-on-demand:
     name: Redeploy HF backup

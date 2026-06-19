@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { http, saveSessionToken } from "../lib/api";
-import EmoEyes from "../components/EmoEyes";
+import { AppTopBar } from "../components/EmoLogo";
 
 export default function GoogleAuthCallback() {
   const navigate = useNavigate();
@@ -38,9 +38,14 @@ export default function GoogleAuthCallback() {
   }, [navigate, searchParams]);
 
   return (
-    <div className="h-screen w-full flex flex-col items-center justify-center gap-4">
-      <EmoEyes mode="normal" thinking size={100} />
-      <p className="text-sm text-secondary-em">Connexion Google en cours...</p>
+    <div className="h-screen w-full flex flex-col" style={{ background: "var(--emo-bg)" }}>
+      <AppTopBar />
+      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        <div className="login-boot-dots flex justify-center gap-1.5">
+          <span /><span /><span />
+        </div>
+        <p className="text-sm text-secondary-em">Connexion en cours…</p>
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import Sidebar from "../components/Sidebar";
 import ChatComposer from "../components/ChatComposer";
 import ChatMessage from "../components/ChatMessage";
 import EmoEyes from "../components/EmoEyes";
+import { AppTopBar } from "../components/EmoLogo";
 import RightPanel from "../components/RightPanel";
 import AgentSettingsPanel from "../components/AgentSettingsPanel";
 import Paywall from "../components/SubscriptionPlans";
@@ -454,15 +455,17 @@ export default function Chat() {
 
   if (authState === "checking") {
     return (
-      <div className="h-screen w-full flex items-center justify-center">
-        <EmoEyes mode="normal" thinking size={80} />
+      <div className="login-page h-screen w-full flex flex-col">
+        <AppTopBar />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <p className="text-sm text-secondary-em">Chargement…</p>
+          <div className="dot-loading"><span /><span /><span /></div>
+        </div>
       </div>
     );
   }
 
   const hasMessages = messages.length > 0 || streamingMsg;
-  const lastEmoMsg = [...messages].reverse().find((m) => m.role === "emo");
-  const currentMood = streaming ? "thinking" : lastEmoMsg?.mood;
 
   return (
     <div
@@ -486,26 +489,21 @@ export default function Chat() {
         {/* Header */}
         <header
           data-testid="chat-header"
-          className="flex-shrink-0 px-3 md:px-6 py-3 flex items-center justify-between gap-2"
-          style={{
-            borderBottom: "1px solid var(--emo-border)",
-            background: "var(--emo-glass-bg)",
-            backdropFilter: "blur(20px)",
-          }}
+          className="flex-shrink-0 px-3 md:px-5 h-14 flex items-center justify-between gap-2 border-b"
+          style={{ borderColor: "var(--emo-border)", background: "var(--emo-surface)" }}
         >
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               data-testid="mobile-menu-btn"
               onClick={() => setSidebarOpenMobile(true)}
-              className="md:hidden p-1.5 rounded-lg hover:bg-white/10 text-muted-em"
+              className="md:hidden p-1.5 rounded-md hover:bg-white/5 text-muted-em"
               aria-label="Ouvrir le menu"
             >
               <Menu size={18} />
             </button>
-            <EmoEyes mode={mode} mood={currentMood} thinking={streaming} size={36} />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-heading text-sm font-medium leading-none">Émo</p>
+                <p className="font-heading text-sm font-medium leading-none">{MODE_TAGLINES[mode]?.split("—")[0]?.trim() || "Chat"}</p>
                 <button
                   type="button"
                   data-testid="agent-status-pill"
@@ -524,7 +522,7 @@ export default function Chat() {
                   <span className="sm:hidden">{agentOnline ? "On" : "Off"}</span>
                 </button>
               </div>
-              <p className="hidden sm:block text-[11px] text-muted-em mt-0.5 truncate">{MODE_TAGLINES[mode]}</p>
+              <p className="hidden sm:block text-xs text-muted-em mt-0.5 truncate">{MODE_TAGLINES[mode]}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
