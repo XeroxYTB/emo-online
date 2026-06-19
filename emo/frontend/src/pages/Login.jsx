@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, API, saveSessionToken, wakeBackend } from "../lib/api";
+import { http, getApiBase, saveSessionToken, wakeBackend } from "../lib/api";
 import { frontendUrl } from "../lib/paths";
 import EmoEyes from "../components/EmoEyes";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const isDesktopApp = () => {
   if (window.__EMO_DESKTOP__ === true) return true;
@@ -15,6 +16,31 @@ const isDesktopApp = () => {
   try { return localStorage.getItem("emo_desktop") === "1"; } catch (_) { return false; }
 };
 
+function BootScreen({ message, showRetry, onRetry }) {
+  return (
+    <div className="login-page h-screen w-full flex flex-col items-center justify-center gap-5 px-6">
+      <div className="login-orb login-orb-1" />
+      <div className="login-orb login-orb-2" />
+      <EmoEyes mode="normal" thinking size={88} />
+      <div className="text-center z-10 space-y-3">
+        <p className="text-sm text-secondary-em tracking-wide">{message}</p>
+        <div className="login-boot-dots flex justify-center gap-1.5">
+          <span /><span /><span />
+        </div>
+      </div>
+      {showRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="login-submit z-10 px-8 py-3 rounded-2xl text-sm font-semibold transition-all hover:brightness-110"
+        >
+          Réessayer
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -23,24 +49,73 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [bootPhase, setBootPhase] = useState("connecting");
+  const [bootMessage, setBootMessage] = useState("Préparation de ton espace…");
   const [googleReady, setGoogleReady] = useState(false);
   const [googleAuto, setGoogleAuto] = useState(false);
-  const [googleWaking, setGoogleWaking] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [desktop] = useState(isDesktopApp);
   const autoGoogleTried = useRef(false);
+  const bootStarted = useRef(false);
 
-  const handleGoogleRedirect = useCallback(async () => {
-    setGoogleWaking(true);
-    const warm = await wakeBackend(5);
+  const runBoot = useCallback(async () => {
+    setBootPhase("connecting");
+    setBootMessage("Préparation de ton espace…");
+
+    const warm = await wakeBackend({
+      maxWaitMs: 90000,
+      onProgress: ({ message }) => setBootMessage(message || "Connexion…"),
+    });
+
     if (!warm.ok) {
-      setGoogleWaking(false);
-      toast.error("API Hugging Face surchargée (429). Attends 30 s et réessaie.");
+      setBootPhase("offline");
+      setBootMessage("Connexion au serveur en cours. Réessaie dans un instant.");
       return;
     }
+
+    setGoogleReady(!!warm.google);
+
+    try {
+      await http.get("/auth/me");
+      navigate("/chat", { replace: true });
+      return;
+    } catch (_) {
+      // pas connecté — afficher login
+    }
+
+    if (!warm.google) {
+      try {
+        const r = await http.get("/auth/google/status");
+        setGoogleReady(!!(r.data?.configured || r.data?.client_id));
+      } catch (_) {
+        setGoogleReady(false);
+      }
+    }
+
+    setBootPhase("ready");
+  }, [navigate]);
+
+  useEffect(() => {
+    if (bootStarted.current) return;
+    bootStarted.current = true;
+    runBoot();
+  }, [runBoot]);
+
+  const handleGoogleRedirect = useCallback(async () => {
+    setGoogleBusy(true);
+    const warm = await wakeBackend({
+      maxWaitMs: 60000,
+      onProgress: ({ message }) => setBootMessage(message || "Connexion…"),
+    });
+    if (!warm.ok) {
+      setGoogleBusy(false);
+      toast.error("Connexion momentanément indisponible. Réessaie dans quelques secondes.");
+      return;
+    }
+    if (warm.google) setGoogleReady(true);
     const redirectUrl = frontendUrl("/auth/google/callback");
     const desktopFlag = desktop ? "&desktop=1" : "";
-    window.location.href = `${API}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`;
+    window.location.href = `${getApiBase()}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`;
   }, [desktop]);
 
   useEffect(() => {
@@ -48,49 +123,39 @@ export default function Login() {
     if (err) {
       setGoogleAuto(false);
       const msgs = {
-        google_auth_failed: "Connexion Google échouée. Vérifie la config OAuth.",
-        access_denied: "Connexion Google annulée.",
-        no_email: "Google n'a pas fourni d'email.",
+        google_auth_failed: "Connexion Google impossible. Réessaie.",
+        access_denied: "Connexion annulée.",
+        no_email: "Email Google non disponible.",
         missing_code: "Réponse Google invalide.",
-        missing_token: "Session expirée — réessaie.",
-        redirect_uri_mismatch: "URI de redirection incorrecte dans Google Cloud Console.",
-        invalid_client: "Identifiants Google invalides.",
-        rate_limited: "API surchargée — réessaie dans 30 secondes.",
+        missing_token: "Session expirée — reconnecte-toi.",
+        redirect_uri_mismatch: "Configuration OAuth incorrecte.",
+        invalid_client: "Configuration Google incorrecte.",
+        rate_limited: "Trop de tentatives — attends un moment.",
       };
-      toast.error(msgs[err] || `Erreur Google (${err})`);
+      toast.error(msgs[err] || "Connexion impossible. Réessaie.");
     }
   }, [searchParams]);
 
   useEffect(() => {
-    wakeBackend(2).catch(() => {});
-    http.get("/auth/me")
-      .then(() => navigate("/chat", { replace: true }))
-      .catch(() => setChecking(false));
-    http.get("/auth/google/status")
-      .then((r) => {
-        setGoogleReady(!!(r.data?.configured || r.data?.client_id));
-      })
-      .catch(() => {
-        setGoogleReady(false);
-      });
-  }, [navigate]);
-
-  // App bureau : connexion Google automatique (redirect OAuth, compatible WebView2)
-  useEffect(() => {
-    if (checking || !googleReady || !desktop || searchParams.get("error")) return;
+    if (bootPhase !== "ready" || !googleReady || !desktop || searchParams.get("error")) return;
     if (autoGoogleTried.current) return;
     autoGoogleTried.current = true;
     setGoogleAuto(true);
     handleGoogleRedirect();
-  }, [checking, googleReady, desktop, searchParams, handleGoogleRedirect]);
-
-  // Toujours OAuth redirect (evite erreur GSI "origin not allowed" en local)
-  // Le bouton GIS Google est desactive — redirect via backend fonctionne partout.
+  }, [bootPhase, googleReady, desktop, searchParams, handleGoogleRedirect]);
 
   const handlePassword = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
+      if (bootPhase === "offline") {
+        const warm = await wakeBackend({ maxWaitMs: 45000 });
+        if (!warm.ok) {
+          toast.error("Serveur indisponible. Réessaie dans quelques secondes.");
+          return;
+        }
+        setBootPhase("ready");
+      }
       if (mode === "signup") {
         const res = await http.post("/auth/signup", { email, password, name });
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
@@ -100,22 +165,31 @@ export default function Login() {
       }
       navigate("/chat", { replace: true });
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Erreur d'authentification");
+      toast.error(err?.response?.data?.detail || err?.message || "Identifiants incorrects");
     } finally {
       setLoading(false);
     }
   };
 
-  if (checking || googleAuto) {
+  if (bootPhase === "connecting" || googleAuto) {
     return (
-      <div className="login-page h-screen w-full flex flex-col items-center justify-center gap-4">
-        <div className="login-orb login-orb-1" />
-        <div className="login-orb login-orb-2" />
-        <EmoEyes mode="normal" thinking size={80} />
-        <p className="text-sm text-secondary-em tracking-wide">
-          {googleAuto ? "Connexion Google automatique..." : "Chargement..."}
-        </p>
-      </div>
+      <BootScreen
+        message={googleAuto ? "Connexion Google…" : bootMessage}
+        showRetry={false}
+      />
+    );
+  }
+
+  if (bootPhase === "offline") {
+    return (
+      <BootScreen
+        message={bootMessage}
+        showRetry
+        onRetry={() => {
+          bootStarted.current = false;
+          runBoot();
+        }}
+      />
     );
   }
 
@@ -143,39 +217,40 @@ export default function Login() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleGoogleRedirect}
-          data-testid="google-login-btn"
-          disabled={loading || googleWaking}
-          className="google-btn w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl text-sm font-medium transition-all hover:brightness-105 mb-2 disabled:opacity-60"
-        >
-          {googleWaking ? (
-            <>Réveil du serveur…</>
-          ) : (
+        {googleReady && (
           <>
-          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.24 5.45-4.78 7.12l7.73 6.01C43.44 37.74 46.98 31.64 46.98 24.55z" />
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-          </svg>
-          Continuer avec Google
+            <button
+              type="button"
+              onClick={handleGoogleRedirect}
+              data-testid="google-login-btn"
+              disabled={loading || googleBusy}
+              className="google-btn w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl text-sm font-medium transition-all hover:brightness-105 mb-2 disabled:opacity-70"
+            >
+              {googleBusy ? (
+                <>
+                  <Loader2 size={18} className="animate-spin opacity-70" />
+                  Connexion en cours…
+                </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.24 5.45-4.78 7.12l7.73 6.01C43.44 37.74 46.98 31.64 46.98 24.55z" />
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                  </svg>
+                  Continuer avec Google
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center my-5">
+              <div className="flex-1 h-px bg-white/5" />
+              <span className="px-3 text-[10px] tracking-[0.2em] uppercase text-muted-em">ou</span>
+              <div className="flex-1 h-px bg-white/5" />
+            </div>
           </>
-          )}
-        </button>
-
-        {!googleReady && (
-          <p className="text-[11px] text-center text-muted-em mb-1 -mt-1">
-            Connexion Google indisponible — l&apos;API backend est hors ligne.
-          </p>
         )}
-
-        <div className="flex items-center my-5">
-          <div className="flex-1 h-px bg-white/5" />
-          <span className="px-3 text-[10px] tracking-[0.2em] uppercase text-muted-em">ou</span>
-          <div className="flex-1 h-px bg-white/5" />
-        </div>
 
         <form onSubmit={handlePassword} className="space-y-3">
           {mode === "signup" && (
@@ -211,10 +286,17 @@ export default function Login() {
           <button
             data-testid="password-submit-btn"
             type="submit"
-            disabled={loading}
-            className="login-submit w-full py-3.5 rounded-2xl text-sm font-semibold transition-all disabled:opacity-50 hover:brightness-110"
+            disabled={loading || googleBusy}
+            className="login-submit w-full py-3.5 rounded-2xl text-sm font-semibold transition-all disabled:opacity-50 hover:brightness-110 flex items-center justify-center gap-2"
           >
-            {loading ? "..." : mode === "signup" ? "Créer mon compte" : "Se connecter"}
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Connexion…
+              </>
+            ) : (
+              mode === "signup" ? "Créer mon compte" : "Se connecter"
+            )}
           </button>
         </form>
 
@@ -228,6 +310,10 @@ export default function Login() {
           >
             {mode === "signup" ? "Connecte-toi" : "Crée un compte"}
           </button>
+        </p>
+
+        <p className="text-center text-[10px] text-muted-em/60 mt-5">
+          Connexion chiffrée · Données privées
         </p>
       </div>
     </div>

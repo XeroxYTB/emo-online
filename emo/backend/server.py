@@ -2342,7 +2342,7 @@ async def agent_selftest(user: User = Depends(get_current_user)):
 
 @api.get("/ping")
 async def ping():
-    return {"ok": True}
+    return {"ok": True, "google": google_auth.is_configured(), "service": "emo-online"}
 
 
 @api.get("/health")

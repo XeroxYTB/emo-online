@@ -2,7 +2,7 @@ name: API Keepalive
 
 on:
   schedule:
-    - cron: "*/4 * * * *"
+    - cron: "*/2 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -12,11 +12,11 @@ jobs:
       - name: Wake Hugging Face API
         run: |
           URL="${{ vars.EMO_API_URL || 'https://xroxx-emo-online-api.hf.space' }}"
-          for i in 1 2 3; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "${URL}/api/ping" || echo "000")
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${URL}/api/ping" || echo "000")
             echo "Attempt $i → HTTP $code"
             if [ "$code" = "200" ]; then exit 0; fi
-            sleep 8
+            sleep 10
           done
           echo "::warning::API ping failed after 3 attempts (may be cold-starting)"
           exit 0
