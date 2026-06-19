@@ -60,6 +60,9 @@ export default function Chat() {
   const [modelPreference, setModelPreference] = useState(
     typeof window !== "undefined" ? (localStorage.getItem("emo_model_preference") || "auto") : "auto"
   );
+  const [useAgentTools, setUseAgentTools] = useState(
+    typeof window !== "undefined" ? localStorage.getItem("emo_use_agent_tools") !== "0" : true
+  );
   const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto (meilleur modèle disponible)" }]);
   const chatAreaRef = useRef(null);
   const stickyBottomRef = useRef(true);
@@ -123,6 +126,12 @@ export default function Chat() {
       localStorage.setItem("emo_model_preference", modelPreference || "auto");
     }
   }, [modelPreference]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("emo_use_agent_tools", useAgentTools ? "1" : "0");
+    }
+  }, [useAgentTools]);
 
   // Apply theme (dark/light/system) to <html>
   useEffect(() => {
@@ -327,6 +336,7 @@ export default function Chat() {
       await streamChat({
         conversation_id: convId, content: text, mode,
         model_preference: modelPreference || "auto",
+        use_agent_tools: useAgentTools,
         signal: abortController.signal,
         onEvent: (evt) => {
           pushDebug(evt);
@@ -668,6 +678,8 @@ export default function Chat() {
               modelPreference={modelPreference}
               onChangeModelPreference={setModelPreference}
               availableModels={availableModels}
+              useAgentTools={useAgentTools}
+              onChangeUseAgentTools={setUseAgentTools}
               onSend={handleSend}
               onCancel={handleCancel}
               disabled={false}

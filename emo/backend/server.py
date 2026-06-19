@@ -69,7 +69,7 @@ from llm_config import (
 )
 import google_auth
 from llm_providers import providers_status, configured_providers
-from llm_health import refresh_probe_cache, mark_provider_failed, mark_provider_ok
+from tool_router import select_tools_for_message
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=True)
@@ -214,6 +214,7 @@ class SendMessageBody(BaseModel):
     content: str
     mode: Optional[str] = "tech"
     model_preference: Optional[str] = "auto"
+    use_agent_tools: Optional[bool] = True
 
 
 class MemoryBody(BaseModel):
@@ -1837,38 +1838,28 @@ def _compact_llm_payload(
     user_name: str = "",
     agent_online: bool = False,
     is_owner: bool = False,
+    user_message: str = "",
+    tools_enabled: bool = True,
 ) -> tuple[str, list[dict], list[dict]]:
-    """Groq free tier has strict TPM limits — short prompt + essential tools only."""
+    """Groq/Gemini/HF : prompt compact + outils sélectionnés par intent (style Cursor)."""
+    if not tools_enabled:
+        return system_msg, initial_messages, []
     if provider not in ("groq", "gemini", "huggingface"):
         return system_msg, initial_messages, tools
     compact_sys = build_compact_system_prompt(mode, user_name=user_name, agent_online=agent_online)
     non_system = [m for m in initial_messages if m.get("role") != "system"]
-    keep = 3 if provider == "groq" else 6
+    keep = 4 if provider == "groq" else 8
     compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-keep:]
-    if not agent_online:
-        essential = {
-            "web_search", "web_fetch", "browser_visit", "browser_open", "browser_snapshot",
-            "browser_click", "browser_type", "browser_scroll", "browser_press",
-            "github_search", "stackoverflow_search", "get_datetime", "calculate",
-        }
-    else:
-        essential = {
-            "web_search", "web_fetch", "browser_visit", "browser_open", "browser_snapshot",
-            "browser_click", "browser_type", "read_file", "exec_shell", "grep",
-            "list_dir", "edit_file", "write_file", "find_files", "get_datetime",
-            "calculate", "github_search",
-        }
-    if is_owner:
-        essential |= {
-            "emo_reflect", "emo_remember", "emo_introspect",
-            "emo_read_self", "emo_edit_self", "emo_list_self_saves", "emo_restore_self",
-        }
-    compact_tools = []
-    for tool in tools:
-        fn = (tool.get("function") or {}).get("name", "")
-        if fn in essential:
-            compact_tools.append(tool)
-    return compact_sys, compact_msgs, compact_tools[:12]
+    max_tools = 14 if provider == "groq" else 18
+    compact_tools = select_tools_for_message(
+        user_message, tools,
+        agent_online=agent_online,
+        is_owner=is_owner,
+        tools_enabled=True,
+        provider=provider,
+        max_tools=max_tools,
+    )
+    return compact_sys, compact_msgs, compact_tools
 
 
 async def _iter_with_keepalive(agen, interval: float = 12.0):
@@ -1977,6 +1968,8 @@ async def chat_stream(
         except Exception:
             return False
 
+    use_tools = body.use_agent_tools is not False
+
     async def event_gen():
         last_error: Optional[Exception] = None
         blocked: set[tuple[str, str]] = set()
@@ -1992,11 +1985,16 @@ async def chat_stream(
                 tool_set = (EMO_TOOLS + WEB_TOOLS + BROWSER_CONTROL_TOOLS) if tier_allows_local_agent(tier) or agent_online else (WEB_TOOLS + BROWSER_CONTROL_TOOLS)
                 if is_owner:
                     tool_set = tool_set + EMO_SELF_TOOLS
-                tool_set = _tools_for_message(body.content, tool_set)
+                if not use_tools:
+                    tool_set = []
+                else:
+                    tool_set = _tools_for_message(body.content, tool_set)
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
                     provider, system_msg, initial_messages, tool_set,
                     mode=mode, user_name=user.name, agent_online=agent_online,
                     is_owner=is_owner,
+                    user_message=body.content,
+                    tools_enabled=use_tools,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -2011,7 +2009,7 @@ async def chat_stream(
                 user_message_for_iter: Optional[UserMessage] = UserMessage(text=body.content)
                 started = False
                 try:
-                    for _safety in range(50):
+                    for _safety in range(80):
                         pending_tools: list = []
                         turn_text = ""
                         async for kind, ev in _iter_with_keepalive(chat.stream_message(user_message_for_iter)):

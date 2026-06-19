@@ -1,8 +1,29 @@
 import axios from "axios";
 
 const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
-export { BACKEND_URL };
+const BACKEND_FALLBACK = (process.env.REACT_APP_BACKEND_FALLBACK_URL || "").replace(/\/$/, "");
+export { BACKEND_URL, BACKEND_FALLBACK };
 export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
+
+async function _fetchWithFallback(path, options = {}) {
+  const bases = [BACKEND_URL, BACKEND_FALLBACK].filter(Boolean);
+  if (!bases.length) bases.push("");
+  let lastErr;
+  for (const base of bases) {
+    const url = base ? `${base}/api${path}` : `/api${path}`;
+    try {
+      const r = await fetch(url, options);
+      if (r.status === 429 || r.status === 503) {
+        await new Promise((res) => setTimeout(res, 2000));
+        continue;
+      }
+      return r;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("Backend inaccessible");
+}
 const SESSION_KEY = "emo_session_token";
 
 export function saveSessionToken(token) {
@@ -44,7 +65,7 @@ http.interceptors.response.use(
   }
 );
 
-export async function streamChat({ conversation_id, content, mode, model_preference, onEvent, signal }) {
+export async function streamChat({ conversation_id, content, mode, model_preference, use_agent_tools, onEvent, signal }) {
   const headers = { "Content-Type": "application/json", Accept: "text/event-stream" };
   const token = getSessionToken();
   if (token) {
@@ -58,7 +79,7 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
   };
   let resp;
   try {
-    resp = await fetch(`${API}/chat/stream`, {
+    resp = await _fetchWithFallback("/chat/stream", {
       method: "POST",
       credentials: "include",
       headers,
@@ -68,6 +89,7 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
         content,
         mode,
         model_preference: model_preference || "auto",
+        use_agent_tools: use_agent_tools !== false,
       }),
     });
   } catch (e) {
@@ -144,18 +166,21 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
   }
 }
 
-/** Réveille l'API HF (évite 429 au login OAuth si le Space dort). */
 export async function wakeBackend(maxAttempts = 4) {
+  const bases = [BACKEND_URL, BACKEND_FALLBACK].filter(Boolean);
+  if (!bases.length) bases.push("");
   for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const r = await fetch(`${API}/ping`, { credentials: "include", cache: "no-store" });
-      if (r.ok) return { ok: true };
-      if (r.status === 429) {
-        await new Promise((res) => setTimeout(res, 2500 * (i + 1)));
-        continue;
+    for (const base of bases) {
+      try {
+        const url = base ? `${base}/api/ping` : "/api/ping";
+        const r = await fetch(url, { credentials: "include", cache: "no-store" });
+        if (r.ok) return { ok: true, base: base || "same-origin" };
+        if (r.status === 429) {
+          await new Promise((res) => setTimeout(res, 2500 * (i + 1)));
+        }
+      } catch (_) {
+        await new Promise((res) => setTimeout(res, 1500));
       }
-    } catch (_) {
-      await new Promise((res) => setTimeout(res, 1500));
     }
   }
   return { ok: false };

@@ -71,15 +71,16 @@ PREMIUM_MODELS = [
 ]
 
 ULTRA_MODELS = [
+    {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
+    {"provider": "anthropic", "model": "claude-opus-4-20250514", "label": "Claude Opus 4"},
+    {"provider": "openai", "model": "gpt-4o", "label": "ChatGPT 4o"},
+    {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     *HF_FREE_MODELS,
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "anthropic", "model": "claude-opus-4-20250514", "label": "Claude Opus 4"},
-    {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
-    {"provider": "openai", "model": "gpt-4o", "label": "ChatGPT 4o"},
     {"provider": "deepseek", "model": "deepseek-reasoner", "label": "DeepSeek R1 (Reasoner)"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "openrouter", "model": "openai/gpt-4o", "label": "ChatGPT 4o (OpenRouter)"},

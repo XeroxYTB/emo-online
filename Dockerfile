@@ -38,4 +38,4 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=8010
 
 EXPOSE 8010
-CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8010}
+CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8010} --workers 1

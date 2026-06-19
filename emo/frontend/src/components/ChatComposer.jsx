@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown, Cpu, Square } from "lucide-react";
+import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle } from "lucide-react";
 
 const MODES = [
   { id: "tech", label: "Tech", Icon: Code, hint: "Code, debug, systèmes" },
@@ -28,6 +28,7 @@ const QUICK_SUGGESTIONS = {
 export const ChatComposer = ({
   mode, onChangeMode,
   modelPreference, onChangeModelPreference, availableModels,
+  useAgentTools, onChangeUseAgentTools,
   onSend, onCancel, disabled, streaming, showSuggestions,
 }) => {
   const [value, setValue] = useState("");
@@ -215,6 +216,21 @@ export const ChatComposer = ({
               </div>
             )}
           </div>
+          <button
+            type="button"
+            data-testid="agent-mode-toggle"
+            onClick={() => onChangeUseAgentTools?.(!useAgentTools)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition"
+            style={{
+              background: useAgentTools ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
+              border: useAgentTools ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(255,255,255,0.08)",
+              color: useAgentTools ? "#6ee7b7" : "var(--emo-text-muted)",
+            }}
+            title={useAgentTools ? "Mode Agent — tools actifs (Cursor/Claude)" : "Mode Chat — réponse directe sans tools"}
+          >
+            {useAgentTools ? <Bot size={12} /> : <MessageCircle size={12} />}
+            <span className="hidden sm:inline">{useAgentTools ? "Agent" : "Chat"}</span>
+          </button>
           </div>
           {streaming ? (
             <button
