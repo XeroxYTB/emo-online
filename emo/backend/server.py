@@ -2456,11 +2456,6 @@ async def root():
 
 app.include_router(api)
 
-if not SERVE_FRONTEND:
-    @app.get("/")
-    async def hf_space_root():
-        return {"service": "emo", "status": "ok", "ping": "/api/ping"}
-
 
 # --- Frontend statique (mode app installee / production) ---
 FRONTEND_BUILD = ROOT_DIR.parent / "frontend" / "build"
@@ -2469,6 +2464,11 @@ if _serve_frontend == "auto":
     SERVE_FRONTEND = (FRONTEND_BUILD / "index.html").is_file()
 else:
     SERVE_FRONTEND = _serve_frontend in ("1", "true", "yes", "on")
+
+if not SERVE_FRONTEND:
+    @app.get("/")
+    async def hf_space_root():
+        return {"service": "emo", "status": "ok", "ping": "/api/ping"}
 
 if SERVE_FRONTEND:
     from starlette.staticfiles import StaticFiles
