@@ -2053,9 +2053,15 @@ async def chat_stream(
                                 "id": tc.id, "name": tc.name,
                                 "arguments": tc.arguments,
                             })
-                            result = await execute_tool(
-                                user.user_id, tc.name, tc.arguments or {}, is_owner=is_owner,
-                            )
+                            try:
+                                result = await asyncio.wait_for(
+                                    execute_tool(
+                                        user.user_id, tc.name, tc.arguments or {}, is_owner=is_owner,
+                                    ),
+                                    timeout=75.0,
+                                )
+                            except asyncio.TimeoutError:
+                                result = {"ok": False, "error": "Outil timeout (75s) — réessaie ou simplifie la requête."}
                             tool_call_log.append({
                                 "id": tc.id, "name": tc.name,
                                 "arguments": tc.arguments, "result": result,
@@ -2155,6 +2161,11 @@ async def chat_stream(
                     "type": "error",
                     "content": f"Tous les modèles ont échoué — {_friendly_llm_error(last_error)}",
                 })
+                return
+            yield _sse({
+                "type": "error",
+                "content": "Aucune réponse générée. Réessaie dans quelques secondes (API peut être en veille).",
+            })
         except Exception as e:
             logger.exception("event_gen fatal")
             yield _sse({"type": "error", "content": _friendly_llm_error(e)})

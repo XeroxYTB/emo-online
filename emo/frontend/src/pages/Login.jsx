@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, API, saveSessionToken } from "../lib/api";
+import { http, API, saveSessionToken, wakeBackend } from "../lib/api";
 import { frontendUrl } from "../lib/paths";
 import EmoEyes from "../components/EmoEyes";
 import { toast } from "sonner";
@@ -26,10 +26,18 @@ export default function Login() {
   const [checking, setChecking] = useState(true);
   const [googleReady, setGoogleReady] = useState(false);
   const [googleAuto, setGoogleAuto] = useState(false);
+  const [googleWaking, setGoogleWaking] = useState(false);
   const [desktop] = useState(isDesktopApp);
   const autoGoogleTried = useRef(false);
 
-  const handleGoogleRedirect = useCallback(() => {
+  const handleGoogleRedirect = useCallback(async () => {
+    setGoogleWaking(true);
+    const warm = await wakeBackend(5);
+    if (!warm.ok) {
+      setGoogleWaking(false);
+      toast.error("API Hugging Face surchargée (429). Attends 30 s et réessaie.");
+      return;
+    }
     const redirectUrl = frontendUrl("/auth/google/callback");
     const desktopFlag = desktop ? "&desktop=1" : "";
     window.location.href = `${API}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`;
@@ -47,12 +55,14 @@ export default function Login() {
         missing_token: "Session expirée — réessaie.",
         redirect_uri_mismatch: "URI de redirection incorrecte dans Google Cloud Console.",
         invalid_client: "Identifiants Google invalides.",
+        rate_limited: "API surchargée — réessaie dans 30 secondes.",
       };
       toast.error(msgs[err] || `Erreur Google (${err})`);
     }
   }, [searchParams]);
 
   useEffect(() => {
+    wakeBackend(2).catch(() => {});
     http.get("/auth/me")
       .then(() => navigate("/chat", { replace: true }))
       .catch(() => setChecking(false));
@@ -137,8 +147,13 @@ export default function Login() {
           type="button"
           onClick={handleGoogleRedirect}
           data-testid="google-login-btn"
-          className="google-btn w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl text-sm font-medium transition-all hover:brightness-105 mb-2"
+          disabled={loading || googleWaking}
+          className="google-btn w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl text-sm font-medium transition-all hover:brightness-105 mb-2 disabled:opacity-60"
         >
+          {googleWaking ? (
+            <>Réveil du serveur…</>
+          ) : (
+          <>
           <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
             <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.24 5.45-4.78 7.12l7.73 6.01C43.44 37.74 46.98 31.64 46.98 24.55z" />
@@ -146,6 +161,8 @@ export default function Login() {
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
           </svg>
           Continuer avec Google
+          </>
+          )}
         </button>
 
         {!googleReady && (

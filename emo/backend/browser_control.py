@@ -51,14 +51,17 @@ class BrowserController:
             if self._browser:
                 return
             self._pw = await async_playwright().start()
-            self._browser = await self._pw.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                ],
+            self._browser = await asyncio.wait_for(
+                self._pw.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                    ],
+                ),
+                timeout=25.0,
             )
             logger.info("Playwright Chromium démarré")
 

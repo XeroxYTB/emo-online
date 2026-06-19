@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { http, streamChat, clearSessionToken } from "../lib/api";
+import { http, streamChat, clearSessionToken, wakeBackend } from "../lib/api";
 import { toast } from "sonner";
 import { PanelRightOpen, PanelRightClose, Bug, Clock, User as UserIcon, Menu, Settings, ArrowDown } from "lucide-react";
 import Sidebar from "../components/Sidebar";
@@ -98,6 +98,11 @@ export default function Chat() {
   }, [sidebarCollapsed]);
 
   // Load preferences
+  useEffect(() => {
+    if (authState !== "ok") return;
+    wakeBackend(2).catch(() => {});
+  }, [authState]);
+
   useEffect(() => {
     if (authState !== "ok") return;
     http.get("/profile").then((r) => {
@@ -313,6 +318,10 @@ export default function Chat() {
     const turnTools = []; // local accumulator
     const abortController = new AbortController();
     streamAbortRef.current = abortController;
+    const streamTimeout = setTimeout(() => {
+      abortController.abort();
+      toast.error("Délai dépassé (3 min). Réessaie — le serveur était peut-être en veille.");
+    }, 180000);
 
     try {
       await streamChat({
@@ -425,6 +434,7 @@ export default function Chat() {
       setStreamingMsg(null);
       setStreamingTools([]);
     } finally {
+      clearTimeout(streamTimeout);
       if (streamAbortRef.current === abortController) {
         streamAbortRef.current = null;
       }

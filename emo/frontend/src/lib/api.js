@@ -35,7 +35,9 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (!err.response && err.message?.includes("Network Error")) {
+    if (err.response?.status === 429) {
+      err.message = "API surchargée (429). Attends 30 secondes et réessaie.";
+    } else if (!err.response && err.message?.includes("Network Error")) {
       err.message = "Serveur inaccessible. Vérifie ta connexion ou réessaie dans quelques secondes.";
     }
     return Promise.reject(err);
@@ -49,6 +51,11 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
     headers.Authorization = `Bearer ${token}`;
     headers["X-Emo-Session"] = token;
   }
+  let terminal = false;
+  const finish = (evt) => {
+    if (evt?.type === "done" || evt?.type === "error" || evt?.type === "cancelled") terminal = true;
+    onEvent?.(evt);
+  };
   let resp;
   try {
     resp = await fetch(`${API}/chat/stream`, {
@@ -65,12 +72,19 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
     });
   } catch (e) {
     if (e?.name === "AbortError") {
-      onEvent?.({ type: "cancelled" });
+      finish({ type: "cancelled" });
       return;
     }
-    onEvent?.({
+    finish({
       type: "error",
       content: "Backend inaccessible. Vérifie ta connexion.",
+    });
+    return;
+  }
+  if (resp.status === 429) {
+    finish({
+      type: "error",
+      content: "API surchargée (429). Attends 30 secondes et réessaie.",
     });
     return;
   }
@@ -81,11 +95,11 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
       msg = err.detail?.message || err.detail || err.message || msg;
       if (typeof msg === "object") msg = msg.message || JSON.stringify(msg);
     } catch (_) {}
-    onEvent?.({ type: "error", content: msg });
+    finish({ type: "error", content: msg });
     return;
   }
   if (!resp.body) {
-    onEvent?.({ type: "error", content: "Reponse vide du serveur" });
+    finish({ type: "error", content: "Reponse vide du serveur" });
     return;
   }
   const reader = resp.body.getReader();
@@ -104,23 +118,45 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
         const json = line.slice(5).trim();
         if (!json) continue;
         try {
-          const evt = JSON.parse(json);
-          onEvent?.(evt);
+          finish(JSON.parse(json));
         } catch (_) {
           // ignore malformed
         }
       }
     }
+    if (!terminal) {
+      finish({
+        type: "error",
+        content: "Réponse incomplète — la connexion s'est coupée. Réessaie.",
+      });
+    }
   } catch (e) {
     if (e?.name === "AbortError") {
-      onEvent?.({ type: "cancelled" });
+      finish({ type: "cancelled" });
       return;
     }
-    onEvent?.({
+    finish({
       type: "error",
       content: e?.message?.includes("network") || e?.name === "TypeError"
         ? "Connexion perdue pendant la réponse. Réessaie."
         : (e?.message || "Erreur stream"),
     });
   }
+}
+
+/** Réveille l'API HF (évite 429 au login OAuth si le Space dort). */
+export async function wakeBackend(maxAttempts = 4) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const r = await fetch(`${API}/ping`, { credentials: "include", cache: "no-store" });
+      if (r.ok) return { ok: true };
+      if (r.status === 429) {
+        await new Promise((res) => setTimeout(res, 2500 * (i + 1)));
+        continue;
+      }
+    } catch (_) {
+      await new Promise((res) => setTimeout(res, 1500));
+    }
+  }
+  return { ok: false };
 }
