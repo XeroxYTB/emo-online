@@ -20,7 +20,7 @@ ENV EMO_SERVE_FRONTEND=false
 ENV EMO_DEV_MODE=false
 ENV EMO_BROWSER_ENABLED=false
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8010
+ENV PORT=7860
 
-EXPOSE 8010
-CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8010} --workers 1
+EXPOSE 7860
+CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1
