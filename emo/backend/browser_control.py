@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import os
 import time
 from typing import Any, Optional
 
@@ -40,6 +41,11 @@ class BrowserController:
         self._lock = asyncio.Lock()
 
     async def _ensure_browser(self) -> None:
+        if os.environ.get("EMO_BROWSER_ENABLED", "true").lower() in ("0", "false", "no"):
+            raise RuntimeError(
+                "Navigateur desactive sur ce serveur (mode leger). "
+                "Utilise web_search et web_fetch a la place."
+            )
         if not PLAYWRIGHT_AVAILABLE:
             raise RuntimeError(
                 "Playwright non installé sur le serveur. "

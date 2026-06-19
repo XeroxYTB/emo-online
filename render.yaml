@@ -1,25 +1,44 @@
-# https://render.com — New > Blueprint > connect repo
+# Render Blueprint — déploiement gratuit 24/7 (sans carte bancaire)
+# Deploy 1-clic : https://render.com/deploy?repo=https://github.com/XeroxYTB/emo-online
+
 services:
   - type: web
-    name: emo-online
+    name: emo-online-api
     runtime: docker
-    dockerfilePath: ./Dockerfile
-    plan: starter
-    healthCheckPath: /api/health
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /api/ping
+    autoDeploy: true
     envVars:
-      - key: MONGO_URL
-        sync: false
+      - key: PORT
+        value: "8010"
       - key: DB_NAME
         value: emo
       - key: EMO_DEV_MODE
         value: "false"
       - key: EMO_SERVE_FRONTEND
+        value: "false"
+      - key: EMO_BROWSER_ENABLED
+        value: "false"
+      - key: EMO_USE_SALES_LLM_KEYS
         value: "true"
-      - key: EMO_PUBLIC_BACKEND_URL
-        sync: false
       - key: EMO_FRONTEND_URL
-        sync: false
+        value: https://xeroxytb.com
+      - key: EMO_PUBLIC_BACKEND_URL
+        value: https://emo-online-api.onrender.com
       - key: CORS_ORIGINS
+        value: https://xeroxytb.com,https://www.xeroxytb.com,https://xeroxytb.github.io
+      - key: GOOGLE_REDIRECT_URI
+        value: https://emo-online-api.onrender.com/api/auth/google/callback
+      - key: EMO_ADMIN_EMAILS
+        value: huglostalatac@gmail.com
+      - key: MONGO_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: OPENAI_API_KEY
         sync: false
@@ -27,11 +46,19 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: GOOGLE_CLIENT_ID
+      - key: GROQ_API_KEY
         sync: false
-      - key: GOOGLE_CLIENT_SECRET
+      - key: OPENROUTER_API_KEY
         sync: false
-      - key: GOOGLE_REDIRECT_URI
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: HF_TOKEN
         sync: false
       - key: STRIPE_API_KEY
+        sync: false
+      - key: STRIPE_BASIC_LINK
+        sync: false
+      - key: STRIPE_PREMIUM_LINK
+        sync: false
+      - key: STRIPE_ULTRA_LINK
         sync: false

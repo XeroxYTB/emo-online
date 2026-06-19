@@ -16,7 +16,7 @@ concurrency:
 
 env:
   FRONTEND_URL: https://xeroxytb.com
-  BACKEND_URL: https://emo-online-xeroxytb.fly.dev
+  BACKEND_URL: https://emo-online-api.onrender.com
   BACKEND_FALLBACK_URL: https://xroxx-emo-online-api.hf.space
 
 jobs:

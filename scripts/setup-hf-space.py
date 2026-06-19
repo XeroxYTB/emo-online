@@ -9,7 +9,7 @@ from huggingface_hub import HfApi
 
 REPO_ID = os.environ.get("HF_SPACE_REPO", "Xroxx/emo-online-api")
 BACKEND_URL = os.environ.get(
-    "EMO_PUBLIC_BACKEND_URL", "https://xroxx-emo-online-api.hf.space"
+    "EMO_PUBLIC_BACKEND_URL", "https://emo-online-api.onrender.com"
 )
 FRONTEND_URL = "https://xeroxytb.com"
 
@@ -36,7 +36,7 @@ VARIABLES = {
     "EMO_PUBLIC_BACKEND_URL": BACKEND_URL,
     "EMO_FRONTEND_URL": FRONTEND_URL,
     "CORS_ORIGINS": "https://xeroxytb.com,https://www.xeroxytb.com,https://xeroxytb.github.io",
-    "PORT": "8010",
+    "GOOGLE_REDIRECT_URI": f"{BACKEND_URL}/api/auth/google/callback",
     "EMO_ADMIN_EMAILS": "huglostalatac@gmail.com",
     "STRIPE_BASIC_LINK": "https://buy.stripe.com/5kQ14pae7a8Rd4yb6y48001",
     "STRIPE_PREMIUM_LINK": "https://buy.stripe.com/bJe6oJbib5SBggK5Me48002",
