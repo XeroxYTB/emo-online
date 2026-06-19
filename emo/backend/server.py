@@ -68,6 +68,7 @@ from llm_config import (
     stripe_link_for_tier,
 )
 import google_auth
+from llm_health import refresh_probe_cache
 from llm_providers import providers_status, configured_providers
 from tool_router import select_tools_for_message
 from product_keys import (

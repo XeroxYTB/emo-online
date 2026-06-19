@@ -19,8 +19,9 @@ WORKDIR /emo/backend
 ENV EMO_SERVE_FRONTEND=false
 ENV EMO_DEV_MODE=false
 ENV EMO_BROWSER_ENABLED=false
+ENV EMO_SKIP_STARTUP_PROBE=true
 ENV PYTHONUNBUFFERED=1
 ENV PORT=7860
 
 EXPOSE 7860
-CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
