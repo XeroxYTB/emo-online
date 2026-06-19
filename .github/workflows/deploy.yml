@@ -33,15 +33,21 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           if [ -z "$HF_TOKEN" ]; then
-            echo "::warning::HF_TOKEN absent — crée le Space sur huggingface.co puis ajoute HF_TOKEN dans GitHub Secrets"
-            echo "Space: https://huggingface.co/spaces/Xroxx/emo-online-api"
+            echo "::warning::HF_TOKEN absent"
             exit 0
           fi
+          rm -rf /tmp/hf-push && mkdir -p /tmp/hf-push
+          rsync -a --exclude='.git' --exclude='login_test_artifacts' --exclude='scripts/login_test_output' \
+            --exclude='node_modules' --exclude='emo/frontend/node_modules' --exclude='emo/frontend/build' \
+            ./ /tmp/hf-push/
+          cd /tmp/hf-push
+          git init -b main
           git config user.email "emo@users.noreply.github.com"
           git config user.name "Emo Online"
-          git remote remove space 2>/dev/null || true
+          git add -A
+          git commit -m "Deploy Emo API $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git remote add space "https://Xroxx:${HF_TOKEN}@huggingface.co/spaces/Xroxx/emo-online-api"
-          git push space HEAD:main --force
+          git push space main --force
 
   deploy-pages:
     name: Frontend (GitHub Pages)

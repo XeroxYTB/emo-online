@@ -47,17 +47,14 @@ if ($renderKey) {
     try { Start-Process $RenderDeployUrl } catch {}
 }
 
-# 3. Push HF code
+# 3. Push HF code (clean tree, sans binaires)
 Write-Host "[3/3] Push code vers HF Space..." -ForegroundColor Yellow
-Push-Location $Root
 try {
-    git -c safe.directory="$Root" push space HEAD:main 2>&1 | Out-Null
+    py -3 (Join-Path $Root "scripts\push-hf-clean.py")
     if ($LASTEXITCODE -eq 0) { Write-Host "  HF deploy OK" -ForegroundColor Green }
-    else { Write-Host "  HF push skip (remote space ou token)" -ForegroundColor DarkYellow }
+    else { Write-Host "  HF push skip" -ForegroundColor DarkYellow }
 } catch {
     Write-Host "  HF push skip" -ForegroundColor DarkYellow
-} finally {
-    Pop-Location
 }
 
 Write-Host ""
