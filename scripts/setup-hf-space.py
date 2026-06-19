@@ -33,6 +33,8 @@ VARIABLES = {
     "DB_NAME": "emo",
     "EMO_DEV_MODE": "false",
     "EMO_SERVE_FRONTEND": "false",
+    "EMO_BROWSER_ENABLED": "false",
+    "EMO_SKIP_STARTUP_PROBE": "true",
     "EMO_PUBLIC_BACKEND_URL": BACKEND_URL,
     "EMO_FRONTEND_URL": FRONTEND_URL,
     "CORS_ORIGINS": "https://xeroxytb.com,https://www.xeroxytb.com,https://xeroxytb.github.io",

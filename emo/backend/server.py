@@ -177,7 +177,8 @@ async def _settings_startup():
         "OK" if google_auth.has_client_id() else "non configuré",
         ", ".join(llm_ok) if llm_ok else "aucune clé (.env)",
     )
-    asyncio.create_task(refresh_probe_cache())
+    if os.environ.get("EMO_SKIP_STARTUP_PROBE", "").lower() not in ("1", "true", "yes"):
+        asyncio.create_task(refresh_probe_cache())
 
 logger = logging.getLogger("emo")
 logging.basicConfig(level=logging.INFO)
