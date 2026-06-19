@@ -1,5 +1,6 @@
-# Render Blueprint — déploiement gratuit 24/7 (sans carte bancaire)
-# Deploy 1-clic : https://render.com/deploy?repo=https://github.com/XeroxYTB/emo-online
+# Render Blueprint — DEPRECATED si compte suspendu (impayes)
+# Alternative gratuite sans carte : Koyeb (https://app.koyeb.com) + Dockerfile.render
+# Deploy 1-clic Render (si compte OK) : https://render.com/deploy?repo=https://github.com/XeroxYTB/emo-online
 
 services:
   - type: web

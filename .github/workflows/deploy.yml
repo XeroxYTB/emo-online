@@ -16,7 +16,8 @@ concurrency:
 
 env:
   FRONTEND_URL: https://xeroxytb.com
-  BACKEND_URL: https://emo-online-api.onrender.com
+  # Apres deploy Koyeb: GitHub > Settings > Variables > EMO_API_URL = https://xxx.koyeb.app
+  BACKEND_URL: ${{ vars.EMO_API_URL || 'https://xroxx-emo-online-api.hf.space' }}
   BACKEND_FALLBACK_URL: https://xroxx-emo-online-api.hf.space
 
 jobs:

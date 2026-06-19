@@ -1,69 +1,72 @@
-# Setup hebergement gratuit 24/7 — Render + HF backup + keepalive auto
+# Setup gratuit 24/7 — Koyeb (sans carte) + HF backup
 # Usage: powershell -ExecutionPolicy Bypass -File scripts\setup-free-24-7.ps1
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $EnvFile = Join-Path $Root "emo\backend\.env"
-$RenderDeployUrl = "https://render.com/deploy?repo=https://github.com/XeroxYTB/emo-online"
+$KoyebUrl = "https://app.koyeb.com"
 
 Write-Host ""
-Write-Host "=== Emo Online — Setup gratuit 24/7 ===" -ForegroundColor Cyan
+Write-Host "=== Emo Online — Setup gratuit 24/7 (Koyeb) ===" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "NOTE: Render suspendu (impayes) — on utilise Koyeb a la place." -ForegroundColor Yellow
 Write-Host ""
 
 if (-not (Test-Path $EnvFile)) {
-    Write-Host "Copie .env.example vers emo\backend\.env et configure les cles." -ForegroundColor Red
+    Write-Host ".env introuvable" -ForegroundColor Red
     exit 1
 }
 
-# 1. Sync Hugging Face (backup)
-Write-Host "[1/3] Sync secrets Hugging Face..." -ForegroundColor Yellow
+function Get-EnvValue($key) {
+    foreach ($line in Get-Content $EnvFile) {
+        if ($line -match "^\s*$key=(.*)$") {
+            $val = $Matches[1].Trim()
+            if ($val.StartsWith('"') -and $val.EndsWith('"')) { $val = $val.Substring(1, $val.Length - 2) }
+            return $val
+        }
+    }
+    return ""
+}
+
+# 1. HF backup
+Write-Host "[1/3] Sync HF Space (backup)..." -ForegroundColor Yellow
 try {
-    py -3 (Join-Path $Root "scripts\sync-hf-secrets.py")
+    py -3 (Join-Path $Root "scripts\sync-hf-secrets.py") 2>$null
+    py -3 (Join-Path $Root "scripts\push-hf-clean.py") 2>$null
     Write-Host "  HF OK" -ForegroundColor Green
 } catch {
-    Write-Host "  HF skip (HF_TOKEN manquant ou erreur)" -ForegroundColor DarkYellow
+    Write-Host "  HF skip" -ForegroundColor DarkYellow
 }
 
-# 2. Sync Render (primary gratuit)
-Write-Host "[2/3] Sync secrets Render.com..." -ForegroundColor Yellow
-$renderKey = ""
-foreach ($line in Get-Content $EnvFile) {
-    if ($line -match "^\s*RENDER_API_KEY=(.*)$") { $renderKey = $Matches[1].Trim(); break }
-}
+# 2. Koyeb primary
+Write-Host "[2/3] Koyeb (API principale gratuite)..." -ForegroundColor Yellow
+$koyebToken = Get-EnvValue "KOYEB_TOKEN"
+$koyebCli = Get-Command koyeb -ErrorAction SilentlyContinue
 
-if ($renderKey) {
-    py -3 (Join-Path $Root "scripts\sync-render-secrets.py")
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  Render OK — https://emo-online-api.onrender.com" -ForegroundColor Green
-    }
+if ($koyebToken -and $koyebCli) {
+    py -3 (Join-Path $Root "scripts\sync-koyeb-secrets.py")
+    Write-Host "  Koyeb env sync OK" -ForegroundColor Green
 } else {
-    Write-Host "  RENDER_API_KEY absent — deploy Render en 1 clic :" -ForegroundColor Yellow
-    Write-Host "  $RenderDeployUrl" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  Apres le deploy :" -ForegroundColor DarkGray
-    Write-Host "  1. Dashboard Render > Account > API Keys > creer une cle" -ForegroundColor DarkGray
-    Write-Host "  2. Ajoute RENDER_API_KEY=... dans emo\backend\.env" -ForegroundColor DarkGray
-    Write-Host "  3. Relance ce script" -ForegroundColor DarkGray
-    try { Start-Process $RenderDeployUrl } catch {}
+    Write-Host "  Deploy Koyeb (gratuit, sans carte) :" -ForegroundColor Yellow
+    Write-Host "  1. Va sur https://app.koyeb.com/stores/github" -ForegroundColor White
+    Write-Host "  2. Connecte GitHub > repo XeroxYTB/emo-online" -ForegroundColor White
+    Write-Host "  3. Create Web Service :" -ForegroundColor White
+    Write-Host "     - Builder: Dockerfile" -ForegroundColor DarkGray
+    Write-Host "     - Dockerfile path: Dockerfile.render" -ForegroundColor DarkGray
+    Write-Host "     - Port: 8010" -ForegroundColor DarkGray
+    Write-Host "     - Instance: Free / Eco" -ForegroundColor DarkGray
+    Write-Host "     - Region: Washington ou Frankfurt" -ForegroundColor DarkGray
+    Write-Host "  4. Colle les secrets depuis emo\backend\.env" -ForegroundColor White
+    Write-Host "  5. API token Koyeb > ajoute KOYEB_TOKEN dans .env > relance ce script" -ForegroundColor White
+    try { Start-Process "https://app.koyeb.com/stores/github" } catch {}
 }
 
-# 3. Push HF code (clean tree, sans binaires)
-Write-Host "[3/3] Push code vers HF Space..." -ForegroundColor Yellow
-try {
-    py -3 (Join-Path $Root "scripts\push-hf-clean.py")
-    if ($LASTEXITCODE -eq 0) { Write-Host "  HF deploy OK" -ForegroundColor Green }
-    else { Write-Host "  HF push skip" -ForegroundColor DarkYellow }
-} catch {
-    Write-Host "  HF push skip" -ForegroundColor DarkYellow
-}
+# 3. Deploy hook info
+Write-Host "[3/3] Keepalive GitHub Actions : actif (ping toutes les 8 min)" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "=== Setup termine ===" -ForegroundColor Green
-Write-Host "API principale (gratuit 24/7) : https://emo-online-api.onrender.com" -ForegroundColor Cyan
-Write-Host "Backup HF                    : https://xroxx-emo-online-api.hf.space" -ForegroundColor DarkGray
-Write-Host "Frontend                     : https://xeroxytb.com" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Keepalive GitHub Actions : actif (ping toutes les 8 min)" -ForegroundColor DarkGray
-Write-Host "Google OAuth redirect URI a ajouter :" -ForegroundColor Yellow
-Write-Host "  https://emo-online-api.onrender.com/api/auth/google/callback" -ForegroundColor White
+Write-Host "=== Termine ===" -ForegroundColor Green
+Write-Host "Frontend : https://xeroxytb.com" -ForegroundColor Cyan
+Write-Host "Apres deploy Koyeb, ajoute redirect Google OAuth :" -ForegroundColor Yellow
+Write-Host "  https://TON-SERVICE.koyeb.app/api/auth/google/callback" -ForegroundColor White
 Write-Host ""

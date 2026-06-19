@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
         <meta name="description" content="Émo Online — Assistant IA pour code, création et projets" />
-        <link rel="preconnect" href="https://emo-online-api.onrender.com" crossorigin />
+        <link rel="preconnect" href="https://xroxx-emo-online-api.hf.space" crossorigin />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
@@ -30,9 +30,8 @@
               var last = parseInt(localStorage.getItem(k) || "0", 10);
               if (Date.now() - last < 300000) return;
               localStorage.setItem(k, String(Date.now()));
-              fetch("https://emo-online-api.onrender.com/api/ping", {
-                mode: "cors", credentials: "include", cache: "no-store",
-              }).catch(function () {});
+              var ping = "https://xroxx-emo-online-api.hf.space/api/ping";
+              fetch(ping, { mode: "cors", credentials: "include", cache: "no-store" }).catch(function () {});
             } catch (_) {}
           })();
         </script>

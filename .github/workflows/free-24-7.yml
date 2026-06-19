@@ -1,81 +1,43 @@
 name: Free 24/7 Hosting
 
 on:
-  push:
-    branches: [main]
   schedule:
-    - cron: "*/8 * * * *"
+    - cron: "*/12 * * * *"
   workflow_dispatch:
 
 env:
-  PRIMARY_URL: https://emo-online-api.onrender.com
-  FALLBACK_URL: https://xroxx-emo-online-api.hf.space
+  # Definir EMO_API_URL dans GitHub > Settings > Variables (URL Koyeb apres deploy)
+  API_URL: ${{ vars.EMO_API_URL || 'https://xroxx-emo-online-api.hf.space' }}
 
 jobs:
   keepalive:
-    name: Wake API (Render + HF)
+    name: Keep API awake
     runs-on: ubuntu-latest
     steps:
-      - name: Ping primary (Render)
+      - name: Ping API (single request, no spam)
         run: |
-          for i in 1 2 3; do
-            code=$(curl -s -o /tmp/ping.json -w "%{http_code}" --max-time 60 "${{ env.PRIMARY_URL }}/api/ping" || echo "000")
-            echo "Render attempt $i → HTTP $code"
-            if [ "$code" = "200" ]; then
-              cat /tmp/ping.json || true
-              exit 0
-            fi
-            sleep 15
-          done
-          echo "::warning::Render not ready yet (cold start ~60s)"
-
-      - name: Ping fallback (HF)
-        run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 45 "${{ env.FALLBACK_URL }}/api/ping" || echo "000")
-          echo "HF fallback → HTTP $code"
-
-  deploy-render:
-    name: Trigger Render deploy
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - name: Deploy hook
-        env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "RENDER_DEPLOY_HOOK absent — connecte Render via render.yaml (1 clic)"
-            echo "https://render.com/deploy?repo=https://github.com/XeroxYTB/emo-online"
+          URL="${{ env.API_URL }}"
+          code=$(curl -s -o /tmp/ping.json -w "%{http_code}" --max-time 90 "${URL}/api/ping" || echo "000")
+          echo "Ping ${URL} → HTTP ${code}"
+          if [ "$code" = "200" ]; then
+            cat /tmp/ping.json
             exit 0
           fi
-          curl -s -X POST "$HOOK"
-          echo "Render deploy triggered"
+          echo "::notice::API pas pret (cold start ou 429 HF). Si Render suspendu, deploy Koyeb."
 
-  sync-hf-secrets:
-    name: Sync HF Space secrets
+  sync-hf-on-demand:
+    name: Redeploy HF backup
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install deps
-        run: pip install huggingface_hub python-dotenv httpx
-      - name: Sync from GitHub secrets
+      - run: pip install huggingface_hub python-dotenv
+      - name: Push clean tree to HF
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          MONGO_URL: ${{ secrets.MONGO_URL }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          EMO_PUBLIC_BACKEND_URL: ${{ env.PRIMARY_URL }}
         run: |
-          if [ -z "$HF_TOKEN" ]; then echo "HF_TOKEN absent, skip"; exit 0; fi
-          if [ -z "$MONGO_URL" ]; then echo "MONGO_URL absent in GitHub secrets, skip HF sync"; exit 0; fi
-          python scripts/setup-hf-space.py
+          if [ -z "$HF_TOKEN" ]; then echo "HF_TOKEN absent"; exit 0; fi
+          python scripts/push-hf-clean.py

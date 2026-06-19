@@ -15,7 +15,7 @@ load_dotenv(ROOT / "emo" / "backend" / ".env", override=True)
 RENDER_API = "https://api.render.com/v1"
 SERVICE_NAME = os.environ.get("RENDER_SERVICE_NAME", "emo-online-api")
 BACKEND_URL = os.environ.get(
-    "EMO_PUBLIC_BACKEND_URL", "https://emo-online-api.onrender.com"
+    "EMO_PUBLIC_BACKEND_URL", "https://xroxx-emo-online-api.hf.space"
 ).rstrip("/")
 
 SECRET_KEYS = [

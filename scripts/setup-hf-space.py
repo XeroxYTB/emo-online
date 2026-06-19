@@ -9,7 +9,7 @@ from huggingface_hub import HfApi
 
 REPO_ID = os.environ.get("HF_SPACE_REPO", "Xroxx/emo-online-api")
 BACKEND_URL = os.environ.get(
-    "EMO_PUBLIC_BACKEND_URL", "https://emo-online-api.onrender.com"
+    "EMO_PUBLIC_BACKEND_URL", "https://xroxx-emo-online-api.hf.space"
 )
 FRONTEND_URL = "https://xeroxytb.com"
 

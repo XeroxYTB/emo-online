@@ -1,0 +1,28 @@
+{
+  "started_at": "19:11:04 UTC",
+  "url": "https://xeroxytb.com/login",
+  "observations": [
+    "[19:11:07 UTC] Navigating to login page",
+    "[19:11:09 UTC] Screenshot saved: 01_initial.png",
+    "[19:11:09 UTC] Initial body text snippet: 'Pr\u00e9paration de ton espace\u2026'",
+    "[19:11:09 UTC] Boot dots visible: True",
+    "[19:11:09 UTC] Emo eyes visible: False",
+    "[19:11:20 UTC] At 10s \u2014 boot message: 'Encore quelques secondes\u2026'",
+    "[19:11:40 UTC] At 30s \u2014 boot message: 'Encore quelques secondes\u2026'",
+    "[19:12:11 UTC] At 60s \u2014 boot message: 'Encore quelques secondes\u2026'",
+    "[19:12:42 UTC] At 90s \u2014 boot message: 'Connexion au serveur en cours. R\u00e9essaie dans un instant.'",
+    "[19:12:42 UTC] Final state after 90s wait: offline_retry",
+    "[19:12:42 UTC] Toast/error elements: 0 \u2014 texts: []",
+    "[19:12:42 UTC] Google login button NOT visible \u2014 skip click test"
+  ],
+  "screenshots": [
+    "h:\\Emo Online Final\\login_test_artifacts\\01_initial.png",
+    "h:\\Emo Online Final\\login_test_artifacts\\wait_10s.png",
+    "h:\\Emo Online Final\\login_test_artifacts\\wait_30s.png",
+    "h:\\Emo Online Final\\login_test_artifacts\\wait_60s.png",
+    "h:\\Emo Online Final\\login_test_artifacts\\wait_90s.png",
+    "h:\\Emo Online Final\\login_test_artifacts\\02_final_state.png"
+  ],
+  "errors": [],
+  "finished_at": "19:12:43 UTC"
+}
