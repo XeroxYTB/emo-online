@@ -28,11 +28,34 @@ from emergentintegrations.payments.stripe.checkout import (
 )
 
 from emo_prompts import build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT
+from emo_self_edit import (
+    EMO_SELF_TOOLS,
+    emo_read_self,
+    emo_edit_self,
+    emo_list_self_saves,
+    emo_restore_self,
+    emo_reflect,
+    emo_remember,
+    emo_introspect,
+    get_identity_overrides,
+)
+from browser_control import (
+    BROWSER_CONTROL_TOOLS,
+    BROWSER_CONTROL_TOOL_NAMES,
+    browser_open as do_browser_open,
+    browser_snapshot as do_browser_snapshot,
+    browser_click as do_browser_click,
+    browser_type as do_browser_type,
+    browser_scroll as do_browser_scroll,
+    browser_press as do_browser_press,
+    browser_close as do_browser_close,
+)
 from agent_relay import registry as agent_registry
 from web_tools import (
     web_search as do_web_search,
     web_fetch as do_web_fetch,
     web_fetch_json as do_web_fetch_json,
+    browser_visit as do_browser_visit,
     get_datetime as do_get_datetime,
     github_search as do_github_search,
     stackoverflow_search as do_stackoverflow_search,
@@ -1238,6 +1261,37 @@ async def export_project(user: User = Depends(get_current_user)):
     )
 
 
+class EmoRestoreBody(BaseModel):
+    version_id: str
+
+
+@api.get("/admin/emo-identity")
+async def admin_get_emo_identity(user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Réservé aux admins")
+    data = await emo_read_self(db)
+    if not data.get("ok"):
+        raise HTTPException(status_code=500, detail=data.get("error", "Erreur"))
+    return data
+
+
+@api.get("/admin/emo-identity/versions")
+async def admin_list_emo_versions(user: User = Depends(get_current_user), limit: int = 20):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Réservé aux admins")
+    return await emo_list_self_saves(db, limit=limit)
+
+
+@api.post("/admin/emo-identity/restore")
+async def admin_restore_emo_identity(body: EmoRestoreBody, user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Réservé aux admins")
+    result = await emo_restore_self(db, user.user_id, body.version_id.strip())
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Restauration échouée"))
+    return result
+
+
 # ============================ CONVERSATIONS ============================ #
 
 
@@ -1512,7 +1566,13 @@ TOOL_ALIASES = {
 }
 
 
-async def execute_tool(user_id: str, tool_name: str, args: dict) -> dict:
+async def execute_tool(
+    user_id: str,
+    tool_name: str,
+    args: dict,
+    *,
+    is_owner: bool = False,
+) -> dict:
     """Dispatch a Claude tool call to the user's local agent OR to a backend web tool."""
     tool_name = TOOL_ALIASES.get(tool_name, tool_name)
     # Web tools run on the backend directly (no local agent required)
@@ -1525,6 +1585,8 @@ async def execute_tool(user_id: str, tool_name: str, args: dict) -> dict:
         )
     if tool_name == "web_fetch":
         return await do_web_fetch(args.get("url", ""), int(args.get("max_chars", 12000) or 12000))
+    if tool_name == "browser_visit":
+        return await do_browser_visit(args.get("url", ""), int(args.get("max_chars", 10000) or 10000))
     if tool_name == "web_fetch_json":
         return await do_web_fetch_json(args.get("url", ""), int(args.get("max_chars", 8000) or 8000))
     if tool_name == "get_datetime":
@@ -1536,9 +1598,87 @@ async def execute_tool(user_id: str, tool_name: str, args: dict) -> dict:
     if tool_name == "calculate":
         return do_calculate(args.get("expression", ""))
 
+    sid = str(args.get("session_id") or "default")
+    if tool_name == "browser_open":
+        return await do_browser_open(user_id, str(args.get("url", "")), sid)
+    if tool_name == "browser_snapshot":
+        return await do_browser_snapshot(user_id, sid)
+    if tool_name == "browser_click":
+        return await do_browser_click(
+            user_id, sid,
+            ref=args.get("ref"),
+            selector=args.get("selector"),
+        )
+    if tool_name == "browser_type":
+        return await do_browser_type(
+            user_id, str(args.get("text", "")),
+            sid,
+            ref=args.get("ref"),
+            selector=args.get("selector"),
+            clear=bool(args.get("clear")),
+            press_enter=bool(args.get("press_enter")),
+        )
+    if tool_name == "browser_scroll":
+        return await do_browser_scroll(
+            user_id,
+            str(args.get("direction") or "down"),
+            int(args.get("amount", 600) or 600),
+            sid,
+        )
+    if tool_name == "browser_press":
+        return await do_browser_press(user_id, str(args.get("key", "Enter")), sid)
+    if tool_name == "browser_close":
+        return await do_browser_close(user_id, sid)
+
+    # Émo self-edit (admin/owner only, server-side)
+    if tool_name == "emo_reflect":
+        if not is_owner:
+            return {"ok": False, "error": "Réservé au owner/admin."}
+        return await emo_reflect(
+            db, user_id,
+            str(args.get("thought", "")),
+            str(args.get("plan") or ""),
+            bool(args.get("introspect")),
+        )
+    if tool_name == "emo_remember":
+        if not is_owner:
+            return {"ok": False, "error": "Réservé au owner/admin."}
+        return await emo_remember(db, user_id, str(args.get("content", "")))
+    if tool_name == "emo_introspect":
+        if not is_owner:
+            return {"ok": False, "error": "Réservé au owner/admin."}
+        return await emo_introspect(db, user_id)
+    if tool_name == "emo_read_self":
+        if not is_owner:
+            return {"ok": False, "error": "Réservé au owner/admin."}
+        return await emo_read_self(db, args.get("section"))
+    if tool_name == "emo_edit_self":
+        if not is_owner:
+            return {"ok": False, "error": "Réservé au owner/admin."}
+        return await emo_edit_self(
+            db, user_id,
+            str(args.get("section", "")),
+            str(args.get("content", "")),
+            str(args.get("reason") or ""),
+        )
+    if tool_name == "emo_list_self_saves":
+        if not is_owner:
+            return {"ok": False, "error": "Réservé au owner/admin."}
+        return await emo_list_self_saves(db, int(args.get("limit", 15) or 15))
+    if tool_name == "emo_restore_self":
+        if not is_owner:
+            return {"ok": False, "error": "Réservé au owner/admin."}
+        return await emo_restore_self(db, user_id, str(args.get("version_id", "")).strip())
+
     # Local-machine tools require the agent
     if tool_name not in LOCAL_AGENT_TOOLS:
         return {"ok": False, "error": f"Outil inconnu : {tool_name}"}
+    if not agent_registry.is_online(user_id):
+        return {
+            "ok": False,
+            "error": "Agent local hors ligne — lance Emo-Agent.exe sur ton PC.",
+            "hint": "Utilise web_search puis browser_open (clics) ou browser_visit (lecture simple).",
+        }
     timeout = 90
     if tool_name == "exec_shell":
         timeout = int(args.get("timeout", 60)) + 30
@@ -1618,6 +1758,75 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def _browser_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
+    if not result.get("ok"):
+        return None
+    if tool_name == "web_search":
+        return {
+            "type": "browser",
+            "action": "search",
+            "query": result.get("query", ""),
+            "results": [
+                {
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "snippet": (r.get("snippet") or "")[:240],
+                }
+                for r in (result.get("results") or [])[:10]
+            ],
+        }
+    if tool_name in ("web_fetch", "browser_visit"):
+        return {
+            "type": "browser",
+            "action": "visit",
+            "url": result.get("url", ""),
+            "title": result.get("title", ""),
+            "preview": (result.get("preview") or result.get("text") or "")[:1500],
+            "links": (result.get("links") or [])[:8],
+        }
+    if tool_name in BROWSER_CONTROL_TOOL_NAMES and result.get("ok"):
+        payload: dict = {
+            "type": "browser",
+            "action": result.get("action") or "control",
+            "url": result.get("url", ""),
+            "title": result.get("title", ""),
+            "preview": (result.get("text") or "")[:1500],
+            "elements": result.get("elements") or [],
+            "session_id": result.get("session_id"),
+        }
+        if result.get("screenshot_base64"):
+            payload["screenshot_base64"] = result["screenshot_base64"]
+        return payload
+    return None
+
+
+def _reflect_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
+    if tool_name != "emo_reflect" or not result.get("ok"):
+        return None
+    return {
+        "type": "reflect",
+        "thought": result.get("thought", ""),
+        "plan": result.get("plan", ""),
+        "systems": result.get("systems"),
+    }
+
+
+def _file_preview_sse(tool_name: str, args: dict, result: dict) -> Optional[dict]:
+    if tool_name != "read_file" or not result.get("ok"):
+        return None
+    path = result.get("path") or args.get("path") or ""
+    content = result.get("content") or ""
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    is_image = ext in {"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"}
+    return {
+        "type": "file_preview",
+        "path": path,
+        "preview": content[:2000],
+        "is_image": is_image,
+        "language": ext,
+    }
+
+
 def _compact_llm_payload(
     provider: str,
     system_msg: str,
@@ -1627,6 +1836,7 @@ def _compact_llm_payload(
     mode: str = "tech",
     user_name: str = "",
     agent_online: bool = False,
+    is_owner: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq free tier has strict TPM limits — short prompt + essential tools only."""
     if provider not in ("groq", "gemini", "huggingface"):
@@ -1635,11 +1845,24 @@ def _compact_llm_payload(
     non_system = [m for m in initial_messages if m.get("role") != "system"]
     keep = 3 if provider == "groq" else 6
     compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-keep:]
-    essential = {
-        "web_search", "web_fetch", "read_file", "exec_shell", "grep",
-        "list_dir", "edit_file", "write_file", "find_files", "get_datetime",
-        "calculate", "github_search",
-    }
+    if not agent_online:
+        essential = {
+            "web_search", "web_fetch", "browser_visit", "browser_open", "browser_snapshot",
+            "browser_click", "browser_type", "browser_scroll", "browser_press",
+            "github_search", "stackoverflow_search", "get_datetime", "calculate",
+        }
+    else:
+        essential = {
+            "web_search", "web_fetch", "browser_visit", "browser_open", "browser_snapshot",
+            "browser_click", "browser_type", "read_file", "exec_shell", "grep",
+            "list_dir", "edit_file", "write_file", "find_files", "get_datetime",
+            "calculate", "github_search",
+        }
+    if is_owner:
+        essential |= {
+            "emo_reflect", "emo_remember", "emo_introspect",
+            "emo_read_self", "emo_edit_self", "emo_list_self_saves", "emo_restore_self",
+        }
     compact_tools = []
     for tool in tools:
         fn = (tool.get("function") or {}).get("name", "")
@@ -1721,9 +1944,11 @@ async def chat_stream(
     memories = await _load_user_memories(user.user_id, limit=50)
     agent_online = agent_registry.is_online(user.user_id)
     is_owner = user.email.lower() in ADMIN_EMAILS
+    identity_overrides = await get_identity_overrides(db) if is_owner else {}
     system_msg = build_system_prompt(
         mode, memories=memories, agent_online=agent_online,
         user_name=user.name, is_owner=is_owner,
+        identity_overrides=identity_overrides,
     )
 
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "custom_prompt_addon": 1})
@@ -1764,11 +1989,14 @@ async def chat_stream(
                     break
                 if (provider, model) in blocked:
                     continue
-                tool_set = (EMO_TOOLS + WEB_TOOLS) if tier_allows_local_agent(tier) or agent_online else WEB_TOOLS
+                tool_set = (EMO_TOOLS + WEB_TOOLS + BROWSER_CONTROL_TOOLS) if tier_allows_local_agent(tier) or agent_online else (WEB_TOOLS + BROWSER_CONTROL_TOOLS)
+                if is_owner:
+                    tool_set = tool_set + EMO_SELF_TOOLS
                 tool_set = _tools_for_message(body.content, tool_set)
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
                     provider, system_msg, initial_messages, tool_set,
                     mode=mode, user_name=user.name, agent_online=agent_online,
+                    is_owner=is_owner,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -1825,7 +2053,9 @@ async def chat_stream(
                                 "id": tc.id, "name": tc.name,
                                 "arguments": tc.arguments,
                             })
-                            result = await execute_tool(user.user_id, tc.name, tc.arguments or {})
+                            result = await execute_tool(
+                                user.user_id, tc.name, tc.arguments or {}, is_owner=is_owner,
+                            )
                             tool_call_log.append({
                                 "id": tc.id, "name": tc.name,
                                 "arguments": tc.arguments, "result": result,
@@ -1835,7 +2065,19 @@ async def chat_stream(
                                 "id": tc.id, "name": tc.name,
                                 "result": _shrink_for_ui(result),
                             })
-                            chat.add_tool_result(tc.id, json.dumps(result, ensure_ascii=False)[:50000])
+                            browser_evt = _browser_sse_payload(tc.name, result)
+                            if browser_evt:
+                                yield _sse(browser_evt)
+                            reflect_evt = _reflect_sse_payload(tc.name, result)
+                            if reflect_evt:
+                                yield _sse(reflect_evt)
+                            file_evt = _file_preview_sse(tc.name, tc.arguments or {}, result)
+                            if file_evt:
+                                yield _sse(file_evt)
+                            chat.add_tool_result(
+                                tc.id,
+                                json.dumps(_shrink_for_llm(result), ensure_ascii=False)[:50000],
+                            )
                         if cancelled:
                             break
                         user_message_for_iter = None
@@ -1927,9 +2169,23 @@ async def chat_stream(
 def _shrink_for_ui(result: dict) -> dict:
     """Trim huge outputs for UI display (keep last 4KB)."""
     out = dict(result or {})
-    for key in ("stdout", "stderr", "content"):
+    for key in ("stdout", "stderr", "content", "text"):
         if key in out and isinstance(out[key], str) and len(out[key]) > 4000:
             out[key] = "…" + out[key][-4000:]
+    if out.get("screenshot_base64") and isinstance(out["screenshot_base64"], str):
+        if len(out["screenshot_base64"]) > 200:
+            out["screenshot_base64"] = out["screenshot_base64"][:200] + "…[truncated for UI card]"
+    return out
+
+
+def _shrink_for_llm(result: dict) -> dict:
+    """Strip bloat before sending tool results back to the LLM."""
+    out = dict(result or {})
+    if out.get("screenshot_base64"):
+        out["screenshot_base64"] = "[jpeg screenshot — visible in UI; use elements refs to interact]"
+    for key in ("stdout", "stderr", "content", "text"):
+        if key in out and isinstance(out[key], str) and len(out[key]) > 8000:
+            out[key] = out[key][:8000] + "\n…[truncated]"
     return out
 
 

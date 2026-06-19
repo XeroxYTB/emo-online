@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch } from "lucide-react";
+import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2 } from "lucide-react";
 
 const ICONS = {
   exec_shell: Terminal,
@@ -13,6 +13,21 @@ const ICONS = {
   move_path: Move,
   web_search: Search,
   web_fetch: Globe,
+  browser_visit: Compass,
+  browser_open: Compass,
+  browser_click: MousePointer2,
+  browser_type: Compass,
+  browser_snapshot: Compass,
+  browser_scroll: Compass,
+  browser_press: Compass,
+  browser_close: Compass,
+  emo_reflect: Sparkles,
+  emo_remember: Sparkles,
+  emo_introspect: Sparkles,
+  emo_read_self: Sparkles,
+  emo_edit_self: Sparkles,
+  emo_list_self_saves: History,
+  emo_restore_self: History,
 };
 
 const COLORS = {
@@ -27,6 +42,17 @@ const COLORS = {
   move_path: "#FB923C",
   web_search: "#10B981",
   web_fetch: "#3B82F6",
+  browser_visit: "#6366F1",
+  browser_open: "#6366F1",
+  browser_click: "#38BDF8",
+  browser_type: "#818CF8",
+  emo_reflect: "#E879F9",
+  emo_remember: "#C084FC",
+  emo_introspect: "#A855F7",
+  emo_read_self: "#E879F9",
+  emo_edit_self: "#E879F9",
+  emo_list_self_saves: "#C084FC",
+  emo_restore_self: "#C084FC",
 };
 
 export const ToolCallCard = ({ event }) => {
@@ -125,7 +151,18 @@ function formatArgs(tool, args) {
   if (tool === "find_files") return args.pattern || "";
   if (tool === "move_path") return `${args.from} → ${args.to}`;
   if (tool === "web_search") return `"${args.query || ""}"${args.focus && args.focus !== "general" ? ` [${args.focus}]` : ""}`;
-  if (tool === "web_fetch") return args.url || "";
+  if (tool === "web_fetch" || tool === "browser_visit" || tool === "browser_open") return args.url || "";
+  if (tool.startsWith("browser_")) {
+    if (args.ref != null) return `ref=${args.ref}`;
+    if (args.selector) return args.selector;
+    if (args.text) return `"${String(args.text).slice(0, 40)}"`;
+    return args.url || "";
+  }
+  if (tool === "emo_reflect") return (args.thought || "").slice(0, 60);
+  if (tool === "emo_remember") return (args.content || "").slice(0, 60);
+  if (tool === "emo_edit_self") return `${args.section || ""} (${(args.content || "").length} chars)`;
+  if (tool === "emo_read_self") return args.section || "all";
+  if (tool === "emo_restore_self") return (args.version_id || "").slice(0, 8);
   return JSON.stringify(args);
 }
 

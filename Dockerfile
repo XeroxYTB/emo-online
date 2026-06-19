@@ -10,7 +10,14 @@ RUN chmod +x build.sh && ./build.sh
 FROM python:3.11-slim
 WORKDIR /emo
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+    libdrm2 libdbus-1-3 libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 \
+    libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright
+RUN mkdir -p /tmp/ms-playwright && chmod -R 777 /tmp/ms-playwright
 
 # HF Spaces: user non-root, seul /tmp est writable
 ENV HF_HOME=/tmp/hf_cache
@@ -18,7 +25,8 @@ ENV XDG_CACHE_HOME=/tmp/hf_cache
 RUN mkdir -p /tmp/hf_cache && chmod -R 777 /tmp/hf_cache
 
 COPY emo/backend/requirements.txt ./backend/requirements.txt
-RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt \
+    && playwright install chromium
 
 COPY emo/backend ./backend
 COPY --from=agent-build /build/emo/backend/agent_binaries ./backend/agent_binaries

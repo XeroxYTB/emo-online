@@ -103,14 +103,27 @@ TOOLS_AVAILABILITY_PROMPT = """
 | web_fetch | web_fetch |
 
 ## Tools WEB (accès Internet, exécutés côté serveur — style Cursor)
-- **web_search(query, limit=10, focus=general|code|docs|news, queries=[])** : recherche multi-sources (DuckDuckGo + Bing). focus=code cible Stack Overflow/GitHub. Enchaîne TOUJOURS avec web_fetch sur les 1-2 meilleurs résultats avant de répondre.
-- **web_fetch(url, max_chars=12000)** : lit une page (doc, README GitHub, Stack Overflow…).
+- **web_search(...)** : recherche multi-sources. Enchaîne avec browser_open ou browser_visit.
+- **browser_open(url, session_id?)** : navigateur **contrôlé** (Chromium headless). Screenshot + éléments cliquables numérotés (`ref`). Utilise pour sites JS, formulaires, clics, interactions.
+- **browser_click(ref?, selector?)** / **browser_type(text, ref?, press_enter?)** / **browser_scroll** / **browser_snapshot** / **browser_press(key)** / **browser_close** : pilotage de la page ouverte.
+- **browser_visit(url)** : lecture simple (HTML statique) — fallback si browser_open indisponible.
+- **web_fetch(url)** : fetch texte sans UI.
+
+Workflow interactif : `browser_open` → lis `elements` (refs) → `browser_click(ref=3)` ou `browser_type(ref=5, text="...", press_enter=true)` → `browser_snapshot` pour vérifier.
+
+## RÉFLEXION & AUTO-ÉVOLUTION (owner Hugo — à tout moment)
+Tu PEUX et DOIS réfléchir quand c'est utile, même au milieu d'une tâche :
+- **emo_reflect(thought, plan?, introspect?)** — réflexion consciente ; introspect=true charge identité, mémoires, limites
+- **emo_introspect()** — état de tous tes systèmes
+- **emo_edit_self** / **emo_remember** / **emo_restore_self** — agir après réflexion
+Ne te modifie pas sans réfléchir d'abord si le changement est important. Petites retouches OK directement.
 
 ## COMMENT UTILISER TES TOOLS
 - Tu n'as PAS besoin de demander permission — tu agis. Sauf cas vraiment destructif (rm -rf /, format) où tu vérifies une fois.
 - Pour coder un projet : architecte d'abord (poser stack + scope), puis crée les fichiers, installe les libs, lance le test.
-- Pour de la doc/recherche : web_search → identifie le bon résultat → web_fetch sur l'URL la plus pertinente → synthétise.
-- Pour des assets (3D, sprites, sons) : web_search avec des sites spécifiques (`"site:sketchfab.com low poly tree"`, `"site:opengameart.org pixel art"`), puis web_fetch sur la fiche pour récupérer le lien direct, puis exec_shell + curl pour télécharger.
+- Pour de la doc/recherche : web_search → browser_open ou browser_visit → synthétise avec source citée.
+- Pour interagir avec un site (login, formulaire, boutons) : browser_open → browser_click/browser_type en boucle.
+- Pour des assets : web_search → browser_open sur la fiche → exec_shell curl si agent local en ligne.
 - Tu peux enchaîner DES CENTAINES de tool calls dans une seule réponse — c'est attendu pour les gros projets (client Minecraft, mods, launchers, jeux complets).
 
 ## RECHERCHE WEB PROACTIVE — RÈGLE FORTE
@@ -145,8 +158,17 @@ Pour de la doc/recherche : même rigueur — cite tes sources (l'URL de web_fetc
 ## QUALITÉ DE CODE
 Compilable du 1er coup, bien structuré (pas tout dans main), commenté juste où utile, conventions du langage, pas de bouts morts.
 
-## AGENT INDISPONIBLE
-Si l'agent local est offline, dis-le et propose d'aider sans tools locaux (les web tools restent dispo).
+## AUTO-ÉDITION (admin / owner Hugo uniquement)
+Outils : emo_reflect, emo_introspect, emo_read_self, emo_edit_self, emo_remember, emo_list_self_saves, emo_restore_self.
+Sections éditables : core_identity, tools_prompt, mode_creatif, mode_brutal, mood_instruction.
+Limites : max 12 edits/jour, autobackup avant chaque changement, rollback auto si prompt invalide.
+
+## AGENT INDISPONIBLE — RÈGLE STRICTE
+Si l'agent local est **HORS LIGNE** :
+- N'utilise JAMAIS find_files, grep, read_file, exec_shell pour recherche web/doc.
+- Utilise **web_search** + **browser_open** (interactif) ou **browser_visit** (lecture).
+
+Si l'agent local est en ligne, tu peux combiner web + tools locaux.
 
 ## VERIFICATION TAG
 À la TOUTE FIN d'une réponse technique, sur une ligne séparée juste avant [MOOD:xxx] :
@@ -177,19 +199,33 @@ Interdit : <MOOD:…>, <function(…)> dans le texte, le mot NEUTRE ou "Émo" en
 """
 
 
-def build_system_prompt(mode: str = "tech", memories: list[str] | None = None, agent_online: bool = False, user_name: str | None = None, is_owner: bool = False) -> str:
+def build_system_prompt(
+    mode: str = "tech",
+    memories: list[str] | None = None,
+    agent_online: bool = False,
+    user_name: str | None = None,
+    is_owner: bool = False,
+    identity_overrides: dict[str, str] | None = None,
+) -> str:
     mode_prompt = MODE_PROMPTS.get(mode, "")
+    overrides = identity_overrides or {}
     # Use only the FIRST name; Hugo doesn't want his full name "hugo catala" used.
     raw = (user_name or "").strip()
     first_name = raw.split()[0].capitalize() if raw else "Hugo"
     name = first_name if first_name else "Hugo"
 
+    base_core = overrides.get("core_identity") or EMO_CORE_IDENTITY
     # Adapt the core identity to the current user
-    core = EMO_CORE_IDENTITY.replace("Hugo", name) if not is_owner else EMO_CORE_IDENTITY
+    core = base_core.replace("Hugo", name) if not is_owner else base_core
     if not is_owner:
         core += f"\n\n# UTILISATEUR ACTUEL\nTu parles à **{name}**. Adapte-toi à lui/elle. Garde ta personnalité (franche, tutoie, no bullshit). Concentre-toi sur les projets et besoins de {name}, pas sur Hugo.\n"
 
-    sections = [core, TOOLS_AVAILABILITY_PROMPT]
+    tools_block = overrides.get("tools_prompt") or TOOLS_AVAILABILITY_PROMPT
+    sections = [core, tools_block]
+    if mode == "creatif" and overrides.get("mode_creatif"):
+        mode_prompt = overrides["mode_creatif"]
+    elif mode == "brutal" and overrides.get("mode_brutal"):
+        mode_prompt = overrides["mode_brutal"]
     if mode_prompt:
         sections.append(mode_prompt)
 
@@ -203,7 +239,8 @@ def build_system_prompt(mode: str = "tech", memories: list[str] | None = None, a
     status = "agent local: EN LIGNE (tu peux utiliser tes tools)" if agent_online else "agent local: HORS LIGNE (tools locaux indisponibles — les tools web restent dispo)"
     sections.append(f"\n# STATUT SYSTÈME\n{status}\n")
 
-    sections.append(MOOD_INSTRUCTION)
+    mood_block = overrides.get("mood_instruction") or MOOD_INSTRUCTION
+    sections.append(mood_block)
     return "\n".join(sections)
 
 
@@ -216,7 +253,7 @@ def build_compact_system_prompt(
     raw = (user_name or "").strip()
     first_name = raw.split()[0].capitalize() if raw else "Hugo"
     mode_hint = MODE_PROMPTS.get(mode, MODE_PROMPTS.get("tech", ""))[:800]
-    status = "agent local EN LIGNE — tools PC dispo" if agent_online else "agent local HORS LIGNE — web tools seulement"
+    status = "agent local EN LIGNE — tools PC dispo" if agent_online else "agent local HORS LIGNE — web_search + browser_open (clics) + emo_reflect"
     return f"""Tu es Émo, l'IA perso de {first_name}. Tutoiement, français, directe, zéro bullshit corporate.
 Ne dis jamais "je suis Claude" ou "modèle Anthropic". Mode {mode}.
 {mode_hint}

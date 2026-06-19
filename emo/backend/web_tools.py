@@ -308,6 +308,21 @@ def calculate_expression(expression: str) -> dict:
         return {"ok": False, "error": str(e), "expression": expr}
 
 
+async def browser_visit(url: str, max_chars: int = 10000) -> dict:
+    """Ouvre une page web (texte + liens) — visible dans le panneau Navigateur de l'UI."""
+    result = await web_fetch(url, max_chars=max_chars)
+    if not result.get("ok"):
+        return result
+    text = result.get("text") or ""
+    return {
+        **result,
+        "preview": text[:2000],
+        "links_count": len(result.get("links") or []),
+        "images_count": len(result.get("images") or []),
+        "hint": "Contenu lu — cite l'URL dans ta réponse.",
+    }
+
+
 WEB_TOOLS = [
     {
         "type": "function",
@@ -336,6 +351,25 @@ WEB_TOOLS = [
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "browser_visit",
+            "description": (
+                "Ouvre une page web dans le navigateur d'Émo (panneau latéral utilisateur). "
+                "Lit le contenu, extrait titre, texte, liens. Utilise après web_search "
+                "ou quand tu as une URL précise à consulter."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL complète https://…"},
+                    "max_chars": {"type": "integer", "description": "Limite texte extrait (défaut 10000)."},
+                },
+                "required": ["url"],
             },
         },
     },

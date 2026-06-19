@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { http } from "../lib/api";
-import { Folder, FolderOpen, File as FileIcon, RefreshCw, Save, ArrowUp, ChevronRight } from "lucide-react";
+import { Folder, FolderOpen, File as FileIcon, RefreshCw, Save, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
+import SquarePreviewFrame, { isImagePath, previewTextSnippet } from "./SquarePreviewFrame";
 
 const detectLang = (path) => {
   const ext = path.split(".").pop().toLowerCase();
@@ -16,7 +17,7 @@ const detectLang = (path) => {
   return map[ext] || "plaintext";
 };
 
-export default function FileExplorer({ agentOnline }) {
+export default function FileExplorer({ agentOnline, externalPreview = null }) {
   const [cwd, setCwd] = useState("~");
   const [listing, setListing] = useState({ files: [], dirs: [], path: "~" });
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,16 @@ export default function FileExplorer({ agentOnline }) {
     if (agentOnline) refresh("~");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentOnline]);
+
+  useEffect(() => {
+    if (externalPreview?.path && externalPreview.path !== currentFile) {
+      setCurrentFile(externalPreview.path);
+      if (externalPreview.preview != null) {
+        setContent(externalPreview.preview);
+        setOriginalContent(externalPreview.preview);
+      }
+    }
+  }, [externalPreview?.path]);
 
   const openFile = async (name) => {
     const path = `${cwd}/${name}`;
@@ -82,19 +93,32 @@ export default function FileExplorer({ agentOnline }) {
   };
 
   const dirty = content !== originalContent;
+  const previewPath = currentFile || externalPreview?.path || "";
+  const previewContent = content || externalPreview?.preview || "";
+  const previewIsImage = isImagePath(previewPath);
 
   if (!agentOnline) {
     return (
       <div className="p-6 text-center text-sm text-secondary-em">
         <p className="mb-2">Agent local hors ligne.</p>
-        <p className="text-xs text-muted-em">Lance <code className="font-code text-purple-300">emo-agent.py</code> sur ton PC pour explorer tes fichiers ici.</p>
+        <p className="text-xs text-muted-em">Lance <code className="font-code text-purple-300">Emo-Agent.exe</code> sur ton PC pour explorer tes fichiers ici.</p>
+        {externalPreview?.path && (
+          <div className="mt-6">
+            <SquarePreviewFrame
+              kind="text"
+              text={previewTextSnippet(externalPreview.preview)}
+              title={externalPreview.path.split("/").pop()}
+              subtitle={externalPreview.path}
+              testId="file-preview-offline"
+            />
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Path bar */}
       <div className="flex items-center gap-1 px-3 py-2 border-b border-white/5 text-xs">
         <button onClick={cdUp} className="p-1 rounded hover:bg-white/10" data-testid="cd-up-btn">
           <ArrowUp size={12} />
@@ -105,9 +129,20 @@ export default function FileExplorer({ agentOnline }) {
         </button>
       </div>
 
-      {/* Split: tree + editor */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* Tree */}
+      {previewPath && (
+        <div className="flex-shrink-0 p-3 border-b border-white/5">
+          <SquarePreviewFrame
+            kind={previewIsImage ? "empty" : "text"}
+            text={previewIsImage ? undefined : previewTextSnippet(previewContent, 1200)}
+            title={previewPath.split(/[/\\]/).pop()}
+            subtitle={previewPath}
+            emptyLabel={previewIsImage ? "Fichier image — éditeur ci-dessous" : "Fichier vide"}
+            testId="file-square-preview"
+          />
+        </div>
+      )}
+
+      <div className="flex-1 overflow-hidden flex min-h-0">
         <div className="w-44 flex-shrink-0 border-r border-white/5 overflow-y-auto scrollbar-thin py-1.5" data-testid="file-tree">
           {listing.dirs.map((d) => (
             <button
@@ -126,7 +161,7 @@ export default function FileExplorer({ agentOnline }) {
               onClick={() => openFile(f)}
               className="w-full flex items-center gap-1.5 px-3 py-1 text-xs hover:bg-white/[0.05]"
               data-testid={`fs-file-${f}`}
-              style={{ color: currentFile?.endsWith("/" + f) ? "#fff" : "var(--emo-text-secondary)" }}
+              style={{ color: currentFile?.endsWith("/" + f) || currentFile?.endsWith("\\" + f) ? "#fff" : "var(--emo-text-secondary)" }}
             >
               <FileIcon size={11} className="opacity-50 flex-shrink-0" />
               <span className="truncate">{f}</span>
@@ -137,7 +172,6 @@ export default function FileExplorer({ agentOnline }) {
           )}
         </div>
 
-        {/* Editor */}
         <div className="flex-1 flex flex-col min-w-0">
           {currentFile ? (
             <>

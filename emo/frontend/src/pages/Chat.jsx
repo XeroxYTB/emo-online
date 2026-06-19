@@ -40,6 +40,10 @@ export default function Chat() {
   const [streamingTools, setStreamingTools] = useState([]); // tools in current streaming turn
   const [agentOnline, setAgentOnline] = useState(false);
   const [allTools, setAllTools] = useState([]); // recent tools (right panel activity)
+  const [browserFrames, setBrowserFrames] = useState([]);
+  const [reflectNotes, setReflectNotes] = useState([]);
+  const [filePreview, setFilePreview] = useState(null);
+  const [rightPanelTab, setRightPanelTab] = useState("site");
   const [rightOpen, setRightOpen] = useState(true);
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -342,6 +346,43 @@ export default function Chat() {
               if (idx >= 0) updated[idx] = turnTools[i];
               return updated;
             });
+          } else if (evt.type === "browser") {
+            const frame = {
+              id: `browser_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              action: evt.action,
+              query: evt.query,
+              results: evt.results,
+              url: evt.url,
+              title: evt.title,
+              preview: evt.preview,
+              links: evt.links,
+              elements: evt.elements,
+              screenshot_base64: evt.screenshot_base64,
+              session_id: evt.session_id,
+            };
+            setBrowserFrames((prev) => [frame, ...prev].slice(0, 30));
+            setRightPanelTab("browser");
+            setRightOpen(true);
+          } else if (evt.type === "reflect") {
+            setReflectNotes((prev) => [
+              {
+                id: `reflect_${Date.now()}`,
+                thought: evt.thought,
+                plan: evt.plan,
+              },
+              ...prev,
+            ].slice(0, 20));
+            setRightPanelTab("browser");
+            setRightOpen(true);
+          } else if (evt.type === "file_preview") {
+            setFilePreview({
+              path: evt.path,
+              preview: evt.preview,
+              is_image: evt.is_image,
+              language: evt.language,
+            });
+            setRightPanelTab("files");
+            setRightOpen(true);
           } else if (evt.type === "done") {
             const finalContent = cleanStreamText(buffer).trim();
             setMessages((m) => [
@@ -634,6 +675,12 @@ export default function Chat() {
             tools={allTools}
             agentOnline={agentOnline}
             onRefreshStatus={refreshAgentStatus}
+            browserFrames={browserFrames}
+            reflectNotes={reflectNotes}
+            filePreview={filePreview}
+            isAdmin={Boolean(license?.is_admin)}
+            activeTab={rightPanelTab}
+            onTabChange={setRightPanelTab}
           />
         </div>
       )}

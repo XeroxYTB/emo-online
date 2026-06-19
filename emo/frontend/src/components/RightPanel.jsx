@@ -1,13 +1,17 @@
-import React, { useState } from "react";
-import { Activity, FolderTree, Brain, Settings, X, Globe, KeyRound } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Activity, FolderTree, Brain, Settings, X, Globe, KeyRound, Compass, Sparkles } from "lucide-react";
 import FileExplorer from "./FileExplorer";
 import MemoryPanel from "./MemoryPanel";
 import AgentSettingsPanel from "./AgentSettingsPanel";
 import LLMKeysPanel from "./LLMKeysPanel";
+import BrowserPanel from "./BrowserPanel";
+import EmoIdentityPanel from "./EmoIdentityPanel";
+import SquarePreviewFrame from "./SquarePreviewFrame";
 import ToolCallCard from "./ToolCallCard";
 
-const TABS = [
+const BASE_TABS = [
   { id: "site", label: "Site", icon: Globe },
+  { id: "browser", label: "Web", icon: Compass },
   { id: "keys", label: "Clés IA", icon: KeyRound },
   { id: "activity", label: "Activité", icon: Activity },
   { id: "files", label: "Fichiers", icon: FolderTree },
@@ -15,8 +19,31 @@ const TABS = [
   { id: "settings", label: "Agent", icon: Settings },
 ];
 
-export default function RightPanel({ tools, agentOnline, onRefreshStatus, onClose }) {
-  const [tab, setTab] = useState("site");
+export default function RightPanel({
+  tools,
+  agentOnline,
+  onRefreshStatus,
+  onClose,
+  browserFrames = [],
+  reflectNotes = [],
+  filePreview = null,
+  isAdmin = false,
+  activeTab,
+  onTabChange,
+}) {
+  const [tab, setTab] = useState(activeTab || "site");
+  const TABS = isAdmin
+    ? [...BASE_TABS.slice(0, 3), { id: "emo", label: "Émo", icon: Sparkles }, ...BASE_TABS.slice(3)]
+    : BASE_TABS;
+
+  useEffect(() => {
+    if (activeTab && activeTab !== tab) setTab(activeTab);
+  }, [activeTab]);
+
+  const selectTab = (id) => {
+    setTab(id);
+    onTabChange?.(id);
+  };
 
   return (
     <aside
@@ -33,7 +60,7 @@ export default function RightPanel({ tools, agentOnline, onRefreshStatus, onClos
               <button
                 key={t.id}
                 data-testid={`right-tab-${t.id}`}
-                onClick={() => setTab(t.id)}
+                onClick={() => selectTab(t.id)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] transition"
                 style={{
                   color: active ? "#fff" : "var(--emo-text-muted)",
@@ -55,17 +82,21 @@ export default function RightPanel({ tools, agentOnline, onRefreshStatus, onClos
 
       <div className="flex-1 overflow-hidden">
         {tab === "site" && (
-          <iframe
-            data-testid="site-preview-iframe"
-            src="https://xeroxytb.com"
-            title="Emo Online"
-            className="w-full h-full border-0 bg-[#07040a]"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          />
+          <div className="h-full overflow-y-auto scrollbar-thin p-4 flex flex-col items-center justify-center">
+            <SquarePreviewFrame
+              kind="iframe"
+              url="https://xeroxytb.com"
+              title="Emo Online"
+              subtitle="https://xeroxytb.com"
+              testId="site-preview-iframe"
+            />
+          </div>
         )}
+        {tab === "browser" && <BrowserPanel frames={browserFrames} reflectNotes={reflectNotes} />}
+        {tab === "emo" && isAdmin && <EmoIdentityPanel />}
         {tab === "keys" && <LLMKeysPanel />}
         {tab === "activity" && <ActivityTab tools={tools} agentOnline={agentOnline} />}
-        {tab === "files" && <FileExplorer agentOnline={agentOnline} />}
+        {tab === "files" && <FileExplorer agentOnline={agentOnline} externalPreview={filePreview} />}
         {tab === "memory" && <MemoryPanel />}
         {tab === "settings" && (
           <div className="p-4 overflow-y-auto h-full scrollbar-thin">
