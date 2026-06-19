@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 OUT=../backend/agent_binaries
 mkdir -p "$OUT"
 
-VERSION="${1:-2.1.0}"
+VERSION="${1:-2.2.0}"
 DEFAULT_BACKEND="${EMO_AGENT_DEFAULT_BACKEND:-}"
 
 LDFLAGS="-s -w -X main.version=$VERSION"

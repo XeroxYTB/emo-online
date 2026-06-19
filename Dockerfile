@@ -1,5 +1,7 @@
 # Backend API — Hugging Face Spaces (Docker)
 FROM golang:1.22-alpine AS agent-build
+ARG EMO_AGENT_DEFAULT_BACKEND=https://xroxx-emo-online-api.hf.space
+ENV EMO_AGENT_DEFAULT_BACKEND=${EMO_AGENT_DEFAULT_BACKEND}
 WORKDIR /build/emo/agent-go
 RUN apk add --no-cache bash
 COPY emo/agent-go/ .

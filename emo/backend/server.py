@@ -1547,13 +1547,62 @@ async def execute_tool(user_id: str, tool_name: str, args: dict) -> dict:
 
 # ============================ CHAT STREAMING ============================ #
 
+_MOOD_TAG_RE = re.compile(
+    r"\[MOOD:([a-zA-Zéèê]+)\]|<MOOD:([a-zA-Zéèê]+)>",
+    re.IGNORECASE,
+)
+_VERIFIED_TAG_RE = re.compile(r"\[VERIFIED:(true|false|partial)\]", re.IGNORECASE)
+_TOOL_LEAK_RE = re.compile(
+    r"<function\s*\([^)]*\)\s*\{[\s\S]*?\}\s*(?:</function>)?"
+    r"|<function[^>]*>[\s\S]*?</function>"
+    r"|<tool_call>[\s\S]*?</tool_call>"
+    r"|\[TOOL:[^\]]+\]",
+    re.IGNORECASE,
+)
+_LEAKED_PREFIX_RE = re.compile(
+    r"^(?:Slt\s*)?Émo\s*[A-Za-zéèê]+\s*",
+    re.IGNORECASE,
+)
+_GREETING_ONLY_RE = re.compile(
+    r"^(?:slt|salut|hello|hi|hey|bonjour|coucou|yo|allo|cc)[\s!.?]*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_llm_artifacts(text: str) -> str:
+    if not text:
+        return ""
+    clean = _TOOL_LEAK_RE.sub("", text)
+    clean = _MOOD_TAG_RE.sub("", clean)
+    clean = _VERIFIED_TAG_RE.sub("", clean)
+    clean = _LEAKED_PREFIX_RE.sub("", clean.strip())
+    clean = re.sub(r"^\s*Émo\s*", "", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"^\s*[A-Za-zéèê]{4,20}\s+(?=[A-ZÀ-Ü\"«])", "", clean)
+    clean = re.sub(r"\n{3,}", "\n\n", clean)
+    return clean.strip()
+
+
+def _tools_for_message(content: str, tool_set: list[dict]) -> list[dict]:
+    """Pas d'outils sur simple salut — évite les faux <function> des petits modèles."""
+    if _GREETING_ONLY_RE.match((content or "").strip()):
+        return []
+    return tool_set
+
+
 def _strip_mood(text: str) -> tuple[str, Optional[str]]:
-    m = re.search(r"\[MOOD:([a-zA-Zéèê]+)\]\s*$", text.strip())
-    if not m:
-        return text, None
-    mood = m.group(1).strip().lower()
-    clean = text[: m.start()].rstrip()
-    return clean, mood
+    return _sanitize_assistant_text(text)
+
+
+def _sanitize_assistant_text(text: str) -> tuple[str, Optional[str]]:
+    """Retire balises MOOD/VERIFIED, tool leaks et artefacts LLM."""
+    if not text:
+        return "", None
+    mood: Optional[str] = None
+    for m in _MOOD_TAG_RE.finditer(text):
+        found = (m.group(1) or m.group(2) or "").strip().lower()
+        if found:
+            mood = found
+    return _strip_llm_artifacts(text), mood
 
 
 def _strip_verified(text: str) -> tuple[str, Optional[str]]:
@@ -1613,7 +1662,12 @@ async def _iter_with_keepalive(agen, interval: float = 12.0):
 
 
 @api.post("/chat/stream")
-async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, user: User = Depends(get_current_user)):
+async def chat_stream(
+    body: SendMessageBody,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+):
     # License gate
     lic, info = await assert_license_active(user.user_id, email=user.email)
 
@@ -1692,15 +1746,26 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
     if not candidates:
         raise HTTPException(status_code=503, detail="Aucune clé IA configurée dans backend/.env")
 
+    async def _client_gone() -> bool:
+        try:
+            return await request.is_disconnected()
+        except Exception:
+            return False
+
     async def event_gen():
         last_error: Optional[Exception] = None
         blocked: set[tuple[str, str]] = set()
+        cancelled = False
         try:
             yield _sse({"type": "ping"})
             for cand_idx, (provider, model, model_label) in enumerate(candidates):
+                if await _client_gone():
+                    cancelled = True
+                    break
                 if (provider, model) in blocked:
                     continue
                 tool_set = (EMO_TOOLS + WEB_TOOLS) if tier_allows_local_agent(tier) or agent_online else WEB_TOOLS
+                tool_set = _tools_for_message(body.content, tool_set)
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
                     provider, system_msg, initial_messages, tool_set,
                     mode=mode, user_name=user.name, agent_online=agent_online,
@@ -1722,13 +1787,20 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                         pending_tools: list = []
                         turn_text = ""
                         async for kind, ev in _iter_with_keepalive(chat.stream_message(user_message_for_iter)):
+                            if await _client_gone():
+                                cancelled = True
+                                break
                             if kind == "keepalive":
                                 yield _sse({"type": "ping"})
                                 continue
                             started = True
                             if isinstance(ev, TextDelta):
-                                turn_text += ev.content
-                                yield _sse({"type": "delta", "content": ev.content})
+                                chunk = ev.content or ""
+                                if re.search(r"<function|</function>|<MOOD:|\[MOOD:|<tool_call", chunk, re.I):
+                                    chunk = _strip_llm_artifacts(chunk)
+                                if chunk:
+                                    turn_text += ev.content
+                                    yield _sse({"type": "delta", "content": chunk})
                             elif isinstance(ev, ToolCallStart):
                                 yield _sse({"type": "tool_start", "id": ev.id, "name": ev.name})
                             elif isinstance(ev, ToolCallReady):
@@ -1737,11 +1809,16 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                                 if ev.tool_calls:
                                     pending_tools = ev.tool_calls
                                 break
+                        if cancelled:
+                            break
                         if turn_text:
                             full_text_parts.append(turn_text)
                         if not pending_tools:
                             break
                         for tc in pending_tools:
+                            if await _client_gone():
+                                cancelled = True
+                                break
                             yield _sse({"type": "ping"})
                             yield _sse({
                                 "type": "tool_executing",
@@ -1759,16 +1836,19 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                                 "result": _shrink_for_ui(result),
                             })
                             chat.add_tool_result(tc.id, json.dumps(result, ensure_ascii=False)[:50000])
+                        if cancelled:
+                            break
                         user_message_for_iter = None
                     else:
                         yield _sse({"type": "error", "content": "Trop d'appels d'outils. Boucle arrêtée."})
                         return
 
+                    if cancelled:
+                        break
+
                     full_text = "".join(full_text_parts)
-                    clean, mood = _strip_mood(full_text)
+                    clean, mood = _sanitize_assistant_text(full_text)
                     clean, verified = _strip_verified(clean)
-                    if mood is None:
-                        clean, mood = _strip_mood(clean)
                     assistant_msg = {
                         "message_id": f"msg_{uuid.uuid4().hex[:12]}",
                         "conversation_id": body.conversation_id,
@@ -1808,7 +1888,7 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                     if _should_fallback_llm(e, has_output=has_output, manual_pick=manual_pick):
                         blocked.add((provider, model))
                         code = _llm_http_status(e)
-                        if code in (401, 402, 403, 429):
+                        if code in (401, 402, 403):
                             _block_provider_models(blocked, provider, candidates)
                         mark_provider_failed(provider, str(e)[:200])
                         remaining = [
@@ -1825,8 +1905,14 @@ async def chat_stream(body: SendMessageBody, background_tasks: BackgroundTasks, 
                     logger.exception("Erreur stream")
                     yield _sse({"type": "error", "content": _friendly_llm_error(e)})
                     return
+            if cancelled:
+                yield _sse({"type": "cancelled"})
+                return
             if last_error:
-                yield _sse({"type": "error", "content": _friendly_llm_error(last_error)})
+                yield _sse({
+                    "type": "error",
+                    "content": f"Tous les modèles ont échoué — {_friendly_llm_error(last_error)}",
+                })
         except Exception as e:
             logger.exception("event_gen fatal")
             yield _sse({"type": "error", "content": _friendly_llm_error(e)})

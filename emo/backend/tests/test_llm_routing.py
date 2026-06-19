@@ -30,7 +30,7 @@ async def test_manual_preference_includes_fallback_chain(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_auto_mode_orders_groq_first(monkeypatch):
+async def test_auto_mode_orders_hf_first(monkeypatch):
     monkeypatch.setattr("llm_config.api_key_available", lambda p: True)
 
     async def _fake_provider_ready(provider, model):
@@ -39,7 +39,7 @@ async def test_auto_mode_orders_groq_first(monkeypatch):
     monkeypatch.setattr("llm_config._provider_ready", _fake_provider_ready)
 
     cands = await resolve_model_candidates("free", None)
-    assert cands[0][0] == "groq"
+    assert cands[0][0] == "huggingface"
 
 
 def test_parse_model_preference():

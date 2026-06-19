@@ -32,6 +32,8 @@ jobs:
           go-version: "1.22"
       - name: Build Emo Agent (all platforms)
         working-directory: emo/agent-go
+        env:
+          EMO_AGENT_DEFAULT_BACKEND: https://xroxx-emo-online-api.hf.space
         run: |
           chmod +x build.sh
           ./build.sh

@@ -5,6 +5,7 @@ const MOOD_TO_STATE = {
   amusee: "happy",
   concentree: "focused",
   sarcastique: "smirk",
+  ironique: "smirk",
   enthousiaste: "excited",
   agacee: "annoyed",
   curieuse: "curious",

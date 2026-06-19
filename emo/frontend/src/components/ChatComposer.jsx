@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown, Cpu } from "lucide-react";
+import { Send, Sparkles, Code, Lightbulb, Flame, ChevronDown, Cpu, Square } from "lucide-react";
 
 const MODES = [
   { id: "tech", label: "Tech", Icon: Code, hint: "Code, debug, systèmes" },
@@ -28,7 +28,7 @@ const QUICK_SUGGESTIONS = {
 export const ChatComposer = ({
   mode, onChangeMode,
   modelPreference, onChangeModelPreference, availableModels,
-  onSend, disabled, streaming, showSuggestions,
+  onSend, onCancel, disabled, streaming, showSuggestions,
 }) => {
   const [value, setValue] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -109,8 +109,8 @@ export const ChatComposer = ({
             }
           }}
           rows={1}
-          placeholder={streaming ? "Émo répond…" : "Écris ton message…"}
-          disabled={disabled}
+          placeholder={streaming ? "Émo répond… (Échap ou Arrêter pour interrompre)" : "Écris ton message…"}
+          disabled={disabled && !streaming}
           className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none py-3 px-3 text-base placeholder:text-muted-em disabled:opacity-60"
           style={{ maxHeight: 180, color: "var(--emo-text)" }}
         />
@@ -216,19 +216,37 @@ export const ChatComposer = ({
             )}
           </div>
           </div>
-          <button
-            data-testid="send-message-btn"
-            onClick={submit}
-            disabled={disabled || !value.trim()}
-            className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-2xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            style={{
-              background: "var(--mode-color)",
-              color: "#0A0510",
-              boxShadow: "0 0 18px var(--mode-glow)",
-            }}
-          >
-            <Send size={15} />
-          </button>
+          {streaming ? (
+            <button
+              type="button"
+              data-testid="stop-stream-btn"
+              onClick={() => onCancel?.()}
+              className="h-9 px-3 flex-shrink-0 flex items-center justify-center gap-1.5 rounded-2xl transition-all text-xs font-medium"
+              style={{
+                background: "rgba(239,68,68,0.15)",
+                border: "1px solid rgba(239,68,68,0.35)",
+                color: "#fca5a5",
+              }}
+              title="Arrêter la réponse"
+            >
+              <Square size={14} fill="currentColor" />
+              <span className="hidden sm:inline">Arrêter</span>
+            </button>
+          ) : (
+            <button
+              data-testid="send-message-btn"
+              onClick={submit}
+              disabled={disabled || !value.trim()}
+              className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-2xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{
+                background: "var(--mode-color)",
+                color: "#0A0510",
+                boxShadow: "0 0 18px var(--mode-glow)",
+              }}
+            >
+              <Send size={15} />
+            </button>
+          )}
         </div>
       </div>
       <p className="hidden sm:block text-[11px] text-muted-em text-center mt-2">

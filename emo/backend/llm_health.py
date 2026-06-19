@@ -41,7 +41,16 @@ def _cache_set(provider: str, ok: bool, msg: str = "") -> None:
     _probe_cache[provider] = (ok, time.monotonic(), msg)
 
 
+_TRANSIENT_FAILURE = (
+    "429", "rate limit", "tpm", "tokens per minute", "too many requests",
+    "503", "overloaded", "timeout", "temporarily unavailable",
+)
+
+
 def mark_provider_failed(provider: str, reason: str = "") -> None:
+    lower = (reason or "").lower()
+    if any(m in lower for m in _TRANSIENT_FAILURE):
+        return
     _cache_set(provider, False, reason[:200])
 
 
@@ -127,6 +136,8 @@ async def probe_provider(provider: str) -> tuple[bool, str]:
         url, model = _PROBE_MODELS[provider]
         ok, msg = await _probe_openai_compat(provider, url, model, key)
 
+    if not ok and any(m in msg.lower() for m in _TRANSIENT_FAILURE):
+        return ok, msg
     _cache_set(provider, ok, msg)
     return ok, msg
 

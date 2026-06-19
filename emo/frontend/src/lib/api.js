@@ -42,7 +42,7 @@ http.interceptors.response.use(
   }
 );
 
-export async function streamChat({ conversation_id, content, mode, model_preference, onEvent }) {
+export async function streamChat({ conversation_id, content, mode, model_preference, onEvent, signal }) {
   const headers = { "Content-Type": "application/json", Accept: "text/event-stream" };
   const token = getSessionToken();
   if (token) {
@@ -55,6 +55,7 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
       method: "POST",
       credentials: "include",
       headers,
+      signal,
       body: JSON.stringify({
         conversation_id,
         content,
@@ -63,6 +64,10 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
       }),
     });
   } catch (e) {
+    if (e?.name === "AbortError") {
+      onEvent?.({ type: "cancelled" });
+      return;
+    }
     onEvent?.({
       type: "error",
       content: "Backend inaccessible. Vérifie ta connexion.",
@@ -107,6 +112,10 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
       }
     }
   } catch (e) {
+    if (e?.name === "AbortError") {
+      onEvent?.({ type: "cancelled" });
+      return;
+    }
     onEvent?.({
       type: "error",
       content: e?.message?.includes("network") || e?.name === "TypeError"

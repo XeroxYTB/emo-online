@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { Activity, FolderTree, Brain, Settings, X } from "lucide-react";
+import { Activity, FolderTree, Brain, Settings, X, Globe, KeyRound } from "lucide-react";
 import FileExplorer from "./FileExplorer";
 import MemoryPanel from "./MemoryPanel";
 import AgentSettingsPanel from "./AgentSettingsPanel";
+import LLMKeysPanel from "./LLMKeysPanel";
 import ToolCallCard from "./ToolCallCard";
 
 const TABS = [
+  { id: "site", label: "Site", icon: Globe },
+  { id: "keys", label: "Clés IA", icon: KeyRound },
   { id: "activity", label: "Activité", icon: Activity },
   { id: "files", label: "Fichiers", icon: FolderTree },
   { id: "memory", label: "Mémoire", icon: Brain },
@@ -13,7 +16,7 @@ const TABS = [
 ];
 
 export default function RightPanel({ tools, agentOnline, onRefreshStatus, onClose }) {
-  const [tab, setTab] = useState("activity");
+  const [tab, setTab] = useState("site");
 
   return (
     <aside
@@ -51,6 +54,16 @@ export default function RightPanel({ tools, agentOnline, onRefreshStatus, onClos
       </div>
 
       <div className="flex-1 overflow-hidden">
+        {tab === "site" && (
+          <iframe
+            data-testid="site-preview-iframe"
+            src="https://xeroxytb.com"
+            title="Emo Online"
+            className="w-full h-full border-0 bg-[#07040a]"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          />
+        )}
+        {tab === "keys" && <LLMKeysPanel />}
         {tab === "activity" && <ActivityTab tools={tools} agentOnline={agentOnline} />}
         {tab === "files" && <FileExplorer agentOnline={agentOnline} />}
         {tab === "memory" && <MemoryPanel />}

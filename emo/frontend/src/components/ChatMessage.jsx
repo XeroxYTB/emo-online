@@ -1,12 +1,14 @@
 import React from "react";
 import EmoEyes from "./EmoEyes";
 import ToolCallCard from "./ToolCallCard";
+import { cleanDisplayText } from "../lib/messageClean";
 
 const MOOD_LABELS = {
   neutre: "Neutre",
   amusee: "Amusée",
   concentree: "Concentrée",
   sarcastique: "Sarcastique",
+  ironique: "Ironique",
   enthousiaste: "Enthousiaste",
   agacee: "Agacée",
   curieuse: "Curieuse",
@@ -79,7 +81,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
             color: "var(--emo-text)",
           }}
         >
-          <RichContent text={message.content} />
+          <RichContent text={cleanDisplayText(message.content)} />
         </div>
       </div>
     );
@@ -99,10 +101,10 @@ export const ChatMessage = ({ message, isStreaming }) => {
           <span className="font-heading text-sm font-medium" style={{ color: "var(--mode-color)" }}>
             Émo
           </span>
-          {mood && (
+          {mood && mood !== "neutre" && (
             <span
               data-testid="mood-badge"
-              className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full"
+              className="text-[10px] tracking-wide px-2 py-0.5 rounded-full"
               style={{ background: "rgba(255,255,255,0.04)", color: "var(--emo-text-muted)" }}
             >
               {MOOD_LABELS[mood] || mood}
@@ -152,7 +154,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
           </div>
         )}
         <div className="text-[15px]" style={{ color: "var(--emo-text)" }}>
-          <RichContent text={message.content} />
+          <RichContent text={cleanDisplayText(message.content)} />
         </div>
       </div>
     </div>

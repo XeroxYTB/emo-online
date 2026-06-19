@@ -26,8 +26,8 @@ OPENROUTER_FREE_MODELS = [
 ]
 
 FREE_MODELS = [
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *HF_FREE_MODELS,
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
@@ -42,8 +42,8 @@ FREE_MODELS = [
 ]
 
 BASIC_MODELS = [
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *HF_FREE_MODELS,
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
@@ -56,8 +56,8 @@ BASIC_MODELS = [
 ]
 
 PREMIUM_MODELS = [
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *HF_FREE_MODELS,
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
@@ -71,8 +71,8 @@ PREMIUM_MODELS = [
 ]
 
 ULTRA_MODELS = [
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *HF_FREE_MODELS,
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
@@ -198,12 +198,7 @@ def _provider_ready(provider: str, model: str) -> Optional[tuple[str, str, str]]
         return None
     if not api_key_available(provider):
         return None
-    try:
-        from llm_health import provider_usable
-        if not provider_usable(provider, True):
-            return None
-    except ImportError:
-        pass
+    # Ne pas filtrer sur le cache santé (429/quota temporaires) — le fallback runtime gère.
     return provider, model, model
 
 

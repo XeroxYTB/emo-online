@@ -22,8 +22,11 @@ SECRETS = [
     "GEMINI_API_KEY",
     "GROQ_API_KEY",
     "OPENROUTER_API_KEY",
+    "DEEPSEEK_API_KEY",
     "HF_TOKEN",
+    "HUGGINGFACE_API_KEY",
     "STRIPE_API_KEY",
+    "EMERGENT_LLM_KEY",
 ]
 
 VARIABLES = {
@@ -38,6 +41,7 @@ VARIABLES = {
     "STRIPE_BASIC_LINK": "https://buy.stripe.com/5kQ14pae7a8Rd4yb6y48001",
     "STRIPE_PREMIUM_LINK": "https://buy.stripe.com/bJe6oJbib5SBggK5Me48002",
     "STRIPE_ULTRA_LINK": "https://buy.stripe.com/4gMdRb71V3Kt8OicaC48003",
+    "OPENROUTER_REFERER": FRONTEND_URL,
 }
 
 

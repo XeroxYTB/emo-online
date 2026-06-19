@@ -1158,11 +1158,15 @@ func installSelf() {
 	logf("install complete. Émo agent démarrera automatiquement à chaque session.")
 }
 
+func autostartCommand(binPath string) string {
+	return fmt.Sprintf(`"%s" --headless`, binPath)
+}
+
 func installWindowsAutostart(binPath string) {
 	// Use HKCU\Software\Microsoft\Windows\CurrentVersion\Run registry key
 	cmd := exec.Command("reg", "add",
 		`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
-		"/v", "EmoAgent", "/t", "REG_SZ", "/d", binPath, "/f")
+		"/v", "EmoAgent", "/t", "REG_SZ", "/d", autostartCommand(binPath), "/f")
 	if err := cmd.Run(); err != nil {
 		logf("autostart registry failed (you can add manually): %v", err)
 	} else {
@@ -1179,7 +1183,7 @@ func installMacAutostart(binPath string) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>com.emo.agent</string>
-<key>ProgramArguments</key><array><string>%s</string></array>
+<key>ProgramArguments</key><array><string>%s</string><string>--headless</string></array>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
 <key>StandardOutPath</key><string>/tmp/emo-agent.out.log</string>
@@ -1208,7 +1212,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=%s
+ExecStart=%s --headless
 Restart=on-failure
 RestartSec=5
 

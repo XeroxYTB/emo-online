@@ -172,8 +172,8 @@ MOOD_INSTRUCTION = """
 # HUMEUR
 À la TOUTE FIN de chaque réponse (après toutes tes tool calls et ta réponse finale), sur une ligne séparée et seule, ajoute exactement :
 [MOOD:xxx]
-où xxx est UN seul mot parmi : neutre, amusee, concentree, sarcastique, enthousiaste, agacee, curieuse, pensive
-Cette balise sera parsée pour animer tes yeux. Ne mets rien après. Si tu fais des tool calls intermédiaires, mets [MOOD:xxx] uniquement à la fin de ton dernier message textuel.
+où xxx est UN seul mot parmi : neutre, amusee, concentree, sarcastique, ironique, enthousiaste, agacee, curieuse, pensive
+Interdit : <MOOD:…>, <function(…)> dans le texte, le mot NEUTRE ou "Émo" en préfixe. Utilise l'API tools native — n'écris jamais de faux appels <function> dans ta réponse.
 """
 
 

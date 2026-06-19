@@ -13,12 +13,17 @@ import Paywall from "../components/SubscriptionPlans";
 import DebugWindow from "../components/DebugWindow";
 import ProfileDrawer from "../components/ProfileDrawer";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
+import { cleanDisplayText } from "../lib/messageClean";
 
 const MODE_TAGLINES = {
   tech: "Code, debug et architecture — précision chirurgicale.",
   creatif: "Idées sans filtre, brainstorming audacieux.",
   brutal: "Vérité directe, zéro langue de bois.",
 };
+
+function cleanStreamText(text) {
+  return cleanDisplayText(text);
+}
 
 export default function Chat() {
   const navigate = useNavigate();
@@ -54,6 +59,7 @@ export default function Chat() {
   const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto (meilleur modèle disponible)" }]);
   const chatAreaRef = useRef(null);
   const stickyBottomRef = useRef(true);
+  const streamAbortRef = useRef(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const isNearBottom = useCallback((el, threshold = 140) => {
@@ -260,6 +266,26 @@ export default function Chat() {
     navigate("/login", { replace: true });
   };
 
+  const handleCancel = useCallback(() => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+    setStreaming(false);
+    setStreamingMsg(null);
+    setStreamingTools([]);
+  }, []);
+
+  useEffect(() => {
+    if (!streaming) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleCancel();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [streaming, handleCancel]);
+
   const handleSend = async (text) => {
     if (streaming) return;
     let convId = activeId;
@@ -281,16 +307,19 @@ export default function Chat() {
 
     let buffer = "";
     const turnTools = []; // local accumulator
+    const abortController = new AbortController();
+    streamAbortRef.current = abortController;
 
     try {
       await streamChat({
         conversation_id: convId, content: text, mode,
         model_preference: modelPreference || "auto",
+        signal: abortController.signal,
         onEvent: (evt) => {
           pushDebug(evt);
           if (evt.type === "delta") {
             buffer += evt.content;
-            const display = buffer.replace(/\[MOOD:[^\]]*\]\s*$/i, "");
+            const display = cleanStreamText(buffer);
             setStreamingMsg({ content: display });
           } else if (evt.type === "tool_start") {
             turnTools.push({ id: evt.id, tool: evt.name, args: {}, state: "executing", result: null });
@@ -314,11 +343,7 @@ export default function Chat() {
               return updated;
             });
           } else if (evt.type === "done") {
-            const finalContent = buffer
-              .replace(/\[MOOD:[^\]]*\]\s*$/i, "")
-              .replace(/\[VERIFIED:(true|false|partial)\]\s*$/i, "")
-              .replace(/\[MOOD:[^\]]*\]\s*$/i, "")
-              .trim();
+            const finalContent = cleanStreamText(buffer).trim();
             setMessages((m) => [
               ...m,
               {
@@ -346,14 +371,22 @@ export default function Chat() {
             toast.error(evt.content || "Une erreur est survenue.");
             setStreamingMsg(null);
             setStreamingTools([]);
+          } else if (evt.type === "cancelled") {
+            setStreamingMsg(null);
+            setStreamingTools([]);
           }
         },
       });
     } catch (e) {
-      toast.error(e?.message || "Connexion interrompue. Réessaie.");
+      if (e?.name !== "AbortError") {
+        toast.error(e?.message || "Connexion interrompue. Réessaie.");
+      }
       setStreamingMsg(null);
       setStreamingTools([]);
     } finally {
+      if (streamAbortRef.current === abortController) {
+        streamAbortRef.current = null;
+      }
       setStreaming(false);
     }
   };
@@ -585,7 +618,8 @@ export default function Chat() {
               onChangeModelPreference={setModelPreference}
               availableModels={availableModels}
               onSend={handleSend}
-              disabled={streaming}
+              onCancel={handleCancel}
+              disabled={false}
               streaming={streaming}
               showSuggestions={!hasMessages}
             />

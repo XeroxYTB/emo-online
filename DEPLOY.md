@@ -74,10 +74,29 @@ Dans le Space `emo-online-api` → **Settings** → **Variables and secrets** :
 | `CORS_ORIGINS` | `https://xeroxytb.com,https://www.xeroxytb.com,https://xeroxytb.github.io` |
 | `GOOGLE_CLIENT_ID` | Google Console |
 | `GOOGLE_CLIENT_SECRET` | idem |
-| `OPENAI_API_KEY` | au moins une clé LLM |
-| `ANTHROPIC_API_KEY` | optionnel |
-| `GEMINI_API_KEY` | optionnel |
+| `GROQ_API_KEY` | Groq gratuit (Llama, Gemma) |
+| `HF_TOKEN` | Hugging Face — router + sync Space |
+| `OPENROUTER_API_KEY` | **Manquant** — [openrouter.ai/keys](https://openrouter.ai/keys) |
+| `DEEPSEEK_API_KEY` | **Manquant** — [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+| `OPENAI_API_KEY` | ChatGPT (crédits requis) |
+| `ANTHROPIC_API_KEY` | Claude (crédits requis) |
+| `GEMINI_API_KEY` | Gemini (quota free) |
 | `EMO_ADMIN_EMAILS` | ton email |
+
+### Ajouter les clés (automatisé)
+
+```powershell
+# 1. Assistant interactif (ouvre les liens, remplit .env)
+powershell -ExecutionPolicy Bypass -File scripts\setup-llm-keys.ps1
+
+# 2. Vérifier local + prod
+python scripts\check-llm-keys.py
+
+# 3. Pousser vers HF Space
+scripts\sync-hf-secrets.bat
+```
+
+Puis **Restart** le Space : [Settings → Restart](https://huggingface.co/spaces/Xroxx/emo-online-api/settings).
 
 Atlas **Network Access** : autorise `0.0.0.0/0`.
 

@@ -3,13 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -143,12 +147,47 @@ func runGUI(initialBackend, initialToken string) {
 	}))
 
 	addr := "127.0.0.1:17841"
+	guiURL := "http://" + addr
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		if guiAlreadyRunning(guiURL) {
+			openBrowser(guiURL)
+			return
+		}
+		fmt.Fprintf(os.Stderr, "[emo-agent] Port %s occupé (aucune GUI Emo détectée): %v\n", addr, err)
+		os.Exit(1)
+	}
+
+	srv := &http.Server{Handler: mux}
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		_ = http.ListenAndServe(addr, mux)
+		<-sigCh
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
 	}()
-	time.Sleep(300 * time.Millisecond)
-	openBrowser("http://" + addr)
-	select {}
+
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		openBrowser(guiURL)
+	}()
+
+	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		fmt.Fprintf(os.Stderr, "[emo-agent] GUI server failed: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func guiAlreadyRunning(guiURL string) bool {
+	client := &http.Client{Timeout: 800 * time.Millisecond}
+	resp, err := client.Get(guiURL)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 func (st *guiState) runAgent(ctx context.Context) {

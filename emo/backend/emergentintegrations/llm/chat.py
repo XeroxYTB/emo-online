@@ -240,16 +240,27 @@ class LlmChat:
             return "https://api.groq.com/openai/v1", auth
         return "https://openrouter.ai/api/v1", {
             **auth,
-            "HTTP-Referer": os.environ.get("OPENROUTER_REFERER", "https://emo.local"),
+            "HTTP-Referer": os.environ.get("OPENROUTER_REFERER", "https://xeroxytb.com"),
             "X-Title": "Emo Online",
         }
 
     def _openai_messages(self) -> list[dict]:
         msgs = [{"role": "system", "content": self._system_message}] if self._system_message else []
         for m in self._messages:
-            role, content = m.get("role"), m.get("content")
-            if role in ("user", "assistant", "tool") and content is not None:
-                msgs.append({"role": role, "content": content})
+            role = m.get("role")
+            content = m.get("content")
+            if role == "tool":
+                tcid = m.get("tool_call_id") or ""
+                if not tcid:
+                    continue
+                msgs.append({"role": "tool", "tool_call_id": tcid, "content": content or ""})
+            elif role == "assistant":
+                entry: dict[str, Any] = {"role": "assistant", "content": content if content is not None else ""}
+                if m.get("tool_calls"):
+                    entry["tool_calls"] = m["tool_calls"]
+                msgs.append(entry)
+            elif role == "user" and content is not None:
+                msgs.append({"role": "user", "content": content})
         return msgs
 
     async def _stream_openai_compat(self) -> AsyncIterator[Any]:
@@ -335,9 +346,19 @@ class LlmChat:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self._model}:streamGenerateContent?alt=sse&key={key}"
         contents = []
         for m in self._messages:
-            role = "user" if m["role"] == "user" else "model"
-            text = m["content"] if isinstance(m["content"], str) else str(m["content"])
-            contents.append({"role": role, "parts": [{"text": text}]})
+            role = m.get("role")
+            content = m.get("content")
+            if role == "tool":
+                text = f"[Résultat outil {m.get('tool_call_id', '')}]: {content}"
+                contents.append({"role": "user", "parts": [{"text": str(text)[:8000]}]})
+            elif role == "user":
+                text = content if isinstance(content, str) else str(content)
+                contents.append({"role": "user", "parts": [{"text": text}]})
+            elif role == "assistant":
+                text = content if isinstance(content, str) else str(content)
+                if m.get("tool_calls"):
+                    text = (text or "") + "\n[Appels d'outils effectués]"
+                contents.append({"role": "model", "parts": [{"text": text or "…"}]})
 
         payload = {
             "systemInstruction": {"parts": [{"text": self._system_message}]} if self._system_message else None,
