@@ -1,6 +1,6 @@
 # Fly.io — API 24/7 (Playwright + agent binaries, même stack que HF)
 FROM golang:1.22-alpine AS agent-build
-ARG EMO_AGENT_DEFAULT_BACKEND=https://xroxx-emo-online-api.hf.space
+ARG EMO_AGENT_DEFAULT_BACKEND=https://emo-online-xeroxytb.fly.dev
 ENV EMO_AGENT_DEFAULT_BACKEND=${EMO_AGENT_DEFAULT_BACKEND}
 WORKDIR /build/emo/agent-go
 RUN apk add --no-cache bash

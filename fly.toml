@@ -15,6 +15,8 @@ primary_region = "cdg"
   EMO_SERVE_FRONTEND = "false"
   EMO_FRONTEND_URL = "https://xeroxytb.com"
   EMO_PUBLIC_BACKEND_URL = "https://emo-online-xeroxytb.fly.dev"
+  CORS_ORIGINS = "https://xeroxytb.com,https://www.xeroxytb.com,https://xeroxytb.github.io"
+  EMO_USE_SALES_LLM_KEYS = "true"
 
 [http_service]
   internal_port = 8010

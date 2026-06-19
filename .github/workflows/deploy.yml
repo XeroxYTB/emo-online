@@ -16,7 +16,8 @@ concurrency:
 
 env:
   FRONTEND_URL: https://xeroxytb.com
-  BACKEND_URL: https://xroxx-emo-online-api.hf.space
+  BACKEND_URL: https://emo-online-xeroxytb.fly.dev
+  BACKEND_FALLBACK_URL: https://xroxx-emo-online-api.hf.space
 
 jobs:
   deploy-backend:
@@ -65,6 +66,7 @@ jobs:
           CI: false
           DISABLE_ESLINT_PLUGIN: true
           REACT_APP_BACKEND_URL: ${{ env.BACKEND_URL }}
+          REACT_APP_BACKEND_FALLBACK_URL: ${{ env.BACKEND_FALLBACK_URL }}
         run: |
           npm ci --legacy-peer-deps || npm install
           npm run build

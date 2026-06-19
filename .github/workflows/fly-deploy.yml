@@ -1,0 +1,25 @@
+name: Fly Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "emo/backend/**"
+      - "Dockerfile.fly"
+      - "fly.toml"
+      - "emo/agent-go/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Backend Fly.io 24/7
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: fly deploy --app emo-online-xeroxytb --ha=false

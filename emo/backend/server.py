@@ -70,6 +70,12 @@ from llm_config import (
 import google_auth
 from llm_providers import providers_status, configured_providers
 from tool_router import select_tools_for_message
+from product_keys import (
+    ensure_product_keys_seeded,
+    create_product_keys,
+    redeem_product_key,
+    is_commercial_license,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=True)
@@ -161,6 +167,9 @@ api = APIRouter(prefix="/api")
 @app.on_event("startup")
 async def _settings_startup():
     await _load_settings()
+    seeded = await ensure_product_keys_seeded(db)
+    if seeded:
+        logger.info("Product keys seeded from EMO_PRODUCT_KEYS: %d", seeded)
     llm_ok = configured_providers()
     logger.info("App settings loaded: %s", _SETTINGS_CACHE)
     logger.info(
@@ -701,14 +710,35 @@ async def _trial_info(lic: dict, is_admin: bool = False) -> dict:
             "active": True,
             "tier": tier,
             "tier_name": plan["name"],
-            "interval": interval,
-            "valid_until": valid_until_iso,
+            "interval": lic.get("interval", interval),
+            "valid_until": valid_until_iso if not lic.get("lifetime") else None,
             "subscription_status": lic.get("subscription_status", "active"),
             "messages_left_today": None,
             "messages_per_day": None,
             "messages_used_today": 0,
             "model_provider": provider,
             "model_label": model_label,
+            "lifetime": bool(lic.get("lifetime")),
+        }
+
+    if lic.get("source") == "product_key" and lic.get("lifetime"):
+        tier = get_user_tier(lic, is_admin=False)
+        plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS["ultra"])
+        provider, model_label = await _model_for(tier)
+        return {
+            "status": "active",
+            "active": True,
+            "tier": tier,
+            "tier_name": plan["name"],
+            "interval": "lifetime",
+            "valid_until": None,
+            "subscription_status": "active",
+            "messages_left_today": None,
+            "messages_per_day": None,
+            "messages_used_today": 0,
+            "model_provider": provider,
+            "model_label": model_label,
+            "lifetime": True,
         }
 
     if is_admin:
@@ -806,6 +836,56 @@ async def llm_models(user: User = Depends(get_current_user)):
 @api.get("/subscriptions/plans")
 async def subscription_plans():
     return {"plans": plans_for_api()}
+
+
+class RedeemKeyBody(BaseModel):
+    key: str
+
+
+@api.post("/license/redeem-key")
+async def license_redeem_key(body: RedeemKeyBody, user: User = Depends(get_current_user)):
+    """Active un abonnement illimité via clé produit (vente)."""
+    try:
+        result = await redeem_product_key(
+            db, raw_key=body.key, user_id=user.user_id, email=user.email,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    lic = await _get_or_init_license(user.user_id, email=user.email)
+    is_admin = user.email.lower() in ADMIN_EMAILS
+    info = await _trial_info(lic, is_admin=is_admin)
+    info["source"] = "product_key"
+    return {"ok": True, **result, "license": info}
+
+
+class GenerateKeysBody(BaseModel):
+    tier: str = "ultra"
+    count: int = 1
+    max_uses: int = 1
+    note: str = ""
+
+
+@api.post("/admin/product-keys/generate")
+async def admin_generate_product_keys(body: GenerateKeysBody, user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin uniquement")
+    keys = await create_product_keys(
+        db,
+        tier=body.tier,
+        count=body.count,
+        max_uses=body.max_uses,
+        note=body.note or f"gen by {user.email}",
+    )
+    return {"ok": True, "keys": keys, "tier": body.tier}
+
+
+@api.get("/admin/product-keys")
+async def admin_list_product_keys(user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin uniquement")
+    cursor = db.product_keys.find({}, {"_id": 0, "key_hash": 0}).sort("created_at", -1).limit(100)
+    items = await cursor.to_list(100)
+    return {"keys": items}
 
 
 class CheckoutBody(BaseModel):

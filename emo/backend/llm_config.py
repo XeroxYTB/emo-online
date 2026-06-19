@@ -263,6 +263,22 @@ async def resolve_model(tier: str, preference: Optional[str] = None) -> tuple[st
 
 
 def get_api_key(provider: str, fallback: str = "") -> str:
+    """Clés LLM — pool vente (SALES_*) prioritaire si configuré."""
+    sales_mapping = {
+        "anthropic": ["SALES_ANTHROPIC_API_KEY"],
+        "openai": ["SALES_OPENAI_API_KEY"],
+        "deepseek": ["SALES_DEEPSEEK_API_KEY"],
+        "groq": ["SALES_GROQ_API_KEY"],
+        "gemini": ["SALES_GEMINI_API_KEY", "SALES_GOOGLE_API_KEY"],
+        "openrouter": ["SALES_OPENROUTER_API_KEY"],
+        "huggingface": ["SALES_HF_TOKEN", "SALES_HUGGINGFACE_API_KEY"],
+    }
+    use_sales = os.environ.get("EMO_USE_SALES_LLM_KEYS", "true").lower() in ("1", "true", "yes")
+    if use_sales:
+        for key in sales_mapping.get(provider, []):
+            val = os.environ.get(key, "").strip()
+            if val:
+                return val
     mapping = {
         "anthropic": ["ANTHROPIC_API_KEY", "EMERGENT_LLM_KEY"],
         "openai": ["OPENAI_API_KEY"],

@@ -13,6 +13,8 @@ const TIER_RANK = { free: 0, basic: 1, premium: 2, ultra: 3 };
 export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
   const [loading, setLoading] = useState(null);
   const [checking, setChecking] = useState(false);
+  const [productKey, setProductKey] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
   const currentTier = license?.tier || "free";
   const planList = plans || [];
 
@@ -36,6 +38,23 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
     }
   };
 
+  const redeemKey = async (e) => {
+    e.preventDefault();
+    const key = productKey.trim();
+    if (!key) return;
+    setRedeeming(true);
+    try {
+      const r = await http.post("/license/redeem-key", { key });
+      toast.success(`Clé activée — ${r.data.tier?.toUpperCase() || "Ultra"} illimité !`);
+      setProductKey("");
+      onRefresh?.();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Clé invalide");
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
   const checkPayment = async () => {
     setChecking(true);
     try {
@@ -52,6 +71,22 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
       setChecking(false);
     }
   };
+
+  if (license?.source === "product_key" && license?.active) {
+    return (
+      <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}>
+        <div className="flex items-center gap-2">
+          <InfinityIcon size={14} style={{ color: "#34d399" }} />
+          <strong style={{ color: "#34d399" }}>
+            {license.tier_name || "Ultra"} · Licence produit
+          </strong>
+        </div>
+        <p className="text-[11px] text-secondary-em mt-1">
+          Accès illimité à vie · Tous les modèles IA
+        </p>
+      </div>
+    );
+  }
 
   if (license?.is_admin && license?.source === "admin_grant") {
     return (
@@ -100,6 +135,30 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
             {license?.model_label && <> · {license.model_label}</>}
           </p>
         </div>
+      )}
+
+      {(currentTier === "free" || !license?.active) && (
+        <form onSubmit={redeemKey} className="p-3 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <p className="text-[11px] text-secondary-em flex items-center gap-1.5">
+            <ShieldCheck size={12} /> Tu as acheté Émo ? Entre ta clé produit
+          </p>
+          <input
+            type="text"
+            value={productKey}
+            onChange={(e) => setProductKey(e.target.value.toUpperCase())}
+            placeholder="EMO-ULTRA-XXXX-XXXX-XXXX"
+            className="w-full px-3 py-2 rounded-lg text-xs font-mono tracking-wide bg-black/20 border border-white/10 focus:outline-none focus:border-purple-500/50"
+          />
+          <button
+            type="submit"
+            disabled={redeeming || !productKey.trim()}
+            className="w-full py-2 rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ background: "rgba(52,211,153,0.15)", color: "#6ee7b7", border: "1px solid rgba(52,211,153,0.3)" }}
+          >
+            {redeeming ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+            Activer ma licence
+          </button>
+        </form>
       )}
 
       <div className="grid gap-2.5">
