@@ -263,7 +263,7 @@ export async function wakeBackend(options = {}) {
       }
     }
 
-    const wait = Math.min(2000 + attempt * 600, 8000);
+    const wait = Math.min(3000 + attempt * 800, 12000);
     await sleep(wait);
   }
 

@@ -25,8 +25,15 @@
         <title>Émo Online</title>
         <script>
           (function () {
-            var ping = "https://xroxx-emo-online-api.hf.space/api/ping";
-            try { fetch(ping, { mode: "cors", credentials: "include", cache: "no-store" }).catch(function () {}); } catch (_) {}
+            try {
+              var k = "emo_last_wake";
+              var last = parseInt(localStorage.getItem(k) || "0", 10);
+              if (Date.now() - last < 300000) return;
+              localStorage.setItem(k, String(Date.now()));
+              fetch("https://xroxx-emo-online-api.hf.space/api/ping", {
+                mode: "cors", credentials: "include", cache: "no-store",
+              }).catch(function () {});
+            } catch (_) {}
           })();
         </script>
         <style>#emergent-badge,[id="emergent-badge"]{display:none!important;visibility:hidden!important}</style>
