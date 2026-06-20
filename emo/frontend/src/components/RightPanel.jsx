@@ -21,6 +21,7 @@ export default function RightPanel({
   onTabChange,
   browserFrames = [],
   reflectNotes = [],
+  onBrowserFrameUpdate,
 }) {
   const [tab, setTab] = useState(activeTab || "activity");
 
@@ -75,6 +76,7 @@ export default function RightPanel({
             agentOnline={agentOnline}
             browserFrames={browserFrames}
             reflectNotes={reflectNotes}
+            onBrowserFrameUpdate={onBrowserFrameUpdate}
           />
         )}
         {tab === "files" && <FileExplorer agentOnline={agentOnline} externalPreview={filePreview} />}
@@ -89,7 +91,7 @@ export default function RightPanel({
   );
 }
 
-const ActivityTab = ({ tools, agentOnline, browserFrames, reflectNotes }) => (
+const ActivityTab = ({ tools, agentOnline, browserFrames, reflectNotes, onBrowserFrameUpdate }) => (
   <div className="h-full flex flex-col overflow-hidden" data-testid="activity-tab">
     <div className="flex-shrink-0 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-em px-3 py-2 em-border-b">
       <div
@@ -104,7 +106,7 @@ const ActivityTab = ({ tools, agentOnline, browserFrames, reflectNotes }) => (
     </div>
 
     <div className="flex-1 min-h-0">
-      <BrowserPanel frames={browserFrames} reflectNotes={reflectNotes} />
+      <BrowserPanel frames={browserFrames} reflectNotes={reflectNotes} onFrameUpdate={onBrowserFrameUpdate} />
     </div>
 
     {tools.length > 0 && (

@@ -1775,6 +1775,107 @@ async def agent_fs_write(body: FileWriteBody, user: User = Depends(get_current_u
     return result
 
 
+# ============================ INTERACTIVE BROWSER (Playwright) ============================ #
+
+class BrowserOpenBody(BaseModel):
+    url: str
+    session_id: str = "default"
+
+
+class BrowserSessionBody(BaseModel):
+    session_id: str = "default"
+
+
+class BrowserClickBody(BaseModel):
+    session_id: str = "default"
+    ref: Optional[int] = None
+    selector: Optional[str] = None
+
+
+class BrowserTypeBody(BaseModel):
+    session_id: str = "default"
+    ref: Optional[int] = None
+    selector: Optional[str] = None
+    text: str
+    clear: bool = False
+    press_enter: bool = False
+
+
+class BrowserScrollBody(BaseModel):
+    session_id: str = "default"
+    direction: str = "down"
+    amount: int = 600
+
+
+def _browser_available() -> bool:
+    from browser_control import PLAYWRIGHT_AVAILABLE
+    if os.environ.get("EMO_BROWSER_ENABLED", "true").lower() in ("0", "false", "no"):
+        return False
+    return PLAYWRIGHT_AVAILABLE
+
+
+@api.post("/browser/open")
+async def user_browser_open(body: BrowserOpenBody, user: User = Depends(get_current_user)):
+    if not _browser_available():
+        raise HTTPException(status_code=503, detail="Navigateur interactif indisponible sur ce serveur.")
+    result = await do_browser_open(user.user_id, body.url.strip(), body.session_id or "default")
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Navigation échouée"))
+    return result
+
+
+@api.post("/browser/snapshot")
+async def user_browser_snapshot(body: BrowserSessionBody, user: User = Depends(get_current_user)):
+    if not _browser_available():
+        raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
+    result = await do_browser_snapshot(user.user_id, body.session_id or "default")
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Snapshot échoué"))
+    return result
+
+
+@api.post("/browser/click")
+async def user_browser_click(body: BrowserClickBody, user: User = Depends(get_current_user)):
+    if not _browser_available():
+        raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
+    result = await do_browser_click(
+        user.user_id, body.session_id or "default", ref=body.ref, selector=body.selector,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Clic échoué"))
+    return result
+
+
+@api.post("/browser/type")
+async def user_browser_type(body: BrowserTypeBody, user: User = Depends(get_current_user)):
+    if not _browser_available():
+        raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
+    result = await do_browser_type(
+        user.user_id,
+        body.text,
+        body.session_id or "default",
+        ref=body.ref,
+        selector=body.selector,
+        clear=body.clear,
+        press_enter=body.press_enter,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Saisie échouée"))
+    return result
+
+
+@api.post("/browser/scroll")
+async def user_browser_scroll(body: BrowserScrollBody, user: User = Depends(get_current_user)):
+    if not _browser_available():
+        raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
+    result = await do_browser_scroll(
+        user.user_id, body.direction, body.amount, body.session_id or "default",
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Scroll échoué"))
+    return result
+
+
 # ============================ TOOL EXECUTION ============================ #
 
 LOCAL_AGENT_TOOLS = {
@@ -2278,49 +2379,61 @@ async def chat_stream(
         try:
             yield _sse({"type": "ping"})
 
-            # « ouvres ytb » → browser_visit direct, pas web_search
+            # « ouvres ytb » → browser_open interactif (Playwright) si dispo
             open_url = resolve_open_site_url(body.content) if use_tools else None
             simple_open = bool(open_url and is_simple_open_request(body.content))
             pre_tool_log: list[dict] = []
 
             if open_url and use_tools:
+                browser_tool = "browser_open" if _browser_available() else "browser_visit"
                 tc_id = f"call_{uuid.uuid4().hex[:12]}"
-                yield _sse({"type": "tool_start", "id": tc_id, "name": "browser_visit"})
+                yield _sse({"type": "tool_start", "id": tc_id, "name": browser_tool})
                 yield _sse({
                     "type": "tool_executing",
-                    "id": tc_id, "name": "browser_visit",
+                    "id": tc_id, "name": browser_tool,
                     "arguments": {"url": open_url},
                 })
                 try:
                     visit_result = await asyncio.wait_for(
                         execute_tool(
-                            user.user_id, "browser_visit", {"url": open_url}, is_owner=is_owner,
+                            user.user_id, browser_tool, {"url": open_url}, is_owner=is_owner,
                         ),
-                        timeout=45.0,
+                        timeout=90.0 if browser_tool == "browser_open" else 45.0,
                     )
                 except asyncio.TimeoutError:
-                    visit_result = {"ok": False, "error": "Ouverture timeout (45s)."}
+                    visit_result = {"ok": False, "error": "Ouverture timeout."}
+                if browser_tool == "browser_open" and not visit_result.get("ok"):
+                    visit_result = await do_browser_visit(open_url)
+                    browser_tool = "browser_visit"
                 pre_tool_log.append({
-                    "id": tc_id, "name": "browser_visit",
+                    "id": tc_id, "name": browser_tool,
                     "arguments": {"url": open_url}, "result": visit_result,
                 })
                 yield _sse({
                     "type": "tool_result",
-                    "id": tc_id, "name": "browser_visit",
+                    "id": tc_id, "name": browser_tool,
                     "result": _shrink_for_ui(visit_result),
                 })
-                browser_evt = _browser_sse_payload("browser_visit", visit_result)
+                browser_evt = _browser_sse_payload(browser_tool, visit_result)
                 if browser_evt:
+                    if browser_tool == "browser_open":
+                        browser_evt["action"] = "control"
                     yield _sse(browser_evt)
 
                 if simple_open:
                     label = open_site_label(open_url)
                     title = (visit_result.get("title") or label).strip()
                     if visit_result.get("ok"):
-                        reply = (
-                            f"**{title}** est ouvert. "
-                            f"Clique **Ouvrir** sur la carte pour l'afficher dans ton navigateur."
-                        )
+                        if visit_result.get("screenshot_base64"):
+                            reply = (
+                                f"**{title}** est ouvert dans le navigateur interactif (panneau Activité). "
+                                f"Clique les éléments **[1] [2]…** pour naviguer, ou utilise la barre d'URL."
+                            )
+                        else:
+                            reply = (
+                                f"**{title}** est ouvert. "
+                                f"Utilise le panneau Activité pour interagir ou ouvre le lien externe."
+                            )
                     else:
                         err = visit_result.get("error") or "erreur inconnue"
                         reply = f"Impossible d'ouvrir **{label}** : {err}"
@@ -2356,7 +2469,7 @@ async def chat_stream(
                         "message_id": assistant_msg["message_id"],
                         "title": update.get("title"),
                         "tool_calls": assistant_msg["tool_calls"],
-                        "model_label": "browser_visit",
+                        "model_label": browser_tool,
                     })
                     return
 
@@ -2578,8 +2691,9 @@ def _shrink_for_ui(result: dict) -> dict:
         if key in out and isinstance(out[key], str) and len(out[key]) > 4000:
             out[key] = "…" + out[key][-4000:]
     if out.get("screenshot_base64") and isinstance(out["screenshot_base64"], str):
-        if len(out["screenshot_base64"]) > 200:
-            out["screenshot_base64"] = out["screenshot_base64"][:200] + "…[truncated for UI card]"
+        if len(out["screenshot_base64"]) > 400:
+            out["has_screenshot"] = True
+            out["screenshot_base64"] = "[screenshot:in_panel]"
     return out
 
 
@@ -2844,7 +2958,7 @@ async def ping():
         "ok": True,
         "google": google_auth.is_configured(),
         "service": "emo-online",
-        "build": "2026-06-20e",
+        "build": "2026-06-20f",
     }
 
 

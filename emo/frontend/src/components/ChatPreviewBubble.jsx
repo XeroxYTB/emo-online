@@ -3,6 +3,7 @@ import { Globe, FileCode2 } from "lucide-react";
 import SquarePreviewFrame from "./SquarePreviewFrame";
 import SiteUrlPreview from "./SiteUrlPreview";
 import SearchResultPreview from "./SearchResultPreview";
+import InteractiveBrowser from "./InteractiveBrowser";
 import { resolveToolPreview } from "../lib/resolveToolPreview";
 
 /** Bulle d'aperçu dans le chat (HTML rendu, site, fichier, capture). */
@@ -44,6 +45,21 @@ export default function ChatPreviewBubble({ event, className = "" }) {
               />
             ))}
           </div>
+        )}
+
+        {data.kind === "interactive" && (
+          <InteractiveBrowser
+            compact
+            frame={{
+              url: data.url,
+              title: data.title,
+              preview: data.previewText,
+              screenshot_base64: data.screenshot_base64,
+              elements: data.elements,
+              session_id: data.session_id,
+            }}
+            sessionId={data.session_id}
+          />
         )}
 
         {data.kind === "url" && (

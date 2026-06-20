@@ -36,6 +36,24 @@ export default function Chat() {
   const [allTools, setAllTools] = useState([]);
   const [filePreview, setFilePreview] = useState(null);
   const [browserFrames, setBrowserFrames] = useState([]);
+  const handleBrowserFrameUpdate = useCallback((frameId, next) => {
+    setBrowserFrames((prev) =>
+      prev.map((f) =>
+        f.id === frameId
+          ? {
+              ...f,
+              url: next.url,
+              title: next.title,
+              preview: next.preview,
+              screenshot_base64: next.screenshot_base64,
+              elements: next.elements,
+              session_id: next.session_id,
+              action: next.action || "control",
+            }
+          : f,
+      ),
+    );
+  }, []);
   const [reflectNotes, setReflectNotes] = useState([]);
   const [rightPanelTab, setRightPanelTab] = useState("activity");
   const [rightOpen, setRightOpen] = useState(true);
@@ -408,11 +426,13 @@ export default function Chat() {
                   if (url) {
                     turnTools[i].inlinePreview = {
                       type: "browser",
-                      action: "visit",
+                      action: tool === "browser_open" ? "control" : "visit",
                       url,
                       title: evt.result?.title,
                       preview: evt.result?.preview || evt.result?.text,
                       screenshot_base64: evt.result?.screenshot_base64,
+                      elements: evt.result?.elements || [],
+                      session_id: evt.result?.session_id || "default",
                     };
                   }
                 }
@@ -690,6 +710,7 @@ export default function Chat() {
             onTabChange={setRightPanelTab}
             browserFrames={browserFrames}
             reflectNotes={reflectNotes}
+            onBrowserFrameUpdate={handleBrowserFrameUpdate}
           />
         </div>
       )}

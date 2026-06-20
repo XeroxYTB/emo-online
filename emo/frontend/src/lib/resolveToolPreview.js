@@ -26,6 +26,21 @@ export function resolveToolPreview(event) {
       ? `data:image/jpeg;base64,${p.screenshot_base64}`
       : null;
     if (p.url || screenshot) {
+      const hasInteractive =
+        p.screenshot_base64 &&
+        !String(p.screenshot_base64).includes("truncated") &&
+        !String(p.screenshot_base64).includes("[screenshot:");
+      if (hasInteractive || (p.elements || []).length) {
+        return {
+          kind: "interactive",
+          url: p.url,
+          title: p.title || p.url,
+          previewText: p.preview,
+          screenshot_base64: p.screenshot_base64,
+          elements: p.elements || [],
+          session_id: p.session_id || "default",
+        };
+      }
       return {
         kind: "url",
         url: p.url,
