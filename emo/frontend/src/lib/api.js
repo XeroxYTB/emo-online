@@ -55,8 +55,9 @@ export async function authRequest(requestFn, options = {}) {
     } catch (err) {
       lastErr = err;
       const status = err?.response?.status;
-      if (!isRetriableStatus(status) || attempt >= maxAttempts - 1) break;
-      await sleep(1800 + attempt * 1200);
+      if (!isRetriableStatus(status) && err?.response) break;
+      if (attempt >= maxAttempts - 1) break;
+      await sleep(2000 + attempt * 1500);
     }
   }
   throw lastErr;

@@ -1,22 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, saveSessionToken, authRequest, formatApiError } from "../lib/api";
+import { http, saveSessionToken, authRequest, formatApiError, wakeBackend } from "../lib/api";
 import { AppTopBar, EmoLogo } from "../components/EmoLogo";
-import GoogleSignInButton, { getGoogleClientId, loadGoogleIdentity } from "../components/GoogleSignInButton";
+import GoogleSignInButton, { getGoogleClientId } from "../components/GoogleSignInButton";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-
-const isDesktopApp = () => {
-  if (window.__EMO_DESKTOP__ === true) return true;
-  if (/EmoDesktop/i.test(navigator.userAgent || "")) return true;
-  if (new URLSearchParams(window.location.search).get("desktop") === "1") {
-    try { localStorage.setItem("emo_desktop", "1"); } catch (_) {}
-    return true;
-  }
-  try { return localStorage.getItem("emo_desktop") === "1"; } catch (_) { return false; }
-};
-
-const GOOGLE_ORIGINS = ["https://xeroxytb.com", "https://www.xeroxytb.com"];
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,34 +14,22 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleClientId, setGoogleClientId] = useState(() => getGoogleClientId());
   const [googleBusy, setGoogleBusy] = useState(false);
-  const [desktop] = useState(isDesktopApp);
-  const autoGoogleTried = useRef(false);
+  const [apiDown, setApiDown] = useState(false);
   const bootStarted = useRef(false);
-
-  const googleReady = !!googleClientId;
-  const siteOrigin = typeof window !== "undefined" ? window.location.origin : "";
-
-  const refreshGoogleStatus = useCallback(async () => {
-    try {
-      const r = await authRequest(() => http.get("/auth/google/status", { timeout: 15000 }), { maxAttempts: 3 });
-      if (r.data?.client_id) setGoogleClientId(r.data.client_id);
-      return !!r.data?.client_id;
-    } catch (_) {}
-    return !!getGoogleClientId();
-  }, []);
 
   const verifyGoogleCredential = useCallback(async (credential) => {
     setGoogleBusy(true);
     try {
+      await wakeBackend({ maxWaitMs: 45000 });
       const res = await authRequest(
-        () => http.post("/auth/google/verify", { credential }, { timeout: 45000 }),
-        { maxAttempts: 8 }
+        () => http.post("/auth/google/verify", { credential }, { timeout: 60000 }),
+        { maxAttempts: 10 }
       );
       if (res.data?.session_token) saveSessionToken(res.data.session_token);
       navigate("/chat", { replace: true, state: { user: res.data } });
     } catch (err) {
+      setApiDown(true);
       toast.error(formatApiError(err, "Connexion Google impossible."));
     } finally {
       setGoogleBusy(false);
@@ -66,14 +42,14 @@ export default function Login() {
 
     (async () => {
       try {
-        await authRequest(() => http.get("/auth/me", { timeout: 10000 }), { maxAttempts: 2 });
+        await http.get("/auth/me", { timeout: 8000 });
         navigate("/chat", { replace: true });
-        return;
-      } catch (_) {}
-
-      refreshGoogleStatus();
+      } catch (_) {
+        const warm = await wakeBackend({ maxWaitMs: 25000 }).catch(() => ({ ok: false }));
+        setApiDown(!warm?.ok);
+      }
     })();
-  }, [navigate, refreshGoogleStatus]);
+  }, [navigate]);
 
   useEffect(() => {
     const err = searchParams.get("error");
@@ -81,49 +57,34 @@ export default function Login() {
     const msgs = {
       google_auth_failed: "Connexion Google impossible.",
       access_denied: "Connexion annulée.",
-      no_email: "Email Google indisponible.",
-      missing_code: "Réponse Google invalide.",
-      missing_token: "Session expirée.",
-      redirect_uri_mismatch: "Configuration OAuth incorrecte.",
-      invalid_client: "Configuration Google incorrecte.",
-      origin_mismatch: "Ajoutez xeroxytb.com dans Google Cloud Console (origines JavaScript).",
-      rate_limited: "Trop de tentatives.",
+      origin_mismatch: "Ajoutez xeroxytb.com dans Google Cloud (origines JS).",
+      redirect_uri_mismatch: "URI de redirection Google incorrecte.",
     };
     toast.error(msgs[err] || "Connexion impossible.");
   }, [searchParams]);
-
-  useEffect(() => {
-    if (!googleReady || !desktop || searchParams.get("error")) return;
-    if (autoGoogleTried.current) return;
-    autoGoogleTried.current = true;
-
-    (async () => {
-      try {
-        await loadGoogleIdentity(googleClientId, verifyGoogleCredential);
-        window.google?.accounts?.id?.prompt?.();
-      } catch (_) {}
-    })();
-  }, [googleReady, desktop, searchParams, googleClientId, verifyGoogleCredential]);
 
   const handlePassword = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
+      await wakeBackend({ maxWaitMs: 45000 });
       if (mode === "signup") {
         const res = await authRequest(
-          () => http.post("/auth/signup", { email, password, name }),
-          { maxAttempts: 8 }
+          () => http.post("/auth/signup", { email, password, name }, { timeout: 60000 }),
+          { maxAttempts: 10 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       } else {
         const res = await authRequest(
-          () => http.post("/auth/login", { email, password }),
-          { maxAttempts: 8 }
+          () => http.post("/auth/login", { email, password }, { timeout: 60000 }),
+          { maxAttempts: 10 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       }
+      setApiDown(false);
       navigate("/chat", { replace: true });
     } catch (err) {
+      setApiDown(true);
       toast.error(formatApiError(err, "Identifiants incorrects"));
     } finally {
       setLoading(false);
@@ -143,44 +104,32 @@ export default function Login() {
           <div className="mb-6 flex flex-col items-center text-center">
             <EmoLogo size="md" layout="stacked" showSubtitle={false} className="mb-5" />
             <h1 className="font-heading text-xl font-semibold w-full text-left" style={{ color: "var(--emo-text)" }}>
-              Connexion
+              {mode === "signup" ? "Inscription" : "Connexion"}
             </h1>
           </div>
 
-          {googleReady && (
-            <>
-              <div
-                className="mb-3 rounded-lg px-3 py-2 text-xs leading-relaxed"
-                style={{ background: "var(--emo-surface-raised)", color: "var(--emo-text-secondary)", border: "1px solid var(--emo-border)" }}
-              >
-                Google bloqué (origin_mismatch) ? Ajoute dans{" "}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                  style={{ color: "var(--emo-accent)" }}
-                >
-                  Google Cloud Console
-                </a>
-                {" "}→ Origines JS : {GOOGLE_ORIGINS.join(", ")}
-                {siteOrigin && !GOOGLE_ORIGINS.includes(siteOrigin) ? ` (et ${siteOrigin})` : ""}
-              </div>
-
-              <GoogleSignInButton
-                clientId={googleClientId}
-                onCredential={verifyGoogleCredential}
-                disabled={loading}
-                busy={googleBusy}
-              />
-
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px" style={{ background: "var(--emo-border)" }} />
-                <span className="text-xs text-muted-em">ou</span>
-                <div className="flex-1 h-px" style={{ background: "var(--emo-border)" }} />
-              </div>
-            </>
+          {apiDown && (
+            <p
+              className="mb-4 text-xs rounded-lg px-3 py-2"
+              style={{ background: "rgba(245,158,11,0.1)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.25)" }}
+            >
+              API en pause (HF). Attendez 1–2 min puis réessayez.
+            </p>
           )}
+
+          <GoogleSignInButton
+            clientId={getGoogleClientId()}
+            onCredential={verifyGoogleCredential}
+            disabled={loading}
+            busy={googleBusy}
+            onBusyChange={setGoogleBusy}
+          />
+
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px" style={{ background: "var(--emo-border)" }} />
+            <span className="text-xs text-muted-em">ou</span>
+            <div className="flex-1 h-px" style={{ background: "var(--emo-border)" }} />
+          </div>
 
           <form onSubmit={handlePassword} className="space-y-3">
             {mode === "signup" && (
