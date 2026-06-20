@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { http, getApiBase, saveSessionToken, wakeBackend } from "../lib/api";
 import { frontendUrl } from "../lib/paths";
-import { AppTopBar } from "../components/EmoLogo";
+import { AppTopBar, EmoLogo } from "../components/EmoLogo";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -169,8 +169,9 @@ export default function Login() {
           className="login-card w-full max-w-sm rounded-xl p-8"
           style={{ background: "var(--emo-surface)", border: "1px solid var(--emo-border)", animation: "fadeIn 0.4s ease" }}
         >
-          <div className="mb-6">
-            <h1 className="font-heading text-xl font-semibold" style={{ color: "var(--emo-text)" }}>
+          <div className="mb-6 flex flex-col items-center text-center">
+            <EmoLogo size="md" layout="stacked" showSubtitle={false} className="mb-5" />
+            <h1 className="font-heading text-xl font-semibold w-full text-left" style={{ color: "var(--emo-text)" }}>
               Connexion
             </h1>
           </div>

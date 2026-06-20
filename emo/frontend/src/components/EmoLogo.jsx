@@ -2,33 +2,31 @@ import React from "react";
 import { Link } from "react-router-dom";
 
 const SIZES = {
-  sm: { box: 28, eye: 9, gap: 8, title: "text-sm", sub: "text-[10px]" },
-  md: { box: 36, eye: 11, gap: 10, title: "text-lg", sub: "text-xs" },
-  lg: { box: 44, eye: 13, gap: 12, title: "text-2xl", sub: "text-sm" },
+  sm: { square: 12, gap: 4, textGap: 8, title: "text-sm", sub: "text-[10px]" },
+  md: { square: 16, gap: 5, textGap: 10, title: "text-lg", sub: "text-xs" },
+  lg: { square: 22, gap: 6, textGap: 12, title: "text-2xl", sub: "text-sm" },
 };
 
-function LogoMark({ size = 36, className = "" }) {
-  const eye = Math.round(size * 0.3);
-  const pad = Math.round(size * 0.22);
-  const h = Math.round(size * 0.42);
-  const r = Math.max(2, Math.round(size * 0.08));
+function LogoMark({ square = 16, gap = 5, className = "" }) {
+  const r = Math.max(3, Math.round(square * 0.32));
+  const w = square * 2 + gap;
   return (
     <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
+      width={w}
+      height={square}
+      viewBox={`0 0 ${w} ${square}`}
       className={className}
       aria-hidden="true"
     >
-      <rect width={size} height={size} rx={r * 2} fill="var(--emo-logo-bg, #8b5cf6)" />
-      <rect x={pad} y={pad + 1} width={eye} height={h} rx={r} fill="var(--emo-logo-eye, #fafafa)" />
-      <rect x={size - pad - eye} y={pad + 1} width={eye} height={h} rx={r} fill="var(--emo-logo-eye, #fafafa)" />
+      <rect width={square} height={square} rx={r} fill="var(--emo-logo-bg, #8b5cf6)" />
+      <rect x={square + gap} width={square} height={square} rx={r} fill="var(--emo-logo-bg, #8b5cf6)" />
     </svg>
   );
 }
 
 export function EmoLogo({
   size = "md",
+  layout = "inline",
   showSubtitle = true,
   showText = true,
   subtitle = "Online",
@@ -37,17 +35,38 @@ export function EmoLogo({
   href = "/chat",
 }) {
   const s = SIZES[size] || SIZES.md;
-  const inner = (
-    <div className={`inline-flex items-center ${className}`} style={{ gap: s.gap }}>
-      <LogoMark size={s.box} />
+  const stacked = layout === "stacked";
+
+  const mark = <LogoMark square={s.square} gap={s.gap} />;
+  const titleEl = showText && (
+    <span
+      className={`font-heading font-semibold tracking-tight ${s.title}`}
+      style={{ color: "var(--emo-text)" }}
+    >
+      Émo
+    </span>
+  );
+  const subtitleEl = showText && showSubtitle && (
+    <span className={`font-normal text-muted-em ${s.sub}`}>{subtitle}</span>
+  );
+
+  const inner = stacked ? (
+    <div className={`inline-flex flex-col items-center ${className}`} style={{ gap: s.textGap * 0.55 }}>
+      {mark}
+      {showText && (
+        <div className="flex flex-col items-center leading-none" style={{ gap: 4 }}>
+          {titleEl}
+          {subtitleEl}
+        </div>
+      )}
+    </div>
+  ) : (
+    <div className={`inline-flex items-center ${className}`} style={{ gap: s.textGap }}>
+      {mark}
       {showText && (
         <div className="flex items-baseline gap-1.5 leading-none">
-          <span className={`font-heading font-semibold tracking-tight ${s.title}`} style={{ color: "var(--emo-text)" }}>
-            Émo
-          </span>
-          {showSubtitle && (
-            <span className={`font-normal text-muted-em ${s.sub}`}>{subtitle}</span>
-          )}
+          {titleEl}
+          {subtitleEl}
         </div>
       )}
     </div>
