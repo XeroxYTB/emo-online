@@ -63,19 +63,19 @@ export default function EmoIdentityPanel() {
             <div
               key={key}
               className="rounded-xl overflow-hidden"
-              style={{ border: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.25)" }}
+              style={{ border: "1px solid var(--emo-border)", background: "var(--emo-card-bg)" }}
             >
               <button
                 type="button"
                 onClick={() => setOpenSection(isOpen ? null : key)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-white/[0.03]"
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs em-hover-subtle"
               >
                 {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 <span className="font-code" style={{ color: "var(--mode-color)" }}>{key}</span>
                 {meta.is_customized && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-200">custom</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "var(--emo-accent-soft)", color: "var(--emo-thought-text)" }}>Personnalisé</span>
                 )}
-                <span className="ml-auto text-[10px] text-muted-em">{meta.char_count || 0} chars</span>
+                <span className="ml-auto text-[10px] text-muted-em">{meta.char_count || 0} car.</span>
               </button>
               {isOpen && meta.preview && (
                 <pre className="px-3 pb-3 text-[10px] leading-relaxed whitespace-pre-wrap font-code text-secondary-em max-h-40 overflow-y-auto scrollbar-thin">
@@ -100,7 +100,7 @@ export default function EmoIdentityPanel() {
               <div
                 key={v.version_id}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px]"
-                style={{ background: "rgba(255,255,255,0.03)" }}
+                style={{ background: "var(--emo-subtle-bg)" }}
               >
                 <span className="font-code text-[10px] truncate flex-1" title={v.reason}>
                   {v.kind} · {(v.reason || "").slice(0, 48)}
@@ -111,7 +111,7 @@ export default function EmoIdentityPanel() {
                 <button
                   type="button"
                   onClick={() => restore(v.version_id)}
-                  className="p-1 rounded hover:bg-white/10 text-emerald-300 flex-shrink-0"
+                  className="p-1 rounded em-hover text-emerald-500 flex-shrink-0"
                   title="Restaurer"
                 >
                   <RotateCcw size={11} />

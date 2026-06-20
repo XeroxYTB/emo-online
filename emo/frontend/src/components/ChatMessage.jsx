@@ -31,14 +31,14 @@ const RichContent = ({ text }) => {
               className="font-code text-xs overflow-x-auto rounded-xl p-4 my-2"
               style={{
                 background: "var(--emo-code-bg)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                boxShadow: "inset 0 0 24px rgba(0,0,0,0.4)",
+                border: "1px solid var(--emo-border)",
+                boxShadow: "var(--emo-code-inset)",
               }}
             >
               {lang && (
                 <div className="text-[10px] uppercase tracking-[0.2em] text-muted-em mb-2">{lang}</div>
               )}
-              <code style={{ color: "#E9D5FF" }}>{inner}</code>
+              <code style={{ color: "var(--emo-code-text)" }}>{inner}</code>
             </pre>
           );
         }
@@ -52,7 +52,7 @@ const RichContent = ({ text }) => {
                   <code
                     key={j}
                     className="font-code text-[0.9em] px-1.5 py-0.5 rounded"
-                    style={{ background: "rgba(168,85,247,0.12)", color: "#E9D5FF" }}
+                    style={{ background: "var(--emo-inline-code-bg)", color: "var(--emo-inline-code-text)" }}
                   >
                     {seg.slice(1, -1)}
                   </code>
@@ -67,6 +67,58 @@ const RichContent = ({ text }) => {
   );
 };
 
+function normalizeToolEvent(t, i) {
+  if (t.tool && t.state && (t.args || t.arguments)) return t;
+  const args = t.arguments || t.args || {};
+  const tool = t.name || t.tool;
+  const result = {
+    ok: true,
+    path: args.path,
+    url: args.url,
+    content: args.content,
+    title: args.title,
+  };
+  let inlinePreview = t.inlinePreview || null;
+  if (!inlinePreview && tool === "web_search" && t.result?.results?.length) {
+    inlinePreview = {
+      type: "browser",
+      action: "search",
+      query: t.result.query || args.query || "",
+      results: (t.result.results || []).slice(0, 8),
+    };
+  }
+  if (
+    !inlinePreview &&
+    ["browser_visit", "browser_open", "web_fetch"].includes(tool) &&
+    (t.result?.url || args.url)
+  ) {
+    inlinePreview = {
+      type: "browser",
+      action: "visit",
+      url: t.result?.url || args.url,
+      title: t.result?.title,
+      preview: t.result?.preview || t.result?.text,
+      screenshot_base64: t.result?.screenshot_base64,
+    };
+  }
+  if (!inlinePreview && tool === "write_file" && args.path && args.content) {
+    inlinePreview = {
+      type: "file",
+      path: args.path,
+      preview: String(args.content).slice(0, 50000),
+      language: (args.path.split(".").pop() || "").toLowerCase(),
+    };
+  }
+  return {
+    id: t.id || `hist-${i}`,
+    tool,
+    args,
+    state: t.state || "done",
+    result: t.result || result,
+    inlinePreview,
+  };
+}
+
 export const ChatMessage = ({ message, isStreaming }) => {
   const isUser = message.role === "user";
 
@@ -76,8 +128,8 @@ export const ChatMessage = ({ message, isStreaming }) => {
         <div
           className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm"
           style={{
-            background: "rgba(147, 51, 234, 0.18)",
-            border: "1px solid rgba(168, 85, 247, 0.22)",
+            background: "var(--emo-user-msg-bg)",
+            border: "1px solid var(--emo-user-msg-border)",
             color: "var(--emo-text)",
           }}
         >
@@ -105,7 +157,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
             <span
               data-testid="mood-badge"
               className="text-[10px] tracking-wide px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(255,255,255,0.04)", color: "var(--emo-text-muted)" }}
+              style={{ background: "var(--emo-badge-bg)", color: "var(--emo-text-muted)" }}
             >
               {MOOD_LABELS[mood] || mood}
             </span>
@@ -113,8 +165,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
           {message.verified === "true" && (
             <span
               data-testid="verified-badge"
-              className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full flex items-center gap-1"
-              style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}
+              className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full flex items-center gap-1 emo-alert-success"
               title="Vérifié"
             >
               Vérifié
@@ -123,8 +174,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
           {message.verified === "partial" && (
             <span
               data-testid="partial-badge"
-              className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(245,158,11,0.12)", color: "#fbbf24" }}
+              className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full emo-alert-warning"
               title="Partiel"
             >
               Partiel
@@ -142,13 +192,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
             {(message.tool_calls_live || message.tool_calls).map((t, i) => (
               <ToolCallCard
                 key={t.id || i}
-                event={t.id ? t : {
-                  id: `hist-${i}`,
-                  tool: t.name,
-                  args: t.arguments,
-                  state: "done",
-                  result: { ok: true, summary: t.result_summary },
-                }}
+                event={normalizeToolEvent(t, i)}
               />
             ))}
           </div>

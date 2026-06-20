@@ -22,6 +22,11 @@ _CODE = re.compile(
 )
 _PRINT = re.compile(r"\b(imprim|print|impression|pdf|canon|hp\s|spooler)\b", re.I)
 _REFLECT = re.compile(r"\b(réfléch|reflect|modifie.?toi|identité|personnalité|mémoire)\b", re.I)
+_FILE = re.compile(
+    r"\b(fichier|file|crée|créer|cree|create|écris|ecris|write|enregistre|sauvegarde|save|"
+    r"bureau|desktop|html|htm|txt|pdf|doc|script|dossier|folder|mkdir)\b",
+    re.I,
+)
 
 # Core sets
 WEB_CORE = {
@@ -84,8 +89,14 @@ def select_tools_for_message(
     if _BROWSER.search(text) or _WEB.search(text):
         picked |= WEB_CORE & available
 
-    if agent_online and (_CODE.search(text) or _PRINT.search(text) or not _WEB.search(text)):
+    if agent_online and (
+        _CODE.search(text) or _FILE.search(text) or _PRINT.search(text) or not _WEB.search(text)
+    ):
         picked |= LOCAL_CORE & available
+
+    # Agent en ligne + demande fichier → outils essentiels garantis
+    if agent_online and _FILE.search(text):
+        picked |= {"write_file", "read_file", "list_dir", "get_env", "system_info", "exec_shell"} & available
 
     if is_owner and _REFLECT.search(text):
         picked |= SELF_CORE & available

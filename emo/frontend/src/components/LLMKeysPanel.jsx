@@ -43,7 +43,7 @@ export default function LLMKeysPanel() {
           type="button"
           onClick={refresh}
           disabled={loading}
-          className="p-1.5 rounded-lg hover:bg-white/10 text-muted-em"
+          className="p-1.5 rounded-lg em-hover text-muted-em"
           title="Actualiser"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -52,9 +52,9 @@ export default function LLMKeysPanel() {
 
       <p className="text-[11px] text-muted-em leading-relaxed">
         Configure localement avec{" "}
-        <code className="text-[10px] bg-white/5 px-1 rounded">scripts\setup-llm-keys.ps1</code>
+        <code className="text-[10px] px-1 rounded" style={{ background: "var(--emo-subtle-bg)" }}>scripts\setup-llm-keys.ps1</code>
         {" "}puis{" "}
-        <code className="text-[10px] bg-white/5 px-1 rounded">scripts\sync-hf-secrets.bat</code>
+        <code className="text-[10px] px-1 rounded" style={{ background: "var(--emo-subtle-bg)" }}>scripts\sync-hf-secrets.bat</code>
       </p>
 
       <div className="space-y-1.5">
@@ -63,12 +63,12 @@ export default function LLMKeysPanel() {
           const row = live[k.id];
           const ok = configured && row?.ok === true;
           const bad = configured && row?.ok === false;
-          const dot = !configured ? "bg-zinc-600" : ok ? "bg-emerald-400" : bad ? "bg-red-400" : "bg-amber-400";
+          const dot = !configured ? "emo-status-dot-offline" : ok ? "emo-status-dot-online" : bad ? "bg-red-500" : "bg-amber-500";
           return (
             <div
               key={k.id}
               className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+              style={{ background: "var(--emo-subtle-bg)", border: "1px solid var(--emo-border)" }}
             >
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
               <div className="flex-1 min-w-0">
@@ -81,7 +81,7 @@ export default function LLMKeysPanel() {
                 href={k.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1 rounded hover:bg-white/10 text-muted-em flex-shrink-0"
+                className="p-1 rounded em-hover text-muted-em flex-shrink-0"
                 title={k.hint}
               >
                 <ExternalLink size={12} />
@@ -95,8 +95,7 @@ export default function LLMKeysPanel() {
         href="https://huggingface.co/spaces/Xroxx/emo-online-api/settings"
         target="_blank"
         rel="noopener noreferrer"
-        className="block text-center text-xs py-2.5 rounded-xl transition"
-        style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)", color: "#d8b4fe" }}
+        className="block text-center text-xs py-2.5 rounded-xl transition emo-btn-soft"
       >
         Ouvrir secrets HF Space →
       </a>

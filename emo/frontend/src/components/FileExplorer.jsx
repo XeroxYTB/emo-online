@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Editor, { loader } from "@monaco-editor/react";
 import { http } from "../lib/api";
-import { Folder, File as FileIcon, RefreshCw, Save, ArrowUp, AlertCircle } from "lucide-react";
+import { Folder, File as FileIcon, RefreshCw, Save, ArrowUp, AlertCircle, Eye, Code2 } from "lucide-react";
 import { toast } from "sonner";
-import SquarePreviewFrame, { isImagePath, previewTextSnippet } from "./SquarePreviewFrame";
+import FilePreviewPane from "./FilePreviewPane";
+import { basename, isHtmlPath, parentDir } from "../lib/filePreview";
 
 const joinPath = (base, name) => {
   if (!base || base === "~") return name;
@@ -34,6 +35,18 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   const [editorLoading, setEditorLoading] = useState(false);
   const [fsError, setFsError] = useState("");
   const [editorFailed, setEditorFailed] = useState(false);
+  const [editorTheme, setEditorTheme] = useState("vs-dark");
+  const [viewMode, setViewMode] = useState("preview");
+
+  useEffect(() => {
+    const syncTheme = () => {
+      setEditorTheme(document.documentElement.classList.contains("theme-light") ? "vs" : "vs-dark");
+    };
+    syncTheme();
+    const obs = new MutationObserver(syncTheme);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
 
   const refresh = useCallback(async (path) => {
     if (!agentOnline) return;
@@ -66,14 +79,18 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   }, [agentOnline]);
 
   useEffect(() => {
-    if (externalPreview?.path && externalPreview.path !== currentFile) {
-      setCurrentFile(externalPreview.path);
-      if (externalPreview.preview != null) {
-        setContent(externalPreview.preview);
-        setOriginalContent(externalPreview.preview);
-      }
+    if (!externalPreview?.path) return;
+    const path = externalPreview.path;
+    setCurrentFile(path);
+    if (externalPreview.preview != null) {
+      setContent(externalPreview.preview);
+      setOriginalContent(externalPreview.preview);
     }
-  }, [externalPreview?.path]);
+    setViewMode(isHtmlPath(path) ? "preview" : "code");
+    const parent = parentDir(path);
+    if (parent && parent !== cwd) refresh(parent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalPreview?.path, externalPreview?.preview]);
 
   const openFile = async (name) => {
     const path = joinPath(cwd, name);
@@ -84,6 +101,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
       setCurrentFile(r.data.path);
       setContent(r.data.content || "");
       setOriginalContent(r.data.content || "");
+      setViewMode(isHtmlPath(r.data.path) ? "preview" : "code");
     } catch (e) {
       toast.error("Lecture : " + (e?.response?.data?.detail || e.message));
     } finally {
@@ -103,22 +121,13 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   };
 
   const cdUp = () => {
-    const normalized = cwd.replace(/[/\\]+$/, "");
-    const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
-    if (idx <= 0) {
-      refresh(normalized.match(/^[A-Za-z]:/) ? normalized.slice(0, 2) + "\\" : "/");
-      return;
-    }
-    refresh(normalized.slice(0, idx));
+    refresh(parentDir(cwd));
   };
 
   const dirs = listing.dirs || [];
   const files = listing.files || [];
-
   const dirty = content !== originalContent;
-  const previewPath = currentFile || externalPreview?.path || "";
-  const previewContent = content || externalPreview?.preview || "";
-  const previewIsImage = isImagePath(previewPath);
+  const fileName = currentFile ? basename(currentFile) : null;
 
   if (!agentOnline) {
     return (
@@ -126,14 +135,8 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
         <p className="mb-2">Agent local hors ligne.</p>
         <p className="text-xs text-muted-em">Agent local requis.</p>
         {externalPreview?.path && (
-          <div className="mt-6">
-            <SquarePreviewFrame
-              kind="text"
-              text={previewTextSnippet(externalPreview.preview)}
-              title={externalPreview.path.split("/").pop()}
-              subtitle={externalPreview.path}
-              testId="file-preview-offline"
-            />
+          <div className="mt-6 h-48">
+            <FilePreviewPane path={externalPreview.path} content={externalPreview.preview || ""} />
           </div>
         )}
       </div>
@@ -141,89 +144,116 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-white/5 text-xs">
-        <button onClick={cdUp} className="p-1 rounded hover:bg-white/10" data-testid="cd-up-btn">
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-2 py-1.5 em-border-b text-xs flex-shrink-0">
+        <button onClick={cdUp} className="p-1 rounded em-hover" data-testid="cd-up-btn" title="Dossier parent">
           <ArrowUp size={12} />
         </button>
-        <code className="flex-1 font-code text-[11px] text-secondary-em truncate" data-testid="fs-cwd">{cwd}</code>
-        <button onClick={() => refresh(cwd)} className="p-1 rounded hover:bg-white/10" data-testid="fs-refresh-btn">
+        <code className="flex-1 font-code text-[10px] text-secondary-em truncate" data-testid="fs-cwd">{cwd}</code>
+        <button onClick={() => refresh(cwd)} className="p-1 rounded em-hover" data-testid="fs-refresh-btn" title="Actualiser">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
       {fsError && (
-        <div className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
-          <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+        <div className="mx-2 mt-1.5 flex items-start gap-2 rounded-lg px-2 py-1.5 text-[10px] flex-shrink-0 emo-alert-error">
+          <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
           <span>{fsError}</span>
         </div>
       )}
 
-      {previewPath && (
-        <div className="flex-shrink-0 p-3 border-b border-white/5">
-          <SquarePreviewFrame
-            kind={previewIsImage ? "empty" : "text"}
-            text={previewIsImage ? undefined : previewTextSnippet(previewContent, 1200)}
-            title={previewPath.split(/[/\\]/).pop()}
-            subtitle={previewPath}
-            emptyLabel={previewIsImage ? "Fichier image — éditeur ci-dessous" : "Fichier vide"}
-            testId="file-square-preview"
-          />
-        </div>
-      )}
-
-      <div className="flex-1 overflow-hidden flex min-h-0">
-        <div className="w-44 flex-shrink-0 border-r border-white/5 overflow-y-auto scrollbar-thin py-1.5" data-testid="file-tree">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="w-[108px] flex-shrink-0 em-border-r overflow-y-auto scrollbar-thin py-1" data-testid="file-tree">
           {dirs.map((d) => (
             <button
               key={`d-${d}`}
               onClick={() => refresh(joinPath(cwd, d))}
-              className="w-full flex items-center gap-1.5 px-3 py-1 text-xs hover:bg-white/[0.05] text-secondary-em"
+              className="w-full flex items-center gap-1 px-2 py-1 text-[10px] em-hover-subtle text-secondary-em"
               data-testid={`fs-dir-${d}`}
             >
-              <Folder size={11} className="opacity-70 flex-shrink-0" style={{ color: "var(--mode-color)" }} />
+              <Folder size={10} className="opacity-70 flex-shrink-0" style={{ color: "var(--mode-color)" }} />
               <span className="truncate">{d}</span>
             </button>
           ))}
-          {files.map((f) => (
-            <button
-              key={`f-${f}`}
-              onClick={() => openFile(f)}
-              className="w-full flex items-center gap-1.5 px-3 py-1 text-xs hover:bg-white/[0.05]"
-              data-testid={`fs-file-${f}`}
-              style={{ color: currentFile?.endsWith("/" + f) || currentFile?.endsWith("\\" + f) ? "#fff" : "var(--emo-text-secondary)" }}
-            >
-              <FileIcon size={11} className="opacity-50 flex-shrink-0" />
-              <span className="truncate">{f}</span>
-            </button>
-          ))}
+          {files.map((f) => {
+            const active = currentFile?.endsWith(f) || currentFile?.endsWith("\\" + f) || currentFile?.endsWith("/" + f);
+            return (
+              <button
+                key={`f-${f}`}
+                onClick={() => openFile(f)}
+                className="w-full flex items-center gap-1 px-2 py-1 text-[10px] em-hover-subtle"
+                data-testid={`fs-file-${f}`}
+                style={{
+                  color: active ? "var(--emo-text)" : "var(--emo-text-secondary)",
+                  background: active ? "var(--emo-tab-active-bg)" : "transparent",
+                }}
+              >
+                <FileIcon size={10} className="opacity-50 flex-shrink-0" />
+                <span className="truncate">{f}</span>
+              </button>
+            );
+          })}
           {files.length === 0 && dirs.length === 0 && !loading && (
-            <p className="text-[10px] text-muted-em px-3 py-2">vide</p>
+            <p className="text-[10px] text-muted-em px-2 py-2">vide</p>
           )}
         </div>
 
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {currentFile ? (
             <>
-              <div className="flex items-center justify-between px-3 py-1.5 text-[11px] border-b border-white/5">
-                <code className="font-code text-secondary-em truncate" data-testid="editor-path">{currentFile}</code>
+              <div className="flex items-center gap-1 px-2 py-1 em-border-b flex-shrink-0">
+                <span className="flex-1 font-code text-[10px] text-secondary-em truncate" data-testid="editor-path" title={currentFile}>
+                  {fileName}
+                </span>
+                <div className="flex rounded-md overflow-hidden flex-shrink-0" style={{ border: "1px solid var(--emo-border)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("preview")}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] transition"
+                    style={{
+                      background: viewMode === "preview" ? "var(--emo-tab-active-bg)" : "transparent",
+                      color: viewMode === "preview" ? "var(--emo-text)" : "var(--emo-text-muted)",
+                    }}
+                    data-testid="file-tab-preview"
+                  >
+                    <Eye size={9} /> Aperçu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("code")}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] transition"
+                    style={{
+                      background: viewMode === "code" ? "var(--emo-tab-active-bg)" : "transparent",
+                      color: viewMode === "code" ? "var(--emo-text)" : "var(--emo-text-muted)",
+                    }}
+                    data-testid="file-tab-code"
+                  >
+                    <Code2 size={9} /> Code
+                  </button>
+                </div>
                 <button
                   onClick={saveFile}
                   disabled={!dirty}
                   data-testid="editor-save-btn"
-                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition disabled:opacity-30"
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] transition disabled:opacity-30 flex-shrink-0"
                   style={{
                     background: dirty ? "var(--mode-color)" : "transparent",
-                    color: dirty ? "#0A0510" : "var(--emo-text-muted)",
+                    color: dirty ? "var(--emo-on-mode)" : "var(--emo-text-muted)",
                   }}
                 >
-                  <Save size={10} /> {dirty ? "save" : "saved"}
+                  <Save size={9} /> {dirty ? "Enreg." : "OK"}
                 </button>
               </div>
-              <div className="flex-1 min-h-0">
-                {editorFailed ? (
+
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                {viewMode === "preview" ? (
+                  <FilePreviewPane path={currentFile} content={content} />
+                ) : editorLoading ? (
+                  <div className="flex-1 flex items-center justify-center text-xs text-muted-em">Chargement…</div>
+                ) : editorFailed ? (
                   <textarea
-                    className="w-full h-full bg-[#1e1e1e] text-xs font-code text-white p-3 resize-none focus:outline-none"
+                    className="flex-1 w-full text-xs font-code p-3 resize-none focus:outline-none"
+                    style={{ background: "var(--emo-editor-bg)", color: "var(--emo-editor-text)" }}
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                   />
@@ -233,17 +263,16 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
                     language={detectLang(currentFile)}
                     value={content}
                     onChange={(v) => setContent(v ?? "")}
-                    theme="vs-dark"
+                    theme={editorTheme}
                     loading={<div className="p-4 text-xs text-muted-em">Chargement…</div>}
                     onMount={() => setEditorFailed(false)}
                     beforeMount={() => setEditorFailed(false)}
                     options={{
                       minimap: { enabled: false },
-                      fontSize: 12,
+                      fontSize: 11,
                       fontFamily: "JetBrains Mono, monospace",
-                      fontLigatures: true,
                       scrollBeyondLastLine: false,
-                      padding: { top: 8, bottom: 8 },
+                      padding: { top: 6, bottom: 6 },
                       wordWrap: "on",
                     }}
                   />
@@ -251,8 +280,8 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-xs text-muted-em">
-              {editorLoading ? "Chargement…" : "Sélectionne un fichier"}
+            <div className="flex-1 flex items-center justify-center text-xs text-muted-em p-4 text-center">
+              {editorLoading ? "Chargement…" : "Choisis un fichier dans la liste"}
             </div>
           )}
         </div>

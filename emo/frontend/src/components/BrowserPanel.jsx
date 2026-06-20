@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { ExternalLink, Globe, Search, MousePointer2 } from "lucide-react";
 import SquarePreviewFrame, { previewTextSnippet } from "./SquarePreviewFrame";
+import SiteUrlPreview from "./SiteUrlPreview";
+import SearchResultPreview from "./SearchResultPreview";
 
 export default function BrowserPanel({ frames = [], reflectNotes = [] }) {
   const [activeId, setActiveId] = useState(null);
@@ -13,8 +15,11 @@ export default function BrowserPanel({ frames = [], reflectNotes = [] }) {
 
   if (!frames.length && !reflectNotes.length) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-6" data-testid="browser-panel-empty">
-        <Globe size={32} className="text-muted-em opacity-50" />
+      <div className="h-full flex flex-col items-center justify-center p-6 text-center" data-testid="browser-panel-empty">
+        <Globe size={32} className="text-muted-em opacity-50 mb-3" />
+        <p className="text-xs text-muted-em px-4">
+          Les sites ouverts par Émo s&apos;affichent ici.
+        </p>
       </div>
     );
   }
@@ -22,14 +27,13 @@ export default function BrowserPanel({ frames = [], reflectNotes = [] }) {
   return (
     <div className="h-full flex flex-col" data-testid="browser-panel">
       {reflectNotes.length > 0 && (
-        <div className="flex-shrink-0 border-b border-white/5 p-2 max-h-28 overflow-y-auto scrollbar-thin space-y-1">
+        <div className="flex-shrink-0 em-border-b p-2 max-h-28 overflow-y-auto scrollbar-thin space-y-1">
           {reflectNotes.slice(0, 5).map((n) => (
             <div
               key={n.id}
-              className="text-[10px] rounded-lg px-2 py-1.5"
-              style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.2)" }}
+              className="text-[10px] rounded-lg px-2 py-1.5 emo-btn-soft"
             >
-              <span className="text-purple-200 font-medium">💭 </span>
+              <span className="font-medium" style={{ color: "var(--emo-thought-text)" }}>💭 </span>
               {n.thought?.slice(0, 180)}
               {n.plan && <span className="block mt-0.5 opacity-70">→ {n.plan.slice(0, 100)}</span>}
             </div>
@@ -37,7 +41,7 @@ export default function BrowserPanel({ frames = [], reflectNotes = [] }) {
         </div>
       )}
 
-      <div className="flex-shrink-0 max-h-32 overflow-y-auto border-b border-white/5 p-2 space-y-1 scrollbar-thin">
+      <div className="flex-shrink-0 max-h-32 overflow-y-auto em-border-b p-2 space-y-1 scrollbar-thin">
         {frames.map((f) => {
           const isActive = active?.id === f.id;
           const label = f.action === "search"
@@ -52,8 +56,8 @@ export default function BrowserPanel({ frames = [], reflectNotes = [] }) {
               onClick={() => setActiveId(f.id)}
               className="w-full text-left px-2 py-1.5 rounded-lg text-[11px] truncate transition"
               style={{
-                background: isActive ? "rgba(59,130,246,0.15)" : "transparent",
-                color: isActive ? "#93c5fd" : "var(--emo-text-secondary)",
+                background: isActive ? "var(--emo-tab-active-bg)" : "transparent",
+                color: isActive ? "var(--emo-link)" : "var(--emo-text-secondary)",
               }}
             >
               {label}
@@ -83,23 +87,14 @@ function SearchResults({ frame }) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         {(frame.results || []).slice(0, 8).map((r, i) => (
-          <a
+          <SearchResultPreview
             key={r.url || i}
-            href={r.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block rounded-xl overflow-hidden transition hover:opacity-90"
-            style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <SquarePreviewFrame
-              kind="iframe"
-              url={r.url}
-              title={r.title || r.url}
-              subtitle={r.url}
-              testId={`search-preview-${i}`}
-              className="max-w-none"
-            />
-          </a>
+            url={r.url}
+            title={r.title}
+            subtitle={r.domain || r.url}
+            snippet={r.snippet}
+            testId={`search-preview-${i}`}
+          />
         ))}
       </div>
     </div>
@@ -115,12 +110,12 @@ function PagePreview({ frame }) {
 
   return (
     <div className="space-y-3">
-      <SquarePreviewFrame
-        kind={screenshotSrc ? "image" : "iframe"}
-        src={screenshotSrc}
-        url={!screenshotSrc ? url : undefined}
+      <SiteUrlPreview
+        url={url}
         title={frame.title || "(sans titre)"}
         subtitle={url}
+        previewText={frame.preview}
+        screenshotSrc={screenshotSrc}
         testId="visit-square-preview"
       />
 
@@ -135,9 +130,9 @@ function PagePreview({ frame }) {
               <li
                 key={el.ref}
                 className="text-[10px] font-code px-2 py-1 rounded"
-                style={{ background: "rgba(255,255,255,0.04)" }}
+                style={{ background: "var(--emo-subtle-bg)" }}
               >
-                <span className="text-[#93c5fd]">[{el.ref}]</span>{" "}
+                <span style={{ color: "var(--emo-link)" }}>[{el.ref}]</span>{" "}
                 <span className="opacity-60">{el.tag}</span>{" "}
                 {el.text}
               </li>
@@ -146,12 +141,13 @@ function PagePreview({ frame }) {
         </div>
       )}
 
-      {url && (
+      {url && !screenshotSrc && (
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[11px] text-[#93c5fd] flex items-center justify-center gap-1 truncate hover:underline"
+          className="text-[11px] flex items-center justify-center gap-1 truncate hover:underline"
+          style={{ color: "var(--emo-link)" }}
         >
           Ouvrir dans un nouvel onglet
           <ExternalLink size={10} className="flex-shrink-0" />
@@ -161,7 +157,7 @@ function PagePreview({ frame }) {
       {frame.preview && (
         <div
           className="text-[11px] leading-relaxed whitespace-pre-wrap rounded-xl p-3 max-h-48 overflow-y-auto scrollbar-thin"
-          style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.06)" }}
+          style={{ background: "var(--emo-subtle-bg)", border: "1px solid var(--emo-border)" }}
         >
           {previewTextSnippet(frame.preview, 1200)}
         </div>

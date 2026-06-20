@@ -9,7 +9,7 @@ from pathlib import Path
 
 load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
 
-from hf_models import hf_free_models_flat, hf_models_for_tier
+from hf_models import hf_free_models_flat, hf_models_for_tier, is_uncensored_model
 from llm_providers import api_key_available
 
 # Modèles cloud reconnus (ChatGPT, Claude, DeepSeek, Gemini…)
@@ -257,7 +257,13 @@ async def models_for_tier(tier: str) -> list[dict]:
         if mid in seen_ids:
             continue
         seen_ids.add(mid)
-        items.append({"id": mid, "label": label, "provider": provider, "model": model})
+        items.append({
+            "id": mid,
+            "label": label,
+            "provider": provider,
+            "model": model,
+            "uncensored": is_uncensored_model(provider, model),
+        })
     return items
 
 

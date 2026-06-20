@@ -35,6 +35,8 @@ export default function Chat() {
   const [agentOnline, setAgentOnline] = useState(false);
   const [allTools, setAllTools] = useState([]);
   const [filePreview, setFilePreview] = useState(null);
+  const [browserFrames, setBrowserFrames] = useState([]);
+  const [reflectNotes, setReflectNotes] = useState([]);
   const [rightPanelTab, setRightPanelTab] = useState("activity");
   const [rightOpen, setRightOpen] = useState(true);
   const [debugEvents, setDebugEvents] = useState([]);
@@ -297,9 +299,36 @@ export default function Chat() {
   const attachInlinePreview = (turnTools, preview) => {
     if (!turnTools.length) return turnTools;
     const updated = [...turnTools];
-    const idx = updated.length - 1;
+    let idx = updated.length - 1;
+    if (preview.type === "file") {
+      for (let i = updated.length - 1; i >= 0; i -= 1) {
+        if (["write_file", "read_file", "edit_file"].includes(updated[i].tool)) {
+          idx = i;
+          break;
+        }
+      }
+    } else if (preview.type === "browser") {
+      for (let i = updated.length - 1; i >= 0; i -= 1) {
+        if (["browser_visit", "browser_open", "web_fetch", "web_search"].includes(updated[i].tool)) {
+          idx = i;
+          break;
+        }
+      }
+    }
     updated[idx] = { ...updated[idx], inlinePreview: preview };
     return updated;
+  };
+
+  const buildFilePreview = (path, content) => {
+    if (!path || content == null) return null;
+    const ext = (path.split(".").pop() || "").toLowerCase();
+    return {
+      type: "file",
+      path,
+      preview: String(content).slice(0, 50000),
+      is_image: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"].includes(ext),
+      language: ext,
+    };
   };
 
   const handleSend = async (text) => {
@@ -355,6 +384,39 @@ export default function Chat() {
             if (i >= 0) {
               turnTools[i].result = evt.result;
               turnTools[i].state = evt.result?.ok === false ? "error" : "done";
+              const tool = turnTools[i].tool;
+              const args = turnTools[i].args || {};
+              if (evt.result?.ok !== false) {
+                if (tool === "write_file") {
+                  const fp = buildFilePreview(args.path || evt.result?.path, args.content || evt.result?.content);
+                  if (fp) turnTools[i].inlinePreview = fp;
+                } else if (tool === "edit_file") {
+                  const fp = buildFilePreview(args.path || evt.result?.path, args.content || evt.result?.content);
+                  if (fp) turnTools[i].inlinePreview = fp;
+                } else if (tool === "read_file" && evt.result?.content) {
+                  const fp = buildFilePreview(args.path || evt.result?.path, evt.result.content);
+                  if (fp) turnTools[i].inlinePreview = fp;
+                } else if (tool === "web_search" && evt.result?.results?.length) {
+                  turnTools[i].inlinePreview = {
+                    type: "browser",
+                    action: "search",
+                    query: evt.result.query || args.query || "",
+                    results: (evt.result.results || []).slice(0, 8),
+                  };
+                } else if (["browser_visit", "browser_open", "web_fetch"].includes(tool)) {
+                  const url = args.url || evt.result?.url;
+                  if (url) {
+                    turnTools[i].inlinePreview = {
+                      type: "browser",
+                      action: "visit",
+                      url,
+                      title: evt.result?.title,
+                      preview: evt.result?.preview || evt.result?.text,
+                      screenshot_base64: evt.result?.screenshot_base64,
+                    };
+                  }
+                }
+              }
             }
             setStreamingTools([...turnTools]);
             setAllTools((prev) => {
@@ -365,21 +427,43 @@ export default function Chat() {
             });
           } else if (evt.type === "browser") {
             const preview = { type: "browser", ...evt };
+            const frameId = `bf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            setBrowserFrames((prev) => [{ id: frameId, ...evt }, ...prev].slice(0, 24));
             if (turnTools.length) {
               const updated = attachInlinePreview(turnTools, preview);
               turnTools.splice(0, turnTools.length, ...updated);
               setStreamingTools([...turnTools]);
+            } else {
+              turnTools.push({
+                id: frameId,
+                tool: "browser_visit",
+                state: "done",
+                args: { url: evt.url || "" },
+                result: { ok: true, url: evt.url, title: evt.title, preview: evt.preview },
+                inlinePreview: preview,
+              });
+              setStreamingTools([...turnTools]);
             }
             setRightPanelTab("activity");
           } else if (evt.type === "reflect") {
-            /* réflexion affichée dans le chat via tool emo_reflect */
+            const note = { id: `rn_${Date.now()}`, ...evt };
+            setReflectNotes((prev) => [note, ...prev].slice(0, 12));
           } else if (evt.type === "file_preview") {
             const preview = { type: "file", ...evt };
             if (turnTools.length) {
               const updated = attachInlinePreview(turnTools, preview);
               turnTools.splice(0, turnTools.length, ...updated);
-              setStreamingTools([...turnTools]);
+            } else {
+              turnTools.push({
+                id: `fp_${Date.now()}`,
+                tool: "write_file",
+                state: "done",
+                args: { path: evt.path },
+                result: { ok: true, path: evt.path },
+                inlinePreview: preview,
+              });
             }
+            setStreamingTools([...turnTools]);
             setFilePreview({
               path: evt.path,
               preview: evt.preview,
@@ -478,7 +562,7 @@ export default function Chat() {
             <button
               data-testid="mobile-menu-btn"
               onClick={() => setSidebarOpenMobile(true)}
-              className="md:hidden p-1.5 rounded-md hover:bg-white/5 text-muted-em"
+              className="md:hidden p-1.5 rounded-md em-hover-subtle text-muted-em"
               aria-label="Ouvrir le menu"
             >
               <Menu size={18} />
@@ -500,7 +584,7 @@ export default function Chat() {
             <button
               data-testid="header-profile-btn"
               onClick={() => setProfileOpen(true)}
-              className="p-2 rounded-lg hover:bg-white/10 text-muted-em transition"
+              className="p-2 rounded-lg em-hover text-muted-em transition"
               title="Paramètres"
             >
               <UserIcon size={15} />
@@ -508,7 +592,7 @@ export default function Chat() {
             <button
               data-testid="toggle-right-panel"
               onClick={() => setRightOpen(!rightOpen)}
-              className="hidden lg:inline-flex p-2 rounded-lg hover:bg-white/10 text-muted-em"
+              className="hidden lg:inline-flex p-2 rounded-lg em-hover text-muted-em"
               title="Panneau latéral"
             >
               {rightOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
@@ -522,6 +606,7 @@ export default function Chat() {
             ref={chatAreaRef}
             data-testid="chat-area"
             className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin chat-scroll-area"
+            style={{ background: "var(--emo-bg)" }}
           >
             {!hasMessages && (
               <div className="h-full min-h-[280px] flex flex-col items-center justify-center px-6">
@@ -557,7 +642,7 @@ export default function Chat() {
                 background: "var(--emo-surface)",
                 border: "1px solid var(--emo-border)",
                 color: "var(--emo-text-secondary)",
-                boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+                boxShadow: "var(--emo-drawer-shadow)",
               }}
               aria-label="Revenir en bas"
             >
@@ -603,6 +688,8 @@ export default function Chat() {
             filePreview={filePreview}
             activeTab={rightPanelTab}
             onTabChange={setRightPanelTab}
+            browserFrames={browserFrames}
+            reflectNotes={reflectNotes}
           />
         </div>
       )}
@@ -614,7 +701,7 @@ export default function Chat() {
             data-testid="mobile-sidebar-overlay"
             onClick={() => setSidebarOpenMobile(false)}
             className="md:hidden fixed inset-0 z-40"
-            style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+            style={{ background: "var(--emo-overlay)", backdropFilter: "blur(4px)" }}
           />
           <div className="md:hidden fixed left-0 top-0 bottom-0 z-50 w-72 max-w-[85vw]">
             <Sidebar

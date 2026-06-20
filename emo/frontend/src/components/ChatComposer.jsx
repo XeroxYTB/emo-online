@@ -24,6 +24,14 @@ export const ChatComposer = ({
     ? availableModels
     : [{ id: "auto", label: "Auto" }];
 
+  const sortedModels = [...models].sort((a, b) => {
+    if (a.id === "auto") return -1;
+    if (b.id === "auto") return 1;
+    if (a.uncensored && !b.uncensored) return -1;
+    if (!a.uncensored && b.uncensored) return 1;
+    return 0;
+  });
+
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -118,7 +126,7 @@ export const ChatComposer = ({
                         onChangeMode?.(m.id);
                         setPickerOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition ${active ? "em-active" : "em-hover-subtle"}`}
                     >
                       <Icon size={13} className="flex-shrink-0" style={{ color: active ? "var(--mode-color)" : "var(--emo-text-secondary)" }} />
                       <span className="text-sm font-medium" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>{m.label}</span>
@@ -151,7 +159,7 @@ export const ChatComposer = ({
                 className="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto rounded-lg py-1 z-30 border scrollbar-thin"
                 style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
               >
-                {models.map((m) => {
+                {sortedModels.map((m) => {
                   const active = m.id === (modelPreference || "auto");
                   return (
                     <button
@@ -161,12 +169,17 @@ export const ChatComposer = ({
                         onChangeModelPreference?.(m.id);
                         setModelPickerOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition ${active ? "em-active" : "em-hover-subtle"}`}
                     >
-                      <Cpu size={13} className="flex-shrink-0" style={{ color: active ? "#93c5fd" : "var(--emo-text-secondary)" }} />
-                      <span className="text-sm font-medium truncate" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>
+                      <Cpu size={13} className="flex-shrink-0" style={{ color: active ? "var(--emo-link)" : "var(--emo-text-secondary)" }} />
+                      <span className="text-sm font-medium truncate flex-1" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>
                         {m.label || m.id}
                       </span>
+                      {m.uncensored && (
+                        <span className="text-[9px] px-1 py-0.5 rounded flex-shrink-0 emo-alert-warning">
+                          libre
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -213,7 +226,7 @@ export const ChatComposer = ({
               className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
                 background: "var(--emo-accent)",
-                color: "#fff",
+                color: "var(--emo-on-accent)",
               }}
             >
               <Send size={15} />

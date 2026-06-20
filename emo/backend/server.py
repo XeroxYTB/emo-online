@@ -28,7 +28,7 @@ from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionRequest, CheckoutSessionResponse,
 )
 
-from emo_prompts import build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT
+from emo_prompts import build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT, UNCENSORED_SYSTEM_APPEND
 from emo_self_edit import (
     EMO_SELF_TOOLS,
     emo_read_self,
@@ -84,7 +84,7 @@ def _safe_mark_provider_failed(provider: str, reason: str = "") -> None:
         mark_provider_failed(provider, reason)
     except Exception:
         pass
-from hf_models import refresh_hf_catalog
+from hf_models import refresh_hf_catalog, is_uncensored_model
 from llm_providers import providers_status, configured_providers, api_key_available
 from tool_router import select_tools_for_message
 from product_keys import (
@@ -1696,7 +1696,11 @@ async def rotate_agent_token(user: User = Depends(get_current_user)):
 
 @api.get("/agent/status")
 async def agent_status(user: User = Depends(get_current_user)):
-    return {"online": agent_registry.is_online(user.user_id)}
+    ctx = agent_registry.get_context(user.user_id)
+    return {
+        "online": agent_registry.is_online(user.user_id),
+        "context": ctx if ctx else None,
+    }
 
 
 # Agent long-polling endpoints
@@ -1732,11 +1736,11 @@ async def agent_result(token: str = Query(...), payload: dict = Body(...)):
 
 
 @api.post("/agent/heartbeat")
-async def agent_heartbeat(token: str = Query(...)):
+async def agent_heartbeat(token: str = Query(...), body: Optional[dict] = Body(default=None)):
     user_id = await _resolve_agent_user(token)
     if not user_id:
         raise HTTPException(status_code=401, detail="Token agent invalide")
-    agent_registry.heartbeat(user_id)
+    agent_registry.heartbeat(user_id, context=body)
     return {"ok": True}
 
 
@@ -1957,6 +1961,52 @@ def _tools_for_message(content: str, tool_set: list[dict]) -> list[dict]:
     return tool_set
 
 
+_TOOL_CAPABLE_PROVIDERS = frozenset({
+    "anthropic", "openai", "groq", "gemini", "deepseek", "openrouter",
+})
+
+
+def _prioritize_tool_providers(
+    candidates: list[tuple[str, str, str]],
+    *,
+    use_tools: bool,
+) -> list[tuple[str, str, str]]:
+    """HF n'expose pas function calling — le mettre en dernier quand les tools agent sont requis."""
+    if not use_tools:
+        return candidates
+    with_tools = [c for c in candidates if c[0] in _TOOL_CAPABLE_PROVIDERS]
+    without = [c for c in candidates if c[0] not in _TOOL_CAPABLE_PROVIDERS]
+    return with_tools + without
+
+
+async def _ensure_agent_context(user_id: str) -> dict:
+    """Chemins machine agent pour le prompt (heartbeat ou fetch system_info)."""
+    ctx = agent_registry.get_context(user_id)
+    if ctx.get("desktop") or ctx.get("home"):
+        return ctx
+    if not agent_registry.is_online(user_id):
+        return ctx
+    try:
+        info = await agent_registry.dispatch(user_id, "system_info", {}, timeout=20)
+        if info.get("ok"):
+            home = info.get("home") or ""
+            merged = {
+                "home": home,
+                "username": info.get("username") or "",
+                "os": info.get("os") or "",
+                "hostname": info.get("hostname") or "",
+            }
+            if home:
+                desktop = str(Path(home) / "Desktop")
+                merged["desktop"] = desktop
+                merged["userprofile"] = home
+            agent_registry.set_context(user_id, merged)
+            return agent_registry.get_context(user_id)
+    except Exception as exc:
+        logger.debug("agent context fetch failed: %s", exc)
+    return ctx
+
+
 def _strip_mood(text: str) -> tuple[str, Optional[str]]:
     return _sanitize_assistant_text(text)
 
@@ -1999,6 +2049,7 @@ def _browser_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
                     "title": r.get("title", ""),
                     "url": r.get("url", ""),
                     "snippet": (r.get("snippet") or "")[:240],
+                    "domain": r.get("domain", ""),
                 }
                 for r in (result.get("results") or [])[:10]
             ],
@@ -2040,16 +2091,20 @@ def _reflect_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
 
 
 def _file_preview_sse(tool_name: str, args: dict, result: dict) -> Optional[dict]:
-    if tool_name != "read_file" or not result.get("ok"):
+    if tool_name not in ("read_file", "write_file") or not result.get("ok"):
         return None
     path = result.get("path") or args.get("path") or ""
-    content = result.get("content") or ""
+    if tool_name == "read_file":
+        content = result.get("content") or ""
+    else:
+        content = args.get("content") or result.get("content") or ""
     ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     is_image = ext in {"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"}
+    preview_limit = 50000 if ext in {"html", "htm"} else 8000
     return {
         "type": "file_preview",
         "path": path,
-        "preview": content[:2000],
+        "preview": content[:preview_limit],
         "is_image": is_image,
         "language": ext,
     }
@@ -2067,6 +2122,9 @@ def _compact_llm_payload(
     is_owner: bool = False,
     user_message: str = "",
     tools_enabled: bool = True,
+    agent_context: Optional[dict] = None,
+    custom_addon: str = "",
+    is_uncensored: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq/Gemini : prompt compact + outils. HF : pas d'outils (router incompatible)."""
     if not tools_enabled:
@@ -2075,7 +2133,14 @@ def _compact_llm_payload(
         return system_msg, initial_messages, []
     if provider not in ("groq", "gemini"):
         return system_msg, initial_messages, tools
-    compact_sys = build_compact_system_prompt(mode, user_name=user_name, agent_online=agent_online)
+    compact_sys = build_compact_system_prompt(
+        mode,
+        user_name=user_name,
+        agent_online=agent_online,
+        agent_context=agent_context,
+        custom_addon=custom_addon,
+        is_uncensored=is_uncensored,
+    )
     non_system = [m for m in initial_messages if m.get("role") != "system"]
     keep = 4 if provider == "groq" else 8
     compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-keep:]
@@ -2163,18 +2228,23 @@ async def chat_stream(
     # Build system prompt with memories + agent status + user custom prompt addon
     memories = await _load_user_memories(user.user_id, limit=50)
     agent_online = agent_registry.is_online(user.user_id)
+    agent_context = await _ensure_agent_context(user.user_id) if agent_online else {}
     is_owner = user.email.lower() in ADMIN_EMAILS
     identity_overrides = await get_identity_overrides(db) if is_owner else {}
     system_msg = build_system_prompt(
         mode, memories=memories, agent_online=agent_online,
         user_name=user.name, is_owner=is_owner,
         identity_overrides=identity_overrides,
+        agent_context=agent_context,
     )
 
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "custom_prompt_addon": 1})
     addon = (user_doc or {}).get("custom_prompt_addon", "").strip()
     if addon:
-        system_msg += f"\n\n# INSTRUCTIONS PERSO DE L'UTILISATEUR (à respecter en plus de tout ce qui précède)\n{addon}\n"
+        system_msg += (
+            f"\n\n# INSTRUCTIONS PERSO UTILISATEUR (PRIORITÉ ABSOLUE — écrase les règles génériques en cas de conflit)\n"
+            f"{addon}\n"
+        )
 
     initial_messages = [{"role": "system", "content": system_msg}]
     for m in prior:
@@ -2198,6 +2268,7 @@ async def chat_stream(
             return False
 
     use_tools = body.use_agent_tools is not False
+    candidates = _prioritize_tool_providers(candidates, use_tools=use_tools)
 
     async def event_gen():
         last_error: Optional[Exception] = None
@@ -2218,12 +2289,19 @@ async def chat_stream(
                     tool_set = []
                 else:
                     tool_set = _tools_for_message(body.content, tool_set)
+                model_uncensored = is_uncensored_model(provider, model)
+                effective_system = system_msg
+                if model_uncensored:
+                    effective_system += "\n\n" + UNCENSORED_SYSTEM_APPEND.strip()
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
-                    provider, system_msg, initial_messages, tool_set,
+                    provider, effective_system, initial_messages, tool_set,
                     mode=mode, user_name=user.name, agent_online=agent_online,
                     is_owner=is_owner,
                     user_message=body.content,
                     tools_enabled=use_tools,
+                    agent_context=agent_context,
+                    custom_addon=addon,
+                    is_uncensored=model_uncensored,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -2676,7 +2754,7 @@ async def ping():
         "ok": True,
         "google": google_auth.is_configured(),
         "service": "emo-online",
-        "build": "2026-06-20b",
+        "build": "2026-06-20c",
     }
 
 

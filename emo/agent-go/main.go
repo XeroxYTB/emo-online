@@ -31,7 +31,7 @@ import (
 
 // Default backend — override at build: -ldflags "-X main.defaultBackend=http://127.0.0.1:8010"
 var defaultBackend = "http://127.0.0.1:8010"
-var version = "2.2.0"
+var version = "2.4.1"
 
 type ToolRequest struct {
 	ID   string                 `json:"id"`
@@ -205,22 +205,22 @@ func toolListDir(args map[string]interface{}) ToolResult {
 		return ToolResult{"ok": false, "error": err.Error()}
 	}
 	if depth <= 1 {
-		entries, err := os.ReadDir(p)
-		if err != nil {
-			return ToolResult{"ok": false, "error": err.Error()}
+	entries, err := os.ReadDir(p)
+	if err != nil {
+		return ToolResult{"ok": false, "error": err.Error()}
+	}
+	files := []string{}
+	dirs := []string{}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
 		}
-		files := []string{}
-		dirs := []string{}
-		for _, e := range entries {
-			name := e.Name()
-			if strings.HasPrefix(name, ".") {
-				continue
-			}
-			if e.IsDir() {
-				dirs = append(dirs, name)
-			} else {
-				files = append(files, name)
-			}
+		if e.IsDir() {
+			dirs = append(dirs, name)
+		} else {
+			files = append(files, name)
+		}
 		}
 		return ToolResult{"ok": true, "path": root, "files": files, "dirs": dirs}
 	}
@@ -737,7 +737,13 @@ func toolApplyPatch(args map[string]interface{}) ToolResult {
 func expand(p string) string {
 	if strings.HasPrefix(p, "~") {
 		home, _ := os.UserHomeDir()
-		return filepath.Join(home, p[1:])
+		if len(p) <= 1 {
+			return home
+		}
+		rest := strings.TrimPrefix(p, "~")
+		rest = strings.TrimPrefix(rest, "/")
+		rest = strings.TrimPrefix(rest, "\\")
+		return filepath.Join(home, rest)
 	}
 	return p
 }
@@ -792,6 +798,8 @@ func dispatch(req *ToolRequest) ToolResult {
 		return toolMovePath(args)
 	case "find_files":
 		return toolFindFiles(args)
+	case "print_file", "print_document", "print":
+		return toolPrintFile(args)
 	default:
 		return ToolResult{"ok": false, "error": "unknown tool: " + req.Tool}
 	}
@@ -818,11 +826,40 @@ func postJSON(url string, payload interface{}) error {
 	return nil
 }
 
+func agentMachineContext() map[string]interface{} {
+	home, _ := os.UserHomeDir()
+	desktop := filepath.Join(home, "Desktop")
+	if _, err := os.Stat(desktop); err != nil {
+		alt := filepath.Join(home, "OneDrive", "Desktop")
+		if _, err2 := os.Stat(alt); err2 == nil {
+			desktop = alt
+		}
+	}
+	username := os.Getenv("USERNAME")
+	if username == "" {
+		username = os.Getenv("USER")
+	}
+	userprofile := os.Getenv("USERPROFILE")
+	if userprofile == "" {
+		userprofile = home
+	}
+	hostname, _ := os.Hostname()
+	return map[string]interface{}{
+		"home":        home,
+		"desktop":     desktop,
+		"username":    username,
+		"userprofile": userprofile,
+		"os":          runtime.GOOS,
+		"hostname":    hostname,
+	}
+}
+
 func heartbeatLoop(ctx context.Context, backend, token string, wg *sync.WaitGroup, onStatus func(bool)) {
 	defer wg.Done()
 	url := backend + "/api/agent/heartbeat?token=" + token
+	ctxPayload := agentMachineContext()
 	for {
-		err := postJSON(url, nil)
+		err := postJSON(url, ctxPayload)
 		if onStatus != nil {
 			onStatus(err == nil)
 		} else if err != nil {
@@ -874,7 +911,7 @@ func pollOnce(backend, token string) (*ToolRequest, error) {
 func runWithStatus(ctx context.Context, backend, token string, onStatus func(bool)) {
 	logf("Émo agent v%s — backend = %s", version, backend)
 
-	if err := postJSON(backend+"/api/agent/heartbeat?token="+token, nil); err != nil {
+	if err := postJSON(backend+"/api/agent/heartbeat?token="+token, agentMachineContext()); err != nil {
 		logf("auth/connectivity failed: %v", err)
 		if onStatus != nil {
 			onStatus(false)
@@ -1035,6 +1072,7 @@ func main() {
 	}
 
 	debugLog = *debugFlag
+	unblockSelf()
 
 	if *uninstallFlag {
 		uninstallSelf()
@@ -1057,9 +1095,9 @@ func main() {
 	}
 
 	if *headlessFlag {
-		if token == "" {
+	if token == "" {
 			fmt.Fprintln(os.Stderr, "[emo-agent] Token requis en mode headless")
-			os.Exit(2)
+		os.Exit(2)
 		}
 		run(context.Background(), backend, token)
 		return

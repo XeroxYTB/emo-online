@@ -114,19 +114,18 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
     <div className="space-y-5 text-sm">
       <div className="flex items-center gap-2">
         <div
-          className={`w-2 h-2 rounded-full ${agentOnline ? "bg-emerald-400" : "bg-zinc-500"}`}
-          style={{ boxShadow: agentOnline ? "0 0 8px #34d39988" : "none" }}
+          className={`w-2 h-2 rounded-full ${agentOnline ? "emo-status-dot-online" : "emo-status-dot-offline"}`}
         />
         <span className="text-secondary-em">
           Agent local :{" "}
-          <strong style={{ color: agentOnline ? "#34d399" : "#a89bbd" }}>
+          <strong style={{ color: agentOnline ? "var(--emo-status-online)" : "var(--emo-status-offline)" }}>
             {agentOnline ? "EN LIGNE" : "HORS LIGNE"}
           </strong>
         </span>
         <button
           data-testid="refresh-agent-status"
           onClick={onRefreshStatus}
-          className="ml-auto p-1 rounded hover:bg-white/10"
+          className="ml-auto p-1 rounded em-hover"
         >
           <RefreshCw size={13} />
         </button>
@@ -150,9 +149,9 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
                 onClick={() => setOs(opt.id)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] transition"
                 style={{
-                  background: active ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${active ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.05)"}`,
-                  color: active ? "#fff" : "var(--emo-text-secondary)",
+                  background: active ? "var(--emo-accent-soft)" : "var(--emo-surface-raised)",
+                  border: `1px solid ${active ? "var(--emo-accent-border)" : "var(--emo-border)"}`,
+                  color: "var(--emo-text)",
                 }}
               >
                 <Icon size={12} style={{ color: active ? "var(--mode-color)" : "currentColor" }} />
@@ -170,7 +169,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-medium text-sm transition-all hover:scale-[1.01] disabled:opacity-50"
         style={{
           background: "var(--mode-color)",
-          color: "#0A0510",
+          color: "var(--emo-on-mode)",
           boxShadow: "0 0 24px var(--mode-glow)",
         }}
       >
@@ -185,7 +184,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
               <strong>extrais</strong> le dossier, puis double-clic sur <code className="font-code">start.bat</code>.
               Ne renomme pas le zip en .exe.
             </p>
-            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-100/90">
+            <p className="rounded-xl px-3 py-2 emo-alert-warning">
               Windows bloque parfois l&apos;exe (SmartScreen) : clic droit → <strong>Propriétés</strong> → cocher{" "}
               <strong>Débloquer</strong>, ou au lancement <strong>Informations complémentaires</strong> →{" "}
               <strong>Exécuter quand même</strong>.
@@ -197,13 +196,13 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       </div>
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-muted-em hover:text-white">Token (avancé)</summary>
+        <summary className="cursor-pointer text-muted-em hover:text-[var(--emo-text)]">Token (avancé)</summary>
         <div className="mt-3 space-y-3">
           <div className="flex items-center gap-2">
             <code
               data-testid="agent-token-display"
-              className="flex-1 font-code text-[11px] px-3 py-2 rounded-lg bg-black/50 border border-white/5 truncate"
-              style={{ color: "#E9D5FF" }}
+              className="flex-1 font-code text-[11px] px-3 py-2 rounded-lg truncate em-input"
+              style={{ color: "var(--emo-code-text)" }}
             >
               {token || "…"}
             </code>
@@ -214,7 +213,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           <button
             onClick={rotate}
             data-testid="rotate-token-btn"
-            className="text-[11px] text-muted-em hover:text-red-300 flex items-center gap-1"
+            className="text-[11px] text-muted-em hover:text-[var(--emo-error-text)] flex items-center gap-1"
           >
             <ShieldAlert size={11} /> Régénérer (invalide l&apos;ancien agent)
           </button>

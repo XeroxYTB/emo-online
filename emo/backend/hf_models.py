@@ -11,6 +11,16 @@ import httpx
 
 logger = logging.getLogger("emo.hf_models")
 
+UNCENSORED_MODEL_IDS = frozenset(m["model"] for m in [
+    {"model": "cognitivecomputations/dolphin-2.9.1-llama-3.1-8b"},
+    {"model": "cognitivecomputations/dolphin-2.9.3-mistral-nemo-12b"},
+    {"model": "cognitivecomputations/dolphin-2.6-mistral-7b"},
+    {"model": "undi95/toppy-m-7b"},
+    {"model": "davidAU/Llama-3.2-8X3B-MOE-Dark-Champion-Instruct-uncensored-abliterated"},
+    {"model": "NoromD/Llama-3.1-8B-Instruct-Uncensored"},
+    {"model": "cognitivecomputations/dolphin-2.9-llama3-8b"},
+])
+
 # Non censurés — premium / ultra en priorité
 HF_UNCENSORED_MODELS = [
     {"provider": "huggingface", "model": "cognitivecomputations/dolphin-2.9.1-llama-3.1-8b", "label": "Dolphin 3.1 8B (HF — non censuré)"},
@@ -55,11 +65,22 @@ def _dedupe(entries: list[dict]) -> list[dict]:
     return out
 
 
+def is_uncensored_model(provider: str, model: str) -> bool:
+    """True pour les modèles HF Dolphin / uncensored / abliterated."""
+    if not provider or not model:
+        return False
+    if provider == "huggingface" and model in UNCENSORED_MODEL_IDS:
+        return True
+    if provider != "huggingface":
+        return False
+    low = model.lower()
+    markers = ("uncensored", "dolphin", "abliterated", "dark-champion", "toppy-m")
+    return any(m in low for m in markers)
+
+
 def hf_models_for_tier(tier: str) -> list[dict]:
-    """Liste ordonnée HF pour un palier (non censurés en tête pour premium/ultra)."""
-    parts: list[dict] = []
-    if tier in ("premium", "ultra"):
-        parts.extend(HF_UNCENSORED_MODELS)
+    """Liste ordonnée HF — non censurés en tête pour tous les paliers."""
+    parts: list[dict] = list(HF_UNCENSORED_MODELS)
     parts.extend(HF_STATIC_FREE_MODELS)
     parts.extend(_DYNAMIC_HF)
     return _dedupe(parts)

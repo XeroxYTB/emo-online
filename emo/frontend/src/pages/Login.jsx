@@ -110,8 +110,7 @@ export default function Login() {
 
           {apiDown && (
             <p
-              className="mb-4 text-xs rounded-lg px-3 py-2"
-              style={{ background: "rgba(245,158,11,0.1)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.25)" }}
+              className="mb-4 text-xs rounded-lg px-3 py-2 emo-alert-warning"
             >
               API en pause (HF). Attendez 1–2 min puis réessayez.
             </p>

@@ -55,7 +55,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
   const resetLicense = async () => {
     if (!window.confirm("Réinitialiser la licence ?")) return;
     await http.post("/profile/reset-license");
-    toast.success("License reset");
+    toast.success("Licence réinitialisée");
     const r = await http.get("/profile");
     setProfile(r.data);
   };
@@ -77,25 +77,25 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
         data-testid="profile-overlay"
         onClick={onClose}
         className="fixed inset-0 z-40"
-        style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+        style={{ background: "var(--emo-overlay)", backdropFilter: "blur(4px)" }}
       />
       <aside
         data-testid="profile-drawer"
         className="fixed top-0 right-0 bottom-0 z-50 w-[480px] max-w-[95vw] glass-panel overflow-y-auto scrollbar-thin"
         style={{
-          background: "rgba(7,4,10,0.92)",
+          background: "var(--emo-drawer-bg)",
           borderLeft: "1px solid var(--emo-border)",
           borderRadius: 0,
-          boxShadow: "-20px 0 60px rgba(0,0,0,0.5)",
+          boxShadow: "var(--emo-drawer-shadow)",
           animation: "slideInRight 0.25s ease",
         }}
       >
         <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between glass-panel" style={{ borderBottom: "1px solid var(--emo-border)", borderRadius: 0 }}>
           <div className="flex items-center gap-3">
             <UserIcon size={16} style={{ color: "var(--mode-color)" }} />
-            <h2 className="font-heading text-lg">Paramètres</h2>
+            <h2 className="font-heading text-lg" style={{ color: "var(--emo-text)" }}>Paramètres</h2>
           </div>
-          <button data-testid="profile-close-btn" onClick={onClose} className="p-1.5 rounded hover:bg-white/10">
+          <button data-testid="profile-close-btn" onClick={onClose} className="p-1.5 rounded em-hover">
             <X size={16} />
           </button>
         </div>
@@ -107,8 +107,9 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
               onClick={() => setSection("profile")}
               className="px-3 py-1.5 rounded-lg text-xs"
               style={{
-                background: section === "profile" ? "rgba(168,85,247,0.15)" : "transparent",
-                color: section === "profile" ? "var(--emo-text)" : "var(--emo-text-muted)",
+                background: section === "profile" ? "var(--emo-accent-soft)" : "transparent",
+                color: section === "profile" ? "var(--emo-accent)" : "var(--emo-text-muted)",
+                border: `1px solid ${section === "profile" ? "var(--emo-accent-border)" : "transparent"}`,
               }}
             >
               Profil
@@ -118,8 +119,9 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
               onClick={() => setSection("admin")}
               className="px-3 py-1.5 rounded-lg text-xs"
               style={{
-                background: section === "admin" ? "rgba(245,158,11,0.15)" : "transparent",
-                color: section === "admin" ? "#fbbf24" : "var(--emo-text-muted)",
+                background: section === "admin" ? "var(--emo-admin-bg)" : "transparent",
+                color: section === "admin" ? "var(--emo-admin-text)" : "var(--emo-text-muted)",
+                border: `1px solid ${section === "admin" ? "var(--emo-warning-border)" : "transparent"}`,
               }}
             >
               Admin
@@ -142,18 +144,18 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                   ) : (
                     <div
                       className="w-12 h-12 rounded-full flex items-center justify-center text-base font-medium"
-                      style={{ background: "rgba(168,85,247,0.2)", color: "var(--mode-color)" }}
+                      style={{ background: "var(--emo-accent-soft)", color: "var(--mode-color)" }}
                     >
                       {(profile.user.name || profile.user.email)?.[0]?.toUpperCase()}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm">{profile.user.email}</p>
+                    <p className="text-sm" style={{ color: "var(--emo-text)" }}>{profile.user.email}</p>
                     <p className="text-[11px] text-muted-em">
-                      {profile.user.auth_provider === "google" ? "Google" : "Email + password"}
+                      {profile.user.auth_provider === "google" ? "Google" : "Email et mot de passe"}
                       {profile.license.is_admin && (
-                        <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(245,158,11,0.15)", color: "#fbbf24" }}>
-                          <ShieldCheck size={9} /> admin
+                        <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded-full" style={{ background: "var(--emo-admin-bg)", color: "var(--emo-admin-text)" }}>
+                          <ShieldCheck size={9} /> Admin
                         </span>
                       )}
                     </p>
@@ -165,7 +167,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/5 text-sm focus:outline-none focus:border-purple-500/40"
+                    className="w-full px-3 py-2 rounded-lg em-input text-sm focus:border-purple-500/40"
                   />
                 </Field>
               </Section>
@@ -200,12 +202,8 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                           setThemeMode(opt.id);
                           onPreferencesChange?.({ theme_mode: opt.id });
                         }}
-                        className="flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl text-xs transition"
-                        style={{
-                          background: active ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.02)",
-                          border: `1px solid ${active ? "rgba(168,85,247,0.45)" : "rgba(255,255,255,0.06)"}`,
-                          color: active ? "var(--emo-text)" : "var(--emo-text-secondary)",
-                        }}
+                        className="flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl text-xs font-medium transition emo-theme-btn"
+                        data-active={active ? "true" : "false"}
                       >
                         <Icon size={16} />
                         {opt.label}
@@ -222,8 +220,8 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                   value={addon}
                   onChange={(e) => setAddon(e.target.value)}
                   rows={5}
-                  placeholder="Instructions optionnelles"
-                  className="w-full px-3 py-2.5 rounded-xl bg-black/40 border border-white/5 text-sm focus:outline-none focus:border-purple-500/40 resize-none font-code text-[13px]"
+                  placeholder="Instructions perso (priorité absolue sur le comportement par défaut). Clique Enregistrer."
+                  className="w-full px-3 py-2.5 rounded-xl em-input text-sm focus:border-purple-500/40 resize-none font-code text-[13px]"
                   maxLength={4000}
                 />
               </Section>
@@ -231,7 +229,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
               {/* Stripe / export — déplacés vers AdminPanel */}
               {profile.license.is_admin && (
                 <p className="text-xs text-muted-em">
-                  Clés IA, debug, export : onglet <strong style={{ color: "#fbbf24" }}>Admin</strong>.
+                  Clés IA, debug, export : onglet <strong style={{ color: "var(--emo-admin-text)" }}>Admin</strong>.
                 </p>
               )}
 
@@ -241,21 +239,21 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                 onClick={save}
                 disabled={saving}
                 className="w-full py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ background: "var(--mode-color)", color: "#0A0510", boxShadow: "0 0 16px var(--mode-glow)" }}
+                style={{ background: "var(--mode-color)", color: "var(--emo-on-mode)", boxShadow: "0 0 16px var(--mode-glow)" }}
               >
                 <Save size={13} /> {saving ? "Sauvegarde…" : "Enregistrer"}
               </button>
 
               {/* Danger zone */}
               <details className="border border-red-500/20 rounded-xl">
-                <summary className="cursor-pointer px-4 py-2.5 text-xs text-red-300 hover:bg-red-500/5 rounded-xl">
+                <summary className="cursor-pointer px-4 py-2.5 text-xs rounded-xl" style={{ color: "var(--emo-error-text)" }}>
                   <AlertTriangle size={11} className="inline mr-1.5" /> Zone dangereuse
                 </summary>
                 <div className="px-4 pb-4 pt-2 space-y-3 text-xs">
                   <button
                     onClick={onLogout}
                     data-testid="profile-logout-btn"
-                    className="w-full py-2 rounded-lg flex items-center justify-center gap-2 text-secondary-em hover:bg-white/5"
+                    className="w-full py-2 rounded-lg flex items-center justify-center gap-2 text-secondary-em em-hover-subtle"
                   >
                     <LogOut size={11} /> Se déconnecter
                   </button>
@@ -266,13 +264,12 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                       placeholder='Tape "SUPPRIMER" pour confirmer'
                       value={confirmDelete}
                       onChange={(e) => setConfirmDelete(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-red-500/20 text-xs focus:outline-none focus:border-red-500/40"
+                      className="w-full px-3 py-1.5 rounded-lg em-input border-red-500/20 text-xs focus:border-red-500/40"
                     />
                     <button
                       data-testid="profile-delete-btn"
                       onClick={deleteAccount}
-                      className="w-full mt-2 py-2 rounded-lg flex items-center justify-center gap-2 text-xs"
-                      style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}
+                      className="w-full mt-2 py-2 rounded-lg flex items-center justify-center gap-2 text-xs emo-alert-error"
                     >
                       <Trash2 size={11} /> Supprimer définitivement
                     </button>

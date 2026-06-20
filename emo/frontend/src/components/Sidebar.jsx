@@ -34,7 +34,7 @@ export const Sidebar = ({
         <button
           data-testid="sidebar-expand-btn"
           onClick={onToggleCollapsed}
-          className="p-2 rounded-lg hover:bg-white/10 text-muted-em transition mb-3"
+          className="p-2 rounded-lg em-hover text-muted-em transition mb-3"
           title="Déplier"
         >
           <ChevronRight size={16} />
@@ -60,7 +60,7 @@ export const Sidebar = ({
           ) : (
             <div
               className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium"
-              style={{ background: "rgba(168,85,247,0.2)", color: "var(--mode-color)" }}
+              style={{ background: "var(--emo-accent-soft)", color: "var(--mode-color)" }}
             >
               {user?.name?.[0]?.toUpperCase() || "?"}
             </div>
@@ -82,7 +82,7 @@ export const Sidebar = ({
           <button
             data-testid="sidebar-collapse-btn"
             onClick={onToggleCollapsed}
-            className="p-1.5 rounded hover:bg-white/10 text-muted-em transition"
+            className="p-1.5 rounded em-hover text-muted-em transition"
             title="Replier"
           >
             <ChevronLeft size={14} />
@@ -94,7 +94,7 @@ export const Sidebar = ({
         <button
           data-testid="new-conversation-btn"
           onClick={onNew}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors hover:bg-white/[0.03]"
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors em-hover-subtle"
           style={{ borderColor: "var(--emo-border)" }}
         >
           <Plus size={16} className="text-muted-em" />
@@ -128,14 +128,14 @@ export const Sidebar = ({
           <DropdownMenuTrigger asChild>
             <button
               data-testid="user-menu-btn"
-              className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition"
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-xl em-hover-subtle transition"
             >
               {user?.picture ? (
                 <img src={user.picture} alt="" className="w-8 h-8 rounded-full" />
               ) : (
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium"
-                  style={{ background: "rgba(168,85,247,0.2)", color: "var(--mode-color)" }}
+                  style={{ background: "var(--emo-accent-soft)", color: "var(--mode-color)" }}
                 >
                   {user?.name?.[0]?.toUpperCase() || "?"}
                 </div>
@@ -168,11 +168,11 @@ const ConversationRow = ({ conv, active, onSelect, onRename, onDelete }) => {
       data-testid={`conv-row-${conv.conversation_id}`}
       onClick={onSelect}
       className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm transition ${
-        active ? "bg-white/5" : "hover:bg-white/[0.03]"
+        active ? "em-active" : "em-hover-subtle"
       }`}
     >
       <MessageSquare size={14} className="opacity-50 flex-shrink-0" />
-      <span className="flex-1 truncate" style={{ color: active ? "#fff" : "var(--emo-text-secondary)" }}>
+      <span className="flex-1 truncate" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>
         {conv.title || "Sans titre"}
       </span>
       <div className="hidden group-hover:flex items-center gap-1">
@@ -183,7 +183,7 @@ const ConversationRow = ({ conv, active, onSelect, onRename, onDelete }) => {
             const t = window.prompt("Nouveau titre :", conv.title || "");
             if (t && t.trim()) onRename(conv.conversation_id, t.trim());
           }}
-          className="p-1 hover:text-white text-muted-em"
+          className="p-1 hover:text-[var(--emo-text)] text-muted-em"
         >
           <Pencil size={12} />
         </button>

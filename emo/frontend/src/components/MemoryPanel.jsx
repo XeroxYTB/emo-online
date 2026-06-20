@@ -40,7 +40,7 @@ export default function MemoryPanel() {
         <button
           data-testid="add-memory-btn"
           onClick={() => setAdding(!adding)}
-          className="p-1 rounded hover:bg-white/10"
+          className="p-1 rounded em-hover"
         >
           <Plus size={14} />
         </button>
@@ -54,19 +54,19 @@ export default function MemoryPanel() {
             onChange={(e) => setNewContent(e.target.value)}
             rows={2}
             placeholder="Mémoire"
-            className="w-full bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500/40 resize-none"
+            className="w-full em-input rounded-lg px-3 py-2 text-xs focus:border-purple-500/40 resize-none"
           />
           <div className="flex gap-2 justify-end">
             <button onClick={() => { setAdding(false); setNewContent(""); }} className="text-xs text-muted-em px-2 py-1">
-              annuler
+              Annuler
             </button>
             <button
               data-testid="memory-save-btn"
               onClick={create}
               className="text-xs px-3 py-1 rounded-lg"
-              style={{ background: "var(--mode-color)", color: "#0A0510" }}
+              style={{ background: "var(--mode-color)", color: "var(--emo-on-mode)" }}
             >
-              ajouter
+              Ajouter
             </button>
           </div>
         </div>

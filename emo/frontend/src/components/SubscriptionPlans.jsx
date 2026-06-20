@@ -74,10 +74,10 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
 
   if (license?.source === "product_key" && license?.active) {
     return (
-      <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}>
+      <div className="p-3 rounded-xl text-sm emo-alert-success">
         <div className="flex items-center gap-2">
-          <InfinityIcon size={14} style={{ color: "#34d399" }} />
-          <strong style={{ color: "#34d399" }}>
+          <InfinityIcon size={14} style={{ color: "var(--emo-success-text)" }} />
+          <strong style={{ color: "var(--emo-success-text)" }}>
             {license.tier_name || "Ultra"} · Licence produit
           </strong>
         </div>
@@ -88,14 +88,14 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
 
   if (license?.is_admin && license?.source === "admin_grant") {
     return (
-      <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
+      <div className="p-3 rounded-xl text-sm emo-alert-warning">
         <div className="flex items-center gap-2">
-          <Crown size={14} style={{ color: "#fbbf24" }} />
-          <strong style={{ color: "#fbbf24" }}>Admin</strong>
+          <Crown size={14} style={{ color: "var(--emo-admin-text)" }} />
+          <strong style={{ color: "var(--emo-admin-text)" }}>Admin</strong>
         </div>
         {onReset && (
-          <button onClick={onReset} className="mt-2 text-[11px] flex items-center gap-1 text-muted-em hover:text-amber-400">
-            <RotateCcw size={10} /> Réinitialiser (test)
+          <button onClick={onReset} className="mt-2 text-[11px] flex items-center gap-1 text-muted-em hover:text-[var(--emo-admin-text)]">
+            <RotateCcw size={10} /> Réinitialiser la licence
           </button>
         )}
       </div>
@@ -105,10 +105,10 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
   return (
     <div className="space-y-3">
       {currentTier !== "free" && license?.active && (
-        <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}>
+        <div className="p-3 rounded-xl text-sm emo-alert-success">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={14} style={{ color: "#34d399" }} />
-            <strong style={{ color: "#34d399" }}>
+            <ShieldCheck size={14} style={{ color: "var(--emo-success-text)" }} />
+            <strong style={{ color: "var(--emo-success-text)" }}>
               {license.tier_name || currentTier} actif
             </strong>
           </div>
@@ -122,7 +122,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
       )}
 
       {currentTier === "free" && (
-        <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.25)" }}>
+        <div className="p-3 rounded-xl text-sm emo-btn-soft">
           <div className="flex items-center gap-2">
             <Clock size={14} style={{ color: "var(--mode-color)" }} />
             <strong style={{ color: "var(--mode-color)" }}>Gratuit</strong>
@@ -135,7 +135,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
       )}
 
       {(currentTier === "free" || !license?.active) && (
-        <form onSubmit={redeemKey} className="p-3 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <form onSubmit={redeemKey} className="p-3 rounded-xl space-y-2" style={{ background: "var(--emo-subtle-bg)", border: "1px solid var(--emo-border)" }}>
           <p className="text-[11px] text-secondary-em flex items-center gap-1.5">
             <ShieldCheck size={12} /> Clé produit
           </p>
@@ -144,13 +144,12 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
             value={productKey}
             onChange={(e) => setProductKey(e.target.value.toUpperCase())}
             placeholder="EMO-ULTRA-XXXX-XXXX-XXXX"
-            className="w-full px-3 py-2 rounded-lg text-xs font-mono tracking-wide bg-black/20 border border-white/10 focus:outline-none focus:border-purple-500/50"
+            className="w-full px-3 py-2 rounded-lg text-xs font-mono tracking-wide em-input focus:border-purple-500/50"
           />
           <button
             type="submit"
             disabled={redeeming || !productKey.trim()}
-            className="w-full py-2 rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{ background: "rgba(52,211,153,0.15)", color: "#6ee7b7", border: "1px solid rgba(52,211,153,0.3)" }}
+            className="w-full py-2 rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2 emo-alert-success"
           >
             {redeeming ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
             Activer
@@ -165,10 +164,10 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
           const canUpgrade = !isCurrent && (TIER_RANK[plan.id] ?? 0) > (TIER_RANK[currentTier] ?? 0);
           const cardStyle =
             plan.id === "ultra"
-              ? { bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.25)", accent: "#fbbf24" }
+              ? { bg: "var(--emo-warning-bg)", border: "var(--emo-warning-border)", accent: "var(--emo-admin-text)" }
               : plan.id === "basic"
-                ? { bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", accent: "#a5b4fc" }
-                : { bg: "rgba(168,85,247,0.06)", border: "rgba(168,85,247,0.25)", accent: "var(--mode-color)" };
+                ? { bg: "var(--emo-accent-soft)", border: "var(--emo-accent-border)", accent: "var(--emo-link)" }
+                : { bg: "var(--emo-accent-soft)", border: "var(--emo-accent-border)", accent: "var(--mode-color)" };
           return (
             <div
               key={plan.id}
@@ -201,7 +200,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
                 </p>
               )}
               {isCurrent ? (
-                <div className="text-[11px] text-center py-2 rounded-lg" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
+                <div className="text-[11px] text-center py-2 rounded-lg emo-alert-success">
                   Plan actuel
                 </div>
               ) : canUpgrade || currentTier === "free" ? (
@@ -211,8 +210,8 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
                   disabled={loading === plan.id}
                   className="w-full py-2.5 rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
                   style={{
-                    background: plan.id === "ultra" ? "#fbbf24" : plan.id === "basic" ? "#818cf8" : "var(--mode-color)",
-                    color: "#0A0510",
+                    background: plan.id === "ultra" ? "var(--emo-admin-text)" : plan.id === "basic" ? "var(--emo-link)" : "var(--mode-color)",
+                    color: "var(--emo-on-mode)",
                   }}
                 >
                   {loading === plan.id ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
@@ -227,7 +226,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
       <button
         onClick={checkPayment}
         disabled={checking}
-        className="w-full py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 text-secondary-em hover:text-white hover:bg-white/5 disabled:opacity-50"
+        className="w-full py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 text-secondary-em em-hover-subtle disabled:opacity-50"
       >
         {checking ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
         Vérifier le paiement
@@ -274,7 +273,7 @@ export default function Paywall({ info, plans, onPaid }) {
     <div
       data-testid="paywall-screen"
       className="fixed inset-0 z-[60] flex items-center justify-center px-4 mode-creatif overflow-y-auto py-8"
-      style={{ background: "rgba(7,4,10,0.85)", backdropFilter: "blur(16px)" }}
+      style={{ background: "var(--emo-paywall-overlay)", backdropFilter: "blur(16px)" }}
     >
       <div className="w-full max-w-lg glass-panel rounded-3xl p-8" style={{ animation: "fadeIn 0.5s ease" }}>
         <div className="flex items-center justify-center mb-5">
@@ -298,8 +297,8 @@ export default function Paywall({ info, plans, onPaid }) {
               disabled={!!loading}
               className="w-full p-4 rounded-2xl text-left transition hover:scale-[1.01] disabled:opacity-50"
               style={{
-                background: plan.id === "ultra" ? "rgba(245,158,11,0.12)" : "rgba(168,85,247,0.12)",
-                border: `1px solid ${plan.id === "ultra" ? "rgba(245,158,11,0.3)" : "rgba(168,85,247,0.3)"}`,
+                background: plan.id === "ultra" ? "var(--emo-warning-bg)" : "var(--emo-accent-soft)",
+                border: `1px solid ${plan.id === "ultra" ? "var(--emo-warning-border)" : "var(--emo-accent-border)"}`,
               }}
             >
               <div className="flex justify-between items-center">
@@ -314,7 +313,7 @@ export default function Paywall({ info, plans, onPaid }) {
         <button
           onClick={checkPayment}
           disabled={checking}
-          className="w-full mt-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 text-secondary-em hover:bg-white/5 disabled:opacity-50"
+          className="w-full mt-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 text-secondary-em em-hover-subtle disabled:opacity-50"
         >
           {checking ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
           J&apos;ai payé

@@ -3,8 +3,8 @@ import { http } from "../lib/api";
 import { X, Play, Trash2, Bug, Activity, Check, AlertCircle, Loader2, ChevronRight, Filter } from "lucide-react";
 
 const TABS = [
-  { id: "events", label: "Events", icon: Activity },
-  { id: "selftest", label: "Self-test", icon: Bug },
+  { id: "events", label: "Événements", icon: Activity },
+  { id: "selftest", label: "Auto-test", icon: Bug },
 ];
 
 const FILTER_OPTS = [
@@ -51,33 +51,33 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
       data-testid="debug-window"
       className="fixed top-20 right-6 z-50 w-[540px] h-[620px] flex flex-col rounded-2xl overflow-hidden"
       style={{
-        background: "rgba(7,4,10,0.95)",
+        background: "var(--emo-drawer-bg)",
         backdropFilter: "blur(28px)",
         border: "1px solid rgba(6,182,212,0.18)",
-        boxShadow: "0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04), 0 0 40px rgba(6,182,212,0.1)",
+        boxShadow: "0 24px 80px rgba(0,0,0,0.35), 0 0 40px rgba(6,182,212,0.1)",
         animation: "fadeIn 0.2s ease",
       }}
     >
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 py-3"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(6,182,212,0.04)" }}
+        className="flex items-center justify-between px-4 py-3 em-border-b"
+        style={{ background: "rgba(6,182,212,0.04)" }}
       >
         <div className="flex items-center gap-2.5">
           <div className="relative">
             <Bug size={15} style={{ color: "#06B6D4", filter: "drop-shadow(0 0 6px rgba(6,182,212,0.5))" }} />
             <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
           </div>
-          <span className="font-heading text-sm font-medium">Debug Console</span>
-          <span className="text-[10px] uppercase tracking-[0.18em] text-muted-em">live</span>
+          <span className="font-heading text-sm font-medium">Console debug</span>
+          <span className="text-[10px] uppercase tracking-[0.18em] text-muted-em">temps réel</span>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded hover:bg-white/10 text-muted-em" data-testid="debug-close-btn">
+        <button onClick={onClose} className="p-1.5 rounded em-hover text-muted-em" data-testid="debug-close-btn">
           <X size={14} />
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-3 pt-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <div className="flex items-center gap-1 px-3 pt-2.5 em-border-b">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = t.id === tab;
@@ -89,7 +89,7 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
               className="flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-xs transition relative"
               style={{
                 background: active ? "rgba(6,182,212,0.08)" : "transparent",
-                color: active ? "#fff" : "var(--emo-text-muted)",
+                color: active ? "var(--emo-text)" : "var(--emo-text-muted)",
               }}
             >
               <Icon size={12} style={{ color: active ? "#06B6D4" : "currentColor" }} />
@@ -105,7 +105,7 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
       {/* Body */}
       {tab === "events" && (
         <>
-          <div className="flex items-center justify-between px-4 py-2 text-[11px]" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center justify-between px-4 py-2 text-[11px] em-border-b">
             <div className="flex items-center gap-2">
               <Filter size={11} className="text-muted-em" />
               {FILTER_OPTS.map((f) => (
@@ -115,8 +115,8 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
                   onClick={() => setFilter(f.id)}
                   className="px-2 py-0.5 rounded text-[10px] transition"
                   style={{
-                    background: filter === f.id ? "rgba(255,255,255,0.06)" : "transparent",
-                    color: filter === f.id ? "#fff" : "var(--emo-text-muted)",
+                    background: filter === f.id ? "var(--emo-tab-active-bg)" : "transparent",
+                    color: filter === f.id ? "var(--emo-text)" : "var(--emo-text-muted)",
                   }}
                 >
                   {f.label}
@@ -127,9 +127,9 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
             <button
               data-testid="debug-clear-events"
               onClick={onClearEvents}
-              className="flex items-center gap-1 text-muted-em hover:text-white text-[10px]"
+              className="flex items-center gap-1 text-muted-em hover:text-[var(--emo-text)] text-[10px]"
             >
-              <Trash2 size={10} /> vider
+              <Trash2 size={10} /> Vider
             </button>
           </div>
 
@@ -167,7 +167,7 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
           {results && (
             <div data-testid="selftest-results" className="space-y-2 mt-1">
               {results.error && (
-                <div className="text-xs text-red-300 p-3 rounded-xl flex items-start gap-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <div className="text-xs p-3 rounded-xl flex items-start gap-2 emo-alert-error">
                   <AlertCircle size={14} className="mt-0.5 flex-shrink-0" /> {results.error}
                 </div>
               )}
@@ -176,12 +176,7 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
               ))}
               {results.steps && (
                 <div
-                  className="mt-3 p-3 rounded-xl text-xs text-center font-medium"
-                  style={{
-                    background: results.ok ? "rgba(52,211,153,0.08)" : "rgba(239,68,68,0.08)",
-                    border: `1px solid ${results.ok ? "rgba(52,211,153,0.25)" : "rgba(239,68,68,0.25)"}`,
-                    color: results.ok ? "#34d399" : "#fca5a5",
-                  }}
+                  className={`mt-3 p-3 rounded-xl text-xs text-center font-medium ${results.ok ? "emo-alert-success" : "emo-alert-error"}`}
                 >
                   {results.ok
                     ? "✓ Tous les tests passent — agent opérationnel."
@@ -200,21 +195,17 @@ const StepCard = ({ step, index }) => {
   const [open, setOpen] = useState(false);
   return (
     <div
-      className="rounded-xl overflow-hidden transition"
-      style={{
-        background: step.ok ? "rgba(52,211,153,0.04)" : "rgba(239,68,68,0.04)",
-        border: `1px solid ${step.ok ? "rgba(52,211,153,0.18)" : "rgba(239,68,68,0.18)"}`,
-      }}
+      className={`rounded-xl overflow-hidden transition ${step.ok ? "emo-alert-success" : "emo-alert-error"}`}
     >
       <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
         <div className="flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-medium" style={{
-          background: step.ok ? "rgba(52,211,153,0.15)" : "rgba(239,68,68,0.15)",
-          color: step.ok ? "#34d399" : "#fca5a5",
+          background: step.ok ? "var(--emo-success-bg)" : "var(--emo-error-bg)",
+          color: step.ok ? "var(--emo-success-text)" : "var(--emo-error-text)",
         }}>
           {step.ok ? <Check size={11} /> : <AlertCircle size={11} />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[12px] font-medium" style={{ color: step.ok ? "#34d399" : "#fca5a5" }}>
+          <p className="text-[12px] font-medium" style={{ color: step.ok ? "var(--emo-success-text)" : "var(--emo-error-text)" }}>
             {index}. {step.label}
           </p>
           <code className="text-[10px] text-muted-em font-code">{step.step}</code>
@@ -222,7 +213,7 @@ const StepCard = ({ step, index }) => {
         <ChevronRight size={12} className="opacity-40 transition" style={{ transform: open ? "rotate(90deg)" : "none" }} />
       </button>
       {open && (
-        <pre className="px-3 pb-3 font-code text-[10px] overflow-x-auto" style={{ color: "#E9D5FF" }}>
+        <pre className="px-3 pb-3 font-code text-[10px] overflow-x-auto" style={{ color: "var(--emo-code-text)" }}>
 {JSON.stringify(step.result, null, 2)}
         </pre>
       )}
@@ -233,7 +224,7 @@ const StepCard = ({ step, index }) => {
 const EventLine = ({ evt }) => {
   const meta = TYPE_META[evt.type] || { color: "#6D5F82", icon: "·" };
   return (
-    <div className="flex items-start gap-2 px-3 py-1 text-[11px] hover:bg-white/[0.02] font-code">
+    <div className="flex items-start gap-2 px-3 py-1 text-[11px] em-hover-subtle font-code">
       <span className="text-[9px] text-muted-em w-14 flex-shrink-0 mt-0.5">{evt._t || "--:--:--"}</span>
       <span
         className="w-3 flex-shrink-0 text-center font-bold"

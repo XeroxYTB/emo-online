@@ -1,6 +1,7 @@
-import React, { useState } from "react";
-import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2 } from "lucide-react";
-import ToolInlinePreview from "./ToolInlinePreview";
+import React, { useState, useEffect } from "react";
+import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff } from "lucide-react";
+import { hasToolPreview } from "../lib/resolveToolPreview";
+import ChatPreviewBubble from "./ChatPreviewBubble";
 
 const ICONS = {
   exec_shell: Terminal,
@@ -57,22 +58,29 @@ const COLORS = {
 };
 
 export const ToolCallCard = ({ event }) => {
-  // event = {state: "executing"|"done"|"error", tool, args, result, id}
   const [open, setOpen] = useState(event.state !== "done");
+  const canPreview = hasToolPreview(event);
+  const [previewOpen, setPreviewOpen] = useState(canPreview && event.state === "done");
   const Icon = ICONS[event.tool] || Wrench;
   const color = COLORS[event.tool] || "var(--mode-color)";
   const isError = event.state === "error" || (event.result && event.result.ok === false);
   const isExecuting = event.state === "executing";
 
+  useEffect(() => {
+    if (event.state === "done" && canPreview) {
+      setPreviewOpen(true);
+    }
+  }, [event.state, canPreview, event.inlinePreview, event.result]);
+
   const summary = (() => {
     if (isExecuting) return "En cours…";
     if (isError) return event.result?.error || "erreur";
-    if (event.result?.exit_code !== undefined) return `exit ${event.result.exit_code}`;
+    if (event.result?.exit_code !== undefined) return `code ${event.result.exit_code}`;
     if (event.result?.count !== undefined) return `${event.result.count} résultats`;
     if (event.result?.results !== undefined) return `${event.result.results.length} résultats`;
-    if (event.result?.text !== undefined && event.result?.url !== undefined) return `${event.result.text.length} chars`;
-    if (event.result?.content !== undefined) return `${event.result.content.length} chars`;
-    if (event.result?.matches !== undefined) return `${event.result.matches.length} matches`;
+    if (event.result?.text !== undefined && event.result?.url !== undefined) return `${event.result.text.length} car.`;
+    if (event.result?.content !== undefined) return `${event.result.content.length} car.`;
+    if (event.result?.matches !== undefined) return `${event.result.matches.length} correspondances`;
     if (event.result?.entries !== undefined) return `${event.result.entries.length} entrées`;
     if (event.result?.replacements !== undefined) return `${event.result.replacements} remplacement(s)`;
     if (event.result?.files !== undefined && event.result?.dirs !== undefined) return `${event.result.files.length} fichiers · ${event.result.dirs.length} dossiers`;
@@ -81,68 +89,82 @@ export const ToolCallCard = ({ event }) => {
   })();
 
   return (
-    <div
-      data-testid={`tool-call-${event.tool}`}
-      className="rounded-xl my-2 overflow-hidden"
-      style={{
-        background: "rgba(0,0,0,0.3)",
-        border: `1px solid ${isError ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.06)"}`,
-      }}
-    >
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-white/[0.03] transition"
+    <div className="space-y-2 my-2">
+      <div
+        data-testid={`tool-call-${event.tool}`}
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: "var(--emo-card-bg)",
+          border: `1px solid ${isError ? "rgba(239,68,68,0.3)" : "var(--emo-border)"}`,
+        }}
       >
-        {open ? <ChevronDown size={12} className="opacity-50" /> : <ChevronRight size={12} className="opacity-50" />}
-        <Icon size={13} style={{ color }} />
-        <span className="font-code text-[12px]" style={{ color }}>{event.tool}</span>
-        <span className="text-muted-em font-code truncate flex-1 text-left">
-          {formatArgs(event.tool, event.args)}
-        </span>
-        {isExecuting ? (
-          <span className="inline-flex items-center gap-1 text-[10px] text-secondary-em">
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: color }} />
-            En cours
-          </span>
-        ) : (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setOpen(!open)}
+            className="flex-1 flex items-center gap-2.5 px-3 py-2 text-xs em-hover-subtle transition min-w-0"
+          >
+            {open ? <ChevronDown size={12} className="opacity-50 flex-shrink-0" /> : <ChevronRight size={12} className="opacity-50 flex-shrink-0" />}
+            <Icon size={13} style={{ color }} className="flex-shrink-0" />
+            <span className="font-code text-[12px] flex-shrink-0" style={{ color }}>{event.tool}</span>
+            <span className="text-secondary-em font-code truncate flex-1 text-left">
+              {formatArgs(event.tool, event.args)}
+            </span>
+            {isExecuting ? (
+              <span className="inline-flex items-center gap-1 text-[10px] text-secondary-em flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: color }} />
+                En cours
+              </span>
+            ) : (
           <span
-            className={`text-[10px] px-2 py-0.5 rounded-full ${
-              isError ? "text-red-300" : "text-emerald-300"
-            }`}
+            className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0"
             style={{
-              background: isError ? "rgba(239,68,68,0.12)" : "rgba(52,211,153,0.1)",
+              background: isError ? "var(--emo-error-bg)" : "var(--emo-success-bg)",
+              color: isError ? "var(--emo-error-text)" : "var(--emo-success-text)",
             }}
           >
-            {isError && <AlertCircle size={9} className="inline mr-1" />}
-            {summary}
-          </span>
+                {isError && <AlertCircle size={9} className="inline mr-1" />}
+                {summary}
+              </span>
+            )}
+          </button>
+          {canPreview && event.state === "done" && !isError && (
+            <button
+              type="button"
+              data-testid="tool-preview-toggle"
+              onClick={() => setPreviewOpen((v) => !v)}
+              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-2 text-[10px] em-hover transition border-l em-border-l"
+              style={{ color: previewOpen ? "var(--mode-color)" : "var(--emo-text-muted)" }}
+              title={previewOpen ? "Masquer l'aperçu" : "Afficher l'aperçu"}
+            >
+              {previewOpen ? <EyeOff size={12} /> : <Eye size={12} />}
+              <span className="hidden sm:inline">{previewOpen ? "Masquer" : "Aperçu"}</span>
+            </button>
+          )}
+        </div>
+        {open && (
+          <div className="px-3 pb-3 pt-1 em-border-t space-y-2">
+            {event.args && Object.keys(event.args).length > 0 && (
+              <div>
+                <div className="text-[9px] uppercase tracking-[0.18em] text-muted-em mb-1">Arguments</div>
+                <pre className="font-code text-[11px] p-2 rounded overflow-x-auto" style={{ background: "var(--emo-pre-bg)", color: "var(--emo-code-text)" }}>
+                  {JSON.stringify(event.args, null, 2)}
+                </pre>
+              </div>
+            )}
+            {event.result && (
+              <div>
+                <div className="text-[9px] uppercase tracking-[0.18em] text-muted-em mb-1">Résultat</div>
+                <pre className="font-code text-[11px] p-2 rounded overflow-x-auto max-h-64 overflow-y-auto" style={{ background: "var(--emo-pre-bg)", color: isError ? "var(--emo-error-text)" : "var(--emo-code-text)" }}>
+                  {formatResult(event.result)}
+                </pre>
+              </div>
+            )}
+          </div>
         )}
-      </button>
-      {open && (
-        <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2">
-          <ToolInlinePreview event={event} />
-          {event.args && Object.keys(event.args).length > 0 && (
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-muted-em mb-1">args</div>
-              <pre className="font-code text-[11px] p-2 rounded bg-black/40 overflow-x-auto" style={{ color: "#E9D5FF" }}>
-                {JSON.stringify(event.args, null, 2)}
-              </pre>
-            </div>
-          )}
-          {event.result && (
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-muted-em mb-1">result</div>
-              <pre className="font-code text-[11px] p-2 rounded bg-black/40 overflow-x-auto max-h-64 overflow-y-auto" style={{ color: isError ? "#FCA5A5" : "#E9D5FF" }}>
-                {formatResult(event.result)}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-      {!open && event.state === "done" && !isError && (
-        <div className="px-3 pb-2">
-          <ToolInlinePreview event={event} />
-        </div>
+      </div>
+
+      {previewOpen && canPreview && event.state === "done" && !isError && (
+        <ChatPreviewBubble event={event} />
       )}
     </div>
   );
@@ -152,7 +174,7 @@ function formatArgs(tool, args) {
   if (!args) return "";
   if (tool === "exec_shell") return args.cmd || "";
   if (tool === "read_file" || tool === "list_dir" || tool === "delete_path") return args.path || "";
-  if (tool === "write_file") return `${args.path} (${(args.content || "").length} chars)`;
+  if (tool === "write_file") return `${args.path} (${(args.content || "").length} car.)`;
   if (tool === "edit_file") return args.path || "";
   if (tool === "grep") return `"${args.pattern || ""}" in ${args.path || "."}`;
   if (tool === "find_files") return args.pattern || "";
@@ -167,20 +189,20 @@ function formatArgs(tool, args) {
   }
   if (tool === "emo_reflect") return (args.thought || "").slice(0, 60);
   if (tool === "emo_remember") return (args.content || "").slice(0, 60);
-  if (tool === "emo_edit_self") return `${args.section || ""} (${(args.content || "").length} chars)`;
-  if (tool === "emo_read_self") return args.section || "all";
+  if (tool === "emo_edit_self") return `${args.section || ""} (${(args.content || "").length} car.)`;
+  if (tool === "emo_read_self") return args.section || "tout";
   if (tool === "emo_restore_self") return (args.version_id || "").slice(0, 8);
   return JSON.stringify(args);
 }
 
 function formatResult(result) {
   if (!result) return "";
-  if (result.ok === false) return `ERROR: ${result.error}`;
+  if (result.ok === false) return `ERREUR : ${result.error}`;
   if (result.stdout !== undefined || result.stderr !== undefined) {
     let out = "";
     if (result.stdout) out += result.stdout;
     if (result.stderr) out += (out ? "\n--- stderr ---\n" : "") + result.stderr;
-    return out || "(no output)";
+    return out || "(aucune sortie)";
   }
   if (result.results !== undefined) {
     return result.results.map((r, i) => {
@@ -189,8 +211,7 @@ function formatResult(result) {
     }).join("\n\n").slice(0, 4000);
   }
   if (result.text !== undefined && result.url !== undefined) {
-    // web_fetch
-    let s = `📄 ${result.title || "(no title)"}\n🔗 ${result.url}\n\n`;
+    let s = `📄 ${result.title || "(sans titre)"}\n🔗 ${result.url}\n\n`;
     s += result.text.slice(0, 3000);
     if (result.truncated) s += "\n\n... [tronqué]";
     if (result.links?.length) {

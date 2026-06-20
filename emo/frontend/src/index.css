@@ -14,6 +14,8 @@
   --emo-border: rgba(255, 255, 255, 0.08);
   --emo-accent: #8b5cf6;
   --emo-accent-hover: #a78bfa;
+  --emo-accent-soft: rgba(139, 92, 246, 0.15);
+  --emo-accent-border: rgba(139, 92, 246, 0.4);
   --emo-logo-bg: #8b5cf6;
   --emo-code-bg: #0f0f10;
   --emo-input-bg: #27272a;
@@ -23,27 +25,107 @@
   --emo-glow: rgba(139, 92, 246, 0.15);
   --mode-color: #8b5cf6;
   --mode-glow: rgba(139, 92, 246, 0.2);
+  --emo-hover: rgba(255, 255, 255, 0.08);
+  --emo-hover-subtle: rgba(255, 255, 255, 0.03);
+  --emo-active-bg: rgba(255, 255, 255, 0.05);
+  --emo-tab-active-bg: rgba(255, 255, 255, 0.06);
+  --emo-overlay: rgba(0, 0, 0, 0.5);
+  --emo-card-bg: rgba(0, 0, 0, 0.3);
+  --emo-pre-bg: rgba(0, 0, 0, 0.4);
+  --emo-code-text: #c4b5fd;
+  --emo-inline-code-bg: rgba(168, 85, 247, 0.12);
+  --emo-inline-code-text: #e9d5ff;
+  --emo-badge-bg: rgba(255, 255, 255, 0.04);
+  --emo-link: #93c5fd;
+  --emo-on-accent: #ffffff;
+  --emo-on-mode: #0a0510;
+  --emo-editor-bg: #1e1e1e;
+  --emo-editor-text: #fafafa;
+  --emo-preview-bg: #07040a;
+  --emo-drawer-bg: rgba(7, 4, 10, 0.96);
+  --emo-drawer-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+  --emo-code-inset: inset 0 0 24px rgba(0, 0, 0, 0.4);
+  --emo-subtle-bg: rgba(255, 255, 255, 0.03);
+  --emo-thought-text: #e9d5ff;
+  --emo-paywall-overlay: rgba(7, 4, 10, 0.85);
+  --emo-user-msg-bg: rgba(147, 51, 234, 0.18);
+  --emo-user-msg-border: rgba(168, 85, 247, 0.22);
+  --emo-warning-bg: rgba(245, 158, 11, 0.1);
+  --emo-warning-border: rgba(245, 158, 11, 0.28);
+  --emo-warning-text: #fde68a;
+  --emo-success-text: #6ee7b7;
+  --emo-error-text: #fca5a5;
+  --emo-admin-text: #fbbf24;
+  --emo-admin-bg: rgba(245, 158, 11, 0.12);
+  --emo-status-online: #34d399;
+  --emo-status-offline: #a1a1aa;
+  --emo-status-online-glow: rgba(52, 211, 153, 0.53);
+  --emo-success-bg: rgba(52, 211, 153, 0.1);
+  --emo-success-border: rgba(52, 211, 153, 0.28);
+  --emo-error-bg: rgba(239, 68, 68, 0.12);
+  --emo-error-border: rgba(239, 68, 68, 0.28);
 }
 
 html.theme-light {
-  --emo-bg: #fafafa;
+  --emo-bg: #f4f4f5;
   --emo-surface: #ffffff;
   --emo-surface-raised: #f4f4f5;
   --emo-text: #18181b;
-  --emo-text-secondary: #52525b;
+  --emo-text-secondary: #3f3f46;
   --emo-text-muted: #71717a;
-  --emo-border: rgba(0, 0, 0, 0.08);
+  --emo-border: rgba(0, 0, 0, 0.1);
   --emo-accent: #7c3aed;
   --emo-accent-hover: #6d28d9;
+  --emo-accent-soft: rgba(124, 58, 237, 0.1);
+  --emo-accent-border: rgba(124, 58, 237, 0.35);
   --emo-logo-bg: #7c3aed;
   --emo-code-bg: #f4f4f5;
   --emo-input-bg: #ffffff;
   --emo-glass-bg: #ffffff;
-  --emo-glass-border: rgba(0, 0, 0, 0.06);
+  --emo-glass-border: rgba(0, 0, 0, 0.08);
   --emo-glass-card-bg: #ffffff;
   --emo-glow: rgba(124, 58, 237, 0.12);
   --mode-color: #7c3aed;
   --mode-glow: rgba(124, 58, 237, 0.15);
+  --emo-hover: rgba(0, 0, 0, 0.05);
+  --emo-hover-subtle: rgba(0, 0, 0, 0.03);
+  --emo-active-bg: rgba(0, 0, 0, 0.05);
+  --emo-tab-active-bg: rgba(124, 58, 237, 0.08);
+  --emo-overlay: rgba(0, 0, 0, 0.35);
+  --emo-card-bg: #ffffff;
+  --emo-pre-bg: #f4f4f5;
+  --emo-code-text: #5b21b6;
+  --emo-inline-code-bg: rgba(124, 58, 237, 0.08);
+  --emo-inline-code-text: #5b21b6;
+  --emo-badge-bg: rgba(0, 0, 0, 0.04);
+  --emo-link: #2563eb;
+  --emo-on-accent: #ffffff;
+  --emo-on-mode: #ffffff;
+  --emo-editor-bg: #fafafa;
+  --emo-editor-text: #18181b;
+  --emo-preview-bg: #ffffff;
+  --emo-drawer-bg: #ffffff;
+  --emo-drawer-shadow: -20px 0 60px rgba(0, 0, 0, 0.12);
+  --emo-code-inset: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --emo-subtle-bg: rgba(0, 0, 0, 0.03);
+  --emo-thought-text: #6d28d9;
+  --emo-paywall-overlay: rgba(0, 0, 0, 0.45);
+  --emo-user-msg-bg: rgba(124, 58, 237, 0.1);
+  --emo-user-msg-border: rgba(124, 58, 237, 0.22);
+  --emo-warning-bg: #fffbeb;
+  --emo-warning-border: #fcd34d;
+  --emo-warning-text: #92400e;
+  --emo-success-text: #047857;
+  --emo-error-text: #b91c1c;
+  --emo-admin-text: #b45309;
+  --emo-admin-bg: rgba(245, 158, 11, 0.12);
+  --emo-status-online: #059669;
+  --emo-status-offline: #71717a;
+  --emo-status-online-glow: rgba(5, 150, 105, 0.45);
+  --emo-success-bg: #ecfdf5;
+  --emo-success-border: #6ee7b7;
+  --emo-error-bg: #fef2f2;
+  --emo-error-border: #fca5a5;
 }
 
 * { box-sizing: border-box; }
@@ -77,8 +159,87 @@ body {
   border-color: rgba(139, 92, 246, 0.25);
 }
 
+html.theme-light .glass-card:hover {
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+.em-hover:hover { background-color: var(--emo-hover); }
+.em-hover-subtle:hover { background-color: var(--emo-hover-subtle); }
+.em-active { background-color: var(--emo-active-bg); }
+.em-border-b { border-bottom: 1px solid var(--emo-border); }
+.em-border-t { border-top: 1px solid var(--emo-border); }
+.em-border-r { border-right: 1px solid var(--emo-border); }
+.em-input,
+textarea.em-input,
+input.em-input {
+  background: var(--emo-input-bg);
+  border: 1px solid var(--emo-border);
+  color: var(--emo-text);
+}
+.em-input::placeholder,
+textarea.em-input::placeholder,
+input.em-input::placeholder {
+  color: var(--emo-text-muted);
+}
+.em-input:focus,
+textarea.em-input:focus,
+input.em-input:focus {
+  outline: none;
+  border-color: var(--emo-accent);
+}
+
+.emo-alert-warning {
+  background: var(--emo-warning-bg);
+  border: 1px solid var(--emo-warning-border);
+  color: var(--emo-warning-text);
+}
+
+.emo-alert-success {
+  background: var(--emo-success-bg);
+  border: 1px solid var(--emo-success-border);
+  color: var(--emo-success-text);
+}
+
+.emo-alert-error {
+  background: var(--emo-error-bg);
+  border: 1px solid var(--emo-error-border);
+  color: var(--emo-error-text);
+}
+
+.emo-status-dot-online {
+  background: var(--emo-status-online);
+  box-shadow: 0 0 8px var(--emo-status-online-glow);
+}
+
+.emo-status-dot-offline {
+  background: var(--emo-status-offline);
+}
+
+.emo-theme-btn {
+  background: var(--emo-surface-raised);
+  border: 1px solid var(--emo-border);
+  color: var(--emo-text-secondary);
+}
+
+.emo-theme-btn[data-active="true"] {
+  background: var(--emo-accent-soft);
+  border-color: var(--emo-accent-border);
+  color: var(--emo-accent);
+}
+
+.emo-btn-soft {
+  background: var(--emo-accent-soft);
+  border: 1px solid var(--emo-accent-border);
+  color: var(--emo-text);
+}
+
 .text-muted-em { color: var(--emo-text-muted); }
 .text-secondary-em { color: var(--emo-text-secondary); }
+
+html.theme-light .text-emerald-300 { color: var(--emo-success-text) !important; }
+html.theme-light .text-red-300 { color: var(--emo-error-text) !important; }
+html.theme-light .bg-amber-500\/10 { background: var(--emo-warning-bg) !important; }
+html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border) !important; }
 
 .scrollbar-thin::-webkit-scrollbar { width: 5px; height: 5px; }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
@@ -221,7 +382,7 @@ textarea, input { font-family: inherit; }
 
 .login-submit {
   background: var(--emo-accent);
-  color: #fff;
+  color: var(--emo-on-accent);
   border: none;
 }
 .login-submit:hover {

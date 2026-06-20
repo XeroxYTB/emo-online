@@ -111,9 +111,9 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
               onClick={() => setTab(t.id)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] transition"
               style={{
-                background: active ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.03)",
-                color: active ? "#fbbf24" : "var(--emo-text-secondary)",
-                border: `1px solid ${active ? "rgba(245,158,11,0.35)" : "rgba(255,255,255,0.06)"}`,
+                background: active ? "var(--emo-admin-bg)" : "var(--emo-subtle-bg)",
+                color: active ? "var(--emo-admin-text)" : "var(--emo-text-secondary)",
+                border: `1px solid ${active ? "var(--emo-warning-border)" : "var(--emo-border)"}`,
               }}
             >
               <Icon size={12} /> {t.label}
@@ -126,7 +126,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-em">Modifiables depuis le site — stockées chiffrées côté serveur.</p>
-            <button type="button" onClick={loadKeys} className="p-1.5 rounded hover:bg-white/10 text-muted-em">
+            <button type="button" onClick={loadKeys} className="p-1.5 rounded em-hover text-muted-em">
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             </button>
           </div>
@@ -141,7 +141,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
                   placeholder={row.configured ? row.preview || "•••• configurée" : `Coller clé ${k.hint}`}
                   value={value}
                   onChange={(e) => setDraft((d) => ({ ...d, [k.id]: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg text-xs font-code bg-black/40 border border-white/10 focus:outline-none focus:border-amber-500/40"
+                  className="w-full px-3 py-2 rounded-lg text-xs font-code em-input focus:border-amber-500/40"
                 />
               </div>
             );
@@ -150,8 +150,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
             type="button"
             onClick={saveKeys}
             disabled={saving || !Object.keys(draft).length}
-            className="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: "rgba(245,158,11,0.2)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.35)" }}
+            className="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 emo-alert-warning"
           >
             <Save size={14} /> {saving ? "Enregistrement…" : "Enregistrer les clés"}
           </button>
@@ -162,7 +161,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-em">Liens Payment Links Stripe par offre (Basic / Premium / Ultra).</p>
-            <button type="button" onClick={loadStripe} className="p-1.5 rounded hover:bg-white/10 text-muted-em">
+            <button type="button" onClick={loadStripe} className="p-1.5 rounded em-hover text-muted-em">
               <RefreshCw size={14} className={stripeLoading ? "animate-spin" : ""} />
             </button>
           </div>
@@ -180,7 +179,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
                 placeholder={stripe[row.id] || row.hint}
                 value={stripeDraft[row.id] ?? ""}
                 onChange={(e) => setStripeDraft((d) => ({ ...d, [row.id]: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg text-xs font-code bg-black/40 border border-white/10 focus:outline-none focus:border-amber-500/40"
+                className="w-full px-3 py-2 rounded-lg text-xs font-code em-input focus:border-amber-500/40"
               />
               {stripe[row.id] && !stripeDraft[row.id] && (
                 <p className="text-[10px] text-muted-em truncate">Actuel : {stripe[row.id]}</p>
@@ -191,8 +190,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
             type="button"
             onClick={saveStripe}
             disabled={stripeSaving || !Object.keys(stripeDraft).length}
-            className="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: "rgba(99,91,255,0.2)", color: "#c4b5fd", border: "1px solid rgba(99,91,255,0.35)" }}
+            className="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 emo-btn-soft"
           >
             <Save size={14} /> {stripeSaving ? "Enregistrement…" : "Enregistrer les liens Stripe"}
           </button>
@@ -206,10 +204,10 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
           <button
             type="button"
             onClick={() => setDebugOpen(true)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm"
-            style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.25)", color: "#67e8f9" }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm emo-btn-soft"
+            style={{ color: "var(--emo-link)" }}
           >
-            <Bug size={14} /> Debug LLM / agent
+            <Bug size={14} /> Console debug LLM / agent
           </button>
           <button
             type="button"
@@ -217,14 +215,13 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
               const base = BACKEND_URL || window.location.origin;
               window.open(`${base}/api/admin/project-export`, "_blank");
             }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm"
-            style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#6ee7b7" }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm emo-alert-success"
           >
             <Download size={14} /> Export code source
           </button>
           <div className="flex gap-2">
-            <a href="https://dashboard.stripe.com/payments" target="_blank" rel="noreferrer" className="flex-1 text-center py-2 rounded-lg text-[11px]" style={{ background: "rgba(99,91,255,0.15)", color: "#a5b4fc" }}>Stripe</a>
-            <a href="https://huggingface.co/spaces/Xroxx/emo-online-api/settings" target="_blank" rel="noreferrer" className="flex-1 text-center py-2 rounded-lg text-[11px]" style={{ background: "rgba(168,85,247,0.12)", color: "#d8b4fe" }}>HF Space</a>
+            <a href="https://dashboard.stripe.com/payments" target="_blank" rel="noreferrer" className="flex-1 text-center py-2 rounded-lg text-[11px] emo-btn-soft">Stripe</a>
+            <a href="https://huggingface.co/spaces/Xroxx/emo-online-api/settings" target="_blank" rel="noreferrer" className="flex-1 text-center py-2 rounded-lg text-[11px] emo-btn-soft">HF Space</a>
           </div>
         </div>
       )}

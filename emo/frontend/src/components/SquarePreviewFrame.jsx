@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { AspectRatio } from "./ui/aspect-ratio";
 import { Globe, FileText, Image as ImageIcon } from "lucide-react";
 
@@ -6,10 +6,46 @@ import { Globe, FileText, Image as ImageIcon } from "lucide-react";
  * Cadre carré réutilisable pour aperçus site / fichier.
  * kind: "iframe" | "image" | "text" | "empty"
  */
+function PreviewImage({ src, alt, fallbackSrc, className, style }) {
+  const [current, setCurrent] = useState(src);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setCurrent(src);
+    setFailed(false);
+  }, [src]);
+
+  if (!current || failed) {
+    return (
+      <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-em p-4 text-center ${className || ""}`}>
+        <ImageIcon size={28} className="opacity-40" />
+        <span className="text-[11px] opacity-70">{alt || "Aperçu"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={current}
+      alt={alt || "Aperçu"}
+      className={className}
+      style={style}
+      onError={() => {
+        if (fallbackSrc && current !== fallbackSrc) {
+          setCurrent(fallbackSrc);
+          return;
+        }
+        setFailed(true);
+      }}
+    />
+  );
+}
+
 export default function SquarePreviewFrame({
   kind = "empty",
   url,
   src,
+  imageFallback,
   title,
   subtitle,
   text,
@@ -21,10 +57,10 @@ export default function SquarePreviewFrame({
     <div className={`w-full max-w-[340px] mx-auto ${className}`} data-testid={testId}>
       <div
         className="rounded-xl overflow-hidden glass-card"
-        style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+        style={{ border: "1px solid var(--emo-border)" }}
       >
         <AspectRatio ratio={1}>
-          <div className="w-full h-full bg-[#07040a] relative">
+          <div className="w-full h-full relative" style={{ background: "var(--emo-preview-bg)" }}>
             {kind === "iframe" && url ? (
               <iframe
                 title={title || "Aperçu site"}
@@ -34,15 +70,17 @@ export default function SquarePreviewFrame({
                 referrerPolicy="no-referrer"
               />
             ) : kind === "image" && src ? (
-              <img
+              <PreviewImage
                 src={src}
+                fallbackSrc={imageFallback}
                 alt={title || "Aperçu"}
-                className="absolute inset-0 w-full h-full object-contain bg-black/60 p-2"
+                className="absolute inset-0 w-full h-full object-contain p-2"
+                style={{ background: "var(--emo-preview-bg)" }}
               />
             ) : kind === "text" && text ? (
               <pre
                 className="absolute inset-0 m-0 p-3 text-[10px] leading-relaxed font-code overflow-hidden whitespace-pre-wrap"
-                style={{ color: "#E9D5FF" }}
+                style={{ color: "var(--emo-code-text)" }}
               >
                 {text}
               </pre>

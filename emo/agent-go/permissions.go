@@ -60,7 +60,7 @@ func (p Permissions) allowsTool(tool string) bool {
 		return false
 	}
 	switch tool {
-	case "exec_shell", "run_terminal_cmd", "bash", "shell":
+	case "exec_shell", "run_terminal_cmd", "bash", "shell", "print_file", "print_document", "print":
 		return p.AllowShell
 	case "read_file", "list_dir", "find_files", "codebase_search", "file_search",
 		"file_info", "get_env", "system_info", "git_status", "git_diff":

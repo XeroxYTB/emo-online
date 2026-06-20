@@ -186,6 +186,9 @@ class BrowserController:
         }
 
     async def open(self, user_id: str, url: str, session_id: str = "default") -> dict[str, Any]:
+        from web_tools import normalize_url
+
+        url = normalize_url(url)
         if not url.strip():
             return {"ok": False, "error": "URL manquante"}
         sess = await self._get_session(user_id, session_id)

@@ -41,3 +41,18 @@ def test_local_tools_when_agent_online_and_code_intent():
     out = select_tools_for_message("fix ce bug python", SAMPLE_TOOLS, agent_online=True, provider="groq")
     names = set(_names(out))
     assert "read_file" in names
+
+
+def test_file_create_intent_includes_write_file():
+    tools = SAMPLE_TOOLS + [
+        {"function": {"name": "write_file"}},
+        {"function": {"name": "get_env"}},
+        {"function": {"name": "system_info"}},
+        {"function": {"name": "exec_shell"}},
+        {"function": {"name": "list_dir"}},
+    ]
+    out = select_tools_for_message(
+        "crée un fichier html sur le bureau", tools, agent_online=True, provider="groq",
+    )
+    names = set(_names(out))
+    assert "write_file" in names

@@ -89,30 +89,29 @@ export default function AgentPermissionsPanel({ agentOnline }) {
     <div className="space-y-4 text-sm">
       <div className="flex items-center gap-2 text-xs">
         <div
-          className={`w-2 h-2 rounded-full ${agentOnline ? "bg-emerald-400" : "bg-zinc-500"}`}
-          style={{ boxShadow: agentOnline ? "0 0 8px #34d39988" : "none" }}
+          className={`w-2 h-2 rounded-full ${agentOnline ? "emo-status-dot-online" : "emo-status-dot-offline"}`}
         />
         <span className="text-secondary-em">
-          Agent : <strong style={{ color: agentOnline ? "#34d399" : "#a89bbd" }}>{agentOnline ? "En ligne" : "Hors ligne"}</strong>
+          Agent : <strong style={{ color: agentOnline ? "var(--emo-status-online)" : "var(--emo-status-offline)" }}>{agentOnline ? "En ligne" : "Hors ligne"}</strong>
         </span>
-        <button type="button" onClick={refresh} className="ml-auto p-1 rounded hover:bg-white/10" title="Rafraîchir">
+        <button type="button" onClick={refresh} className="ml-auto p-1 rounded em-hover" title="Rafraîchir">
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
       {!reachable ? (
         <div
-          className="p-3 rounded-xl text-[12px] leading-relaxed"
-          style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}
+          className="p-3 rounded-xl text-[12px] leading-relaxed emo-alert-warning"
         >
-          <p className="text-amber-200/90">
+          <p>
             Agent local non détecté. Installez et lancez Emo-Agent.
           </p>
           <a
             href={AGENT_LOCAL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 mt-2 text-[11px] text-purple-300 hover:underline"
+            className="inline-flex items-center gap-1 mt-2 text-[11px] hover:underline"
+            style={{ color: "var(--emo-link)" }}
           >
             <ExternalLink size={11} /> Ouvrir {AGENT_LOCAL}
           </a>
@@ -128,8 +127,8 @@ export default function AgentPermissionsPanel({ agentOnline }) {
             {PERM_FIELDS.map(({ key, label }) => (
               <label
                 key={key}
-                className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-white/[0.03]"
-                style={{ border: "1px solid rgba(255,255,255,0.05)" }}
+                className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer em-hover-subtle"
+                style={{ border: "1px solid var(--emo-border)" }}
               >
                 <input
                   type="checkbox"
@@ -145,18 +144,17 @@ export default function AgentPermissionsPanel({ agentOnline }) {
             <button
               type="button"
               onClick={save}
-              className="flex-1 py-2 rounded-lg text-xs font-medium"
-              style={{ background: "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.35)" }}
+              className="flex-1 py-2 rounded-lg text-xs font-medium emo-btn-soft"
             >
               Enregistrer
             </button>
             {state?.running ? (
-              <button type="button" onClick={stopAgent} className="px-3 py-2 rounded-lg text-xs flex items-center gap-1 bg-red-500/10 border border-red-500/30">
-                <Square size={11} /> Stop
+              <button type="button" onClick={stopAgent} className="px-3 py-2 rounded-lg text-xs flex items-center gap-1 emo-alert-error">
+                <Square size={11} /> Arrêter
               </button>
             ) : (
-              <button type="button" onClick={startAgent} className="px-3 py-2 rounded-lg text-xs flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30">
-                <Play size={11} /> Start
+              <button type="button" onClick={startAgent} className="px-3 py-2 rounded-lg text-xs flex items-center gap-1 emo-alert-success">
+                <Play size={11} /> Démarrer
               </button>
             )}
           </div>

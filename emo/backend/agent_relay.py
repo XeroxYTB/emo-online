@@ -19,13 +19,26 @@ class AgentRegistry:
     def __init__(self):
         # user_id -> last heartbeat timestamp
         self._heartbeats: Dict[str, float] = {}
+        # user_id -> machine context from agent heartbeat (home, desktop, username, …)
+        self._context: Dict[str, dict] = {}
         # user_id -> asyncio.Queue of {request_id, tool, args}
         self._queues: Dict[str, asyncio.Queue] = {}
         # request_id -> asyncio.Future
         self._pending: Dict[str, asyncio.Future] = {}
 
-    def heartbeat(self, user_id: str):
+    def heartbeat(self, user_id: str, context: Optional[dict] = None):
         self._heartbeats[user_id] = time.time()
+        if context:
+            cleaned = {k: v for k, v in context.items() if v is not None and v != ""}
+            if cleaned:
+                self._context[user_id] = {**self._context.get(user_id, {}), **cleaned}
+
+    def get_context(self, user_id: str) -> dict:
+        return dict(self._context.get(user_id) or {})
+
+    def set_context(self, user_id: str, context: dict):
+        if context:
+            self._context[user_id] = {**self._context.get(user_id, {}), **context}
 
     def is_online(self, user_id: str) -> bool:
         ts = self._heartbeats.get(user_id)

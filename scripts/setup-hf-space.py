@@ -44,7 +44,7 @@ VARIABLES = {
     "EMO_SKIP_STARTUP_PROBE": "true",
     "EMO_PUBLIC_BACKEND_URL": BACKEND_URL,
     "EMO_FRONTEND_URL": FRONTEND_URL,
-    "CORS_ORIGINS": "https://xeroxytb.com,https://www.xeroxytb.com,https://xeroxytb.github.io",
+    "CORS_ORIGINS": "https://xeroxytb.com,https://www.xeroxytb.com,https://xeroxytb.github.io,http://127.0.0.1:17841,http://localhost:17841",
     "GOOGLE_REDIRECT_URI": f"{BACKEND_URL}/api/auth/google/callback",
     "EMO_ADMIN_EMAILS": "huglostalatac@gmail.com",
     "STRIPE_BASIC_LINK": "https://buy.stripe.com/5kQ14pae7a8Rd4yb6y48001",

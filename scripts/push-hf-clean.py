@@ -9,15 +9,26 @@ import sys
 import tempfile
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / "emo" / "backend" / ".env", override=True)
 EXCLUDE = {
     ".git", "login_test_artifacts", "scripts/login_test_output",
     "node_modules", "emo/frontend/node_modules", "emo/frontend/build",
-    "__pycache__", ".pytest_cache",
+    "__pycache__", ".pytest_cache", "emo/backend/.env",
 }
+
+
+def _load_hf_token() -> str:
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if token:
+        return token
+    env_path = ROOT / "emo" / "backend" / ".env"
+    if not env_path.is_file():
+        return ""
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line.startswith("HF_TOKEN="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
 
 
 def should_skip(rel: str) -> bool:
@@ -33,7 +44,7 @@ def should_skip(rel: str) -> bool:
 
 
 def main() -> int:
-    token = os.environ.get("HF_TOKEN", "").strip()
+    token = _load_hf_token()
     if not token:
         print("HF_TOKEN manquant", file=sys.stderr)
         return 1

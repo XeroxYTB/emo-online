@@ -34,6 +34,16 @@ def _domain(url: str) -> str:
         return ""
 
 
+def normalize_url(url: str) -> str:
+    """Préfixe https:// si absent — évite les échecs browser_visit / web_fetch."""
+    u = (url or "").strip()
+    if not u:
+        return u
+    if not u.startswith(("http://", "https://")):
+        u = f"https://{u}"
+    return u
+
+
 def _dedupe_results(items: list[dict], limit: int) -> list[dict]:
     seen: set[str] = set()
     out: list[dict] = []
@@ -162,6 +172,7 @@ async def web_search(
 
 async def web_fetch(url: str, max_chars: int = 12000) -> dict:
     """Fetch a URL and return clean readable text + links + title."""
+    url = normalize_url(url)
     if not url or not url.startswith(("http://", "https://")):
         return {"ok": False, "error": "URL invalide (doit commencer par http:// ou https://)"}
     try:
@@ -359,9 +370,9 @@ WEB_TOOLS = [
         "function": {
             "name": "browser_visit",
             "description": (
-                "Ouvre une page web dans le navigateur d'Émo (panneau latéral utilisateur). "
-                "Lit le contenu, extrait titre, texte, liens. Utilise après web_search "
-                "ou quand tu as une URL précise à consulter."
+                "Ouvre une page web dans le navigateur d'Émo (panneau Activité + aperçu inline dans le chat). "
+                "OBLIGATOIRE quand l'utilisateur demande d'ouvrir/afficher un site dans le chat. "
+                "Lit le contenu, extrait titre, texte, liens."
             ),
             "parameters": {
                 "type": "object",

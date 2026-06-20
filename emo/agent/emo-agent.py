@@ -25,6 +25,7 @@ import asyncio
 import argparse
 import json
 import os
+import platform
 import sys
 from pathlib import Path
 
@@ -287,6 +288,73 @@ async def tool_find_files(args: dict) -> dict:
     return {"ok": True, "pattern": pattern, "files": found, "truncated": len(found) >= max_results}
 
 
+async def tool_print_file(args: dict) -> dict:
+    path = args.get("path") or ""
+    printer = (args.get("printer") or "").strip()
+    copies = max(1, int(args.get("copies") or 1))
+    if not path:
+        return {"ok": False, "error": "path required"}
+    p = Path(path).expanduser()
+    if not p.is_file():
+        return {"ok": False, "error": f"file not found: {p}"}
+    abs_path = str(p.resolve())
+
+    if sys.platform == "win32":
+        if not printer:
+            proc = await asyncio.create_subprocess_exec(
+                "powershell", "-NoProfile", "-Command",
+                "(Get-CimInstance Win32_Printer | Where-Object {$_.Default -eq $true}).Name",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            out, _ = await proc.communicate()
+            printer = out.decode(errors="replace").strip()
+        if not printer:
+            return {"ok": False, "error": "no default printer found"}
+
+        ext = p.suffix.lower()
+        for _ in range(copies):
+            if ext == ".pdf":
+                acrobat_candidates = [
+                    Path(os.environ.get("ProgramFiles", "")) / "Adobe/Acrobat DC/Acrobat/Acrobat.exe",
+                    Path(os.environ.get("ProgramFiles(x86)", "")) / "Adobe/Acrobat Reader DC/Reader/AcroRd32.exe",
+                    Path(os.environ.get("ProgramFiles", "")) / "Adobe/Acrobat Reader DC/Reader/AcroRd32.exe",
+                ]
+                acrobat = next((str(c) for c in acrobat_candidates if c.is_file()), "")
+                if not acrobat:
+                    return {"ok": False, "error": "Adobe Acrobat/Reader required to print PDF"}
+                proc = await asyncio.create_subprocess_exec(
+                    acrobat, "/t", abs_path, printer,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await proc.wait()
+            else:
+                ps = f'Start-Process -FilePath "{abs_path}" -Verb Print'
+                proc = await asyncio.create_subprocess_exec(
+                    "powershell", "-NoProfile", "-Command", ps,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, err = await proc.communicate()
+                if proc.returncode != 0:
+                    return {"ok": False, "error": err.decode(errors="replace") or "print failed"}
+    else:
+        for _ in range(copies):
+            cmd = ["lp"]
+            if printer:
+                cmd.extend(["-d", printer])
+            cmd.append(abs_path)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            out, err = await proc.communicate()
+            if proc.returncode != 0:
+                return {"ok": False, "error": err.decode(errors="replace") or out.decode(errors="replace")}
+
+    return {"ok": True, "path": abs_path, "printer": printer or "default", "copies": copies}
+
+
 async def tool_codebase_search(args: dict) -> dict:
     query = (args.get("query") or args.get("pattern") or "").strip()
     if not query:
@@ -313,6 +381,9 @@ TOOLS = {
     "delete_path": tool_delete_path,
     "move_path": tool_move_path,
     "find_files": tool_find_files,
+    "print_file": tool_print_file,
+    "print_document": tool_print_file,
+    "print": tool_print_file,
     "codebase_search": tool_codebase_search,
     "run_terminal_cmd": tool_exec_shell,
     "run_terminal_command": tool_exec_shell,
@@ -352,6 +423,8 @@ def _summarize(result: dict) -> str:
         return "deleted"
     if "from" in result and "to" in result:
         return "moved"
+    if "printer" in result:
+        return f"printed → {result.get('printer')}"
     return "ok"
 
 
@@ -381,12 +454,35 @@ async def execute_and_post(client: httpx.AsyncClient, backend: str, token: str, 
 
 
 async def heartbeat_loop(client: httpx.AsyncClient, backend: str, token: str):
+    payload = agent_machine_context()
     while True:
         try:
-            await client.post(f"{backend}/api/agent/heartbeat", params={"token": token}, timeout=10)
+            await client.post(
+                f"{backend}/api/agent/heartbeat",
+                params={"token": token},
+                json=payload,
+                timeout=10,
+            )
         except Exception:
             pass
         await asyncio.sleep(5)
+
+
+def agent_machine_context() -> dict:
+    home = Path.home()
+    desktop = home / "Desktop"
+    if not desktop.is_dir():
+        alt = home / "OneDrive" / "Desktop"
+        if alt.is_dir():
+            desktop = alt
+    return {
+        "home": str(home),
+        "desktop": str(desktop),
+        "username": os.environ.get("USERNAME") or os.environ.get("USER") or "",
+        "userprofile": os.environ.get("USERPROFILE") or str(home),
+        "os": platform.system(),
+        "hostname": platform.node(),
+    }
 
 
 async def run(token: str, backend: str):
@@ -396,7 +492,12 @@ async def run(token: str, backend: str):
     async with httpx.AsyncClient() as client:
         # First heartbeat to validate token & go online
         try:
-            r = await client.post(f"{backend}/api/agent/heartbeat", params={"token": token}, timeout=10)
+            r = await client.post(
+                f"{backend}/api/agent/heartbeat",
+                params={"token": token},
+                json=agent_machine_context(),
+                timeout=10,
+            )
             if r.status_code != 200:
                 print(f"[emo-agent] auth failed (HTTP {r.status_code}): {r.text}")
                 return
