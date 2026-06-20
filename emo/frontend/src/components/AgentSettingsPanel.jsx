@@ -80,11 +80,16 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
         throw new Error(typeof detail === "string" ? detail : "Téléchargement impossible");
       }
       const blob = await resp.blob();
-      const isZip = resp.headers.get("content-type")?.includes("zip")
+      const buf = await blob.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const isZipFile = bytes[0] === 0x50 && bytes[1] === 0x4b; // PK..
+      const isZip = isZipFile
+        || resp.headers.get("content-type")?.includes("zip")
         || resp.headers.get("content-disposition")?.includes(".zip");
       const filename = isZip ? "Emo-Agent.zip" : (DOWNLOAD_NAMES[os] || "Emo-Agent.exe");
+      const outBlob = new Blob([buf], { type: isZip ? "application/zip" : blob.type });
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
+      a.href = URL.createObjectURL(outBlob);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -92,7 +97,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       URL.revokeObjectURL(a.href);
       toast.success(
         isZip
-          ? "Emo-Agent.zip téléchargé"
+          ? "Emo-Agent.zip — extrais le dossier, double-clic sur start.bat"
           : "Emo-Agent.exe — double-clic, connecte-toi avec ton compte Émo"
       );
     } catch (e) {
@@ -176,8 +181,9 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
         {isWindows ? (
           <>
             <p>
-              Un seul fichier <code className="font-code">Emo-Agent.exe</code> — double-clic, connexion avec ton
-              compte Émo.
+              Télécharge <code className="font-code">Emo-Agent.zip</code> si pas d&apos;exe compilé —{" "}
+              <strong>extrais</strong> le dossier, puis double-clic sur <code className="font-code">start.bat</code>.
+              Ne renomme pas le zip en .exe.
             </p>
             <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-100/90">
               Windows bloque parfois l&apos;exe (SmartScreen) : clic droit → <strong>Propriétés</strong> → cocher{" "}
