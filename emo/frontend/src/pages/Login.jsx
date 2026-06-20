@@ -16,6 +16,14 @@ const isDesktopApp = () => {
   try { return localStorage.getItem("emo_desktop") === "1"; } catch (_) { return false; }
 };
 
+const PRODUCTION_HOSTS = new Set(["xeroxytb.com", "www.xeroxytb.com"]);
+
+function isProductionSite() {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return PRODUCTION_HOSTS.has(h) || h.endsWith(".github.io");
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -24,25 +32,31 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
+  const [googleReady, setGoogleReady] = useState(isProductionSite);
   const [googleAuto, setGoogleAuto] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [desktop] = useState(isDesktopApp);
   const autoGoogleTried = useRef(false);
   const bootStarted = useRef(false);
 
+  const refreshGoogleStatus = useCallback(async () => {
+    try {
+      const r = await http.get("/auth/google/status", { timeout: 12000 });
+      if (r.data?.redirect_ready || r.data?.configured) {
+        setGoogleReady(true);
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }, []);
+
   const finishGoogleStatus = useCallback(async (warm) => {
     if (warm?.google) {
       setGoogleReady(true);
       return;
     }
-    try {
-      const r = await http.get("/auth/google/status", { timeout: 8000 });
-      setGoogleReady(!!(r.data?.configured || r.data?.client_id));
-    } catch (_) {
-      setGoogleReady(false);
-    }
-  }, []);
+    await refreshGoogleStatus();
+  }, [refreshGoogleStatus]);
 
   useEffect(() => {
     if (bootStarted.current) return;
@@ -61,21 +75,31 @@ export default function Login() {
       if (warm?.ok) await finishGoogleStatus(warm);
       else finishGoogleStatus({ ok: false });
     })();
-  }, [navigate, finishGoogleStatus]);
+
+    if (isProductionSite()) {
+      const id = setInterval(() => { refreshGoogleStatus(); }, 8000);
+      return () => clearInterval(id);
+    }
+  }, [navigate, finishGoogleStatus, refreshGoogleStatus]);
 
   const handleGoogleRedirect = useCallback(async () => {
     setGoogleBusy(true);
-    const warm = await wakeBackend({ maxWaitMs: 45000 });
+    const warm = await wakeBackend({ maxWaitMs: 60000 });
     if (!warm.ok) {
       setGoogleBusy(false);
-      toast.error("Service indisponible.");
+      toast.error("Service indisponible. Réessayez dans un instant.");
       return;
     }
-    if (warm.google) setGoogleReady(true);
+    const ok = await refreshGoogleStatus();
+    if (!ok && !isProductionSite()) {
+      setGoogleBusy(false);
+      toast.error("Google OAuth non configuré.");
+      return;
+    }
     const redirectUrl = frontendUrl("/auth/google/callback");
     const desktopFlag = desktop ? "&desktop=1" : "";
     window.location.href = `${getApiBase()}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`;
-  }, [desktop]);
+  }, [desktop, refreshGoogleStatus]);
 
   useEffect(() => {
     const err = searchParams.get("error");

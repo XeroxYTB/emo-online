@@ -367,12 +367,13 @@ async def login(body: LoginBody, response: Response):
 async def google_auth_status():
     has_id = google_auth.has_client_id()
     redirect_ready = google_auth.is_configured()
+    frontend = os.environ.get("EMO_FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
     return {
         "configured": has_id,
         "redirect_ready": redirect_ready,
         "client_id": os.environ.get("GOOGLE_CLIENT_ID", "").strip() if has_id else None,
         "redirect_uri": google_auth.redirect_uri() if redirect_ready else None,
-        "frontend_callback": "http://127.0.0.1:3000/auth/google/callback",
+        "frontend_callback": f"{frontend}/auth/google/callback",
         "setup": None if has_id else {
             "console_url": "https://console.cloud.google.com/apis/credentials",
             "javascript_origins": [
