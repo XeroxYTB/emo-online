@@ -69,7 +69,10 @@ class AgentRegistry:
             "id": request_id, "tool": tool, "args": args,
         })
         try:
-            return await asyncio.wait_for(fut, timeout=timeout)
+            payload = await asyncio.wait_for(fut, timeout=timeout)
+            if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
+                return payload["result"]
+            return payload
         except asyncio.TimeoutError:
             return {"ok": False, "error": f"Agent timeout après {timeout}s"}
         finally:
