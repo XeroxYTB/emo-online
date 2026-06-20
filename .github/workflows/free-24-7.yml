@@ -2,7 +2,7 @@ name: Free 24/7 Hosting
 
 on:
   schedule:
-    - cron: "*/12 * * * *"
+    - cron: "*/20 * * * *"
   workflow_dispatch:
 
 env:

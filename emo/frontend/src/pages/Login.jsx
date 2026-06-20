@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, getApiBase, saveSessionToken, wakeBackend } from "../lib/api";
-import { frontendUrl } from "../lib/paths";
+import { http, saveSessionToken, wakeBackend } from "../lib/api";
 import { AppTopBar, EmoLogo } from "../components/EmoLogo";
+import GoogleSignInButton, { getGoogleClientId, loadGoogleIdentity } from "../components/GoogleSignInButton";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -16,12 +16,8 @@ const isDesktopApp = () => {
   try { return localStorage.getItem("emo_desktop") === "1"; } catch (_) { return false; }
 };
 
-const PRODUCTION_HOSTS = new Set(["xeroxytb.com", "www.xeroxytb.com"]);
-
-function isProductionSite() {
-  if (typeof window === "undefined") return false;
-  const h = window.location.hostname;
-  return PRODUCTION_HOSTS.has(h) || h.endsWith(".github.io");
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 export default function Login() {
@@ -32,96 +28,96 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleReady, setGoogleReady] = useState(isProductionSite);
-  const [googleAuto, setGoogleAuto] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState(() => getGoogleClientId());
   const [googleBusy, setGoogleBusy] = useState(false);
   const [desktop] = useState(isDesktopApp);
   const autoGoogleTried = useRef(false);
   const bootStarted = useRef(false);
 
+  const googleReady = !!googleClientId;
+
   const refreshGoogleStatus = useCallback(async () => {
     try {
       const r = await http.get("/auth/google/status", { timeout: 12000 });
-      if (r.data?.redirect_ready || r.data?.configured) {
-        setGoogleReady(true);
-        return true;
-      }
+      if (r.data?.client_id) setGoogleClientId(r.data.client_id);
+      return !!r.data?.client_id;
     } catch (_) {}
-    return false;
+    return !!getGoogleClientId();
   }, []);
 
-  const finishGoogleStatus = useCallback(async (warm) => {
-    if (warm?.google) {
-      setGoogleReady(true);
-      return;
+  const verifyGoogleCredential = useCallback(async (credential) => {
+    setGoogleBusy(true);
+    let lastErr;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        if (attempt > 0) {
+          await wakeBackend({ maxWaitMs: 20000 });
+          await sleep(1500 + attempt * 800);
+        }
+        const res = await http.post("/auth/google/verify", { credential }, { timeout: 45000 });
+        if (res.data?.session_token) saveSessionToken(res.data.session_token);
+        navigate("/chat", { replace: true, state: { user: res.data } });
+        return;
+      } catch (err) {
+        lastErr = err;
+        const status = err?.response?.status;
+        if (status === 429 || status === 503 || !err.response) continue;
+        break;
+      }
     }
-    await refreshGoogleStatus();
-  }, [refreshGoogleStatus]);
-
-  useEffect(() => {
-    if (!googleBusy) return;
-    const id = setTimeout(() => setGoogleBusy(false), 8000);
-    return () => clearTimeout(id);
-  }, [googleBusy]);
+    setGoogleBusy(false);
+    const detail = lastErr?.response?.data?.detail;
+    if (lastErr?.response?.status === 429) {
+      toast.error("Serveur saturé (HF). Réessayez dans 1 minute.");
+    } else {
+      toast.error(typeof detail === "string" ? detail : "Connexion Google impossible.");
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (bootStarted.current) return;
     bootStarted.current = true;
 
     (async () => {
-      const warmPromise = wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
-
       try {
         await http.get("/auth/me", { timeout: 8000 });
         navigate("/chat", { replace: true });
         return;
       } catch (_) {}
 
-      const warm = await warmPromise;
-      if (warm?.ok) await finishGoogleStatus(warm);
-      else finishGoogleStatus({ ok: false });
+      wakeBackend({ maxWaitMs: 12000 }).catch(() => {});
+      refreshGoogleStatus();
     })();
-
-    if (isProductionSite()) {
-      const id = setInterval(() => { refreshGoogleStatus(); }, 8000);
-      return () => clearInterval(id);
-    }
-  }, [navigate, finishGoogleStatus, refreshGoogleStatus]);
-
-  const handleGoogleRedirect = useCallback(() => {
-    setGoogleBusy(true);
-    const redirectUrl = frontendUrl("/auth/google/callback");
-    const desktopFlag = desktop ? "&desktop=1" : "";
-    window.location.assign(
-      `${getApiBase()}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`
-    );
-  }, [desktop]);
+  }, [navigate, refreshGoogleStatus]);
 
   useEffect(() => {
     const err = searchParams.get("error");
-    if (err) {
-      setGoogleAuto(false);
-      const msgs = {
-        google_auth_failed: "Connexion Google impossible.",
-        access_denied: "Connexion annulée.",
-        no_email: "Email Google indisponible.",
-        missing_code: "Réponse Google invalide.",
-        missing_token: "Session expirée.",
-        redirect_uri_mismatch: "Configuration OAuth incorrecte.",
-        invalid_client: "Configuration Google incorrecte.",
-        rate_limited: "Trop de tentatives.",
-      };
-      toast.error(msgs[err] || "Connexion impossible.");
-    }
+    if (!err) return;
+    const msgs = {
+      google_auth_failed: "Connexion Google impossible.",
+      access_denied: "Connexion annulée.",
+      no_email: "Email Google indisponible.",
+      missing_code: "Réponse Google invalide.",
+      missing_token: "Session expirée.",
+      redirect_uri_mismatch: "Configuration OAuth incorrecte.",
+      invalid_client: "Configuration Google incorrecte.",
+      rate_limited: "Trop de tentatives.",
+    };
+    toast.error(msgs[err] || "Connexion impossible.");
   }, [searchParams]);
 
   useEffect(() => {
     if (!googleReady || !desktop || searchParams.get("error")) return;
     if (autoGoogleTried.current) return;
     autoGoogleTried.current = true;
-    setGoogleAuto(true);
-    handleGoogleRedirect();
-  }, [googleReady, desktop, searchParams, handleGoogleRedirect]);
+
+    (async () => {
+      try {
+        await loadGoogleIdentity(googleClientId, verifyGoogleCredential);
+        window.google?.accounts?.id?.prompt?.();
+      } catch (_) {}
+    })();
+  }, [googleReady, desktop, searchParams, googleClientId, verifyGoogleCredential]);
 
   const handlePassword = async (e) => {
     e.preventDefault();
@@ -143,18 +139,6 @@ export default function Login() {
     }
   };
 
-  if (googleAuto) {
-    return (
-      <div className="login-page h-screen w-full flex flex-col">
-        <AppTopBar />
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
-          <Loader2 size={24} className="animate-spin text-muted-em" />
-          <p className="text-sm text-secondary-em">Connexion Google…</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="login-page h-screen w-full flex flex-col">
       <AppTopBar />
@@ -174,30 +158,12 @@ export default function Login() {
 
           {googleReady && (
             <>
-              <button
-                type="button"
-                onClick={handleGoogleRedirect}
-                data-testid="google-login-btn"
-                disabled={loading || googleBusy}
-                className="google-btn w-full flex items-center justify-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-4 disabled:opacity-60"
-              >
-                {googleBusy ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin opacity-70" />
-                    Redirection…
-                  </>
-                ) : (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
-                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.56 2.95-2.24 5.45-4.78 7.12l7.73 6.01C43.44 37.74 46.98 31.64 46.98 24.55z" />
-                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                    </svg>
-                    Continuer avec Google
-                  </>
-                )}
-              </button>
+              <GoogleSignInButton
+                clientId={googleClientId}
+                onCredential={verifyGoogleCredential}
+                disabled={loading}
+                busy={googleBusy}
+              />
 
               <div className="flex items-center gap-3 my-4">
                 <div className="flex-1 h-px" style={{ background: "var(--emo-border)" }} />

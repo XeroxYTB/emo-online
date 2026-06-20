@@ -30,7 +30,7 @@
             try {
               var k = "emo_last_wake";
               var last = parseInt(localStorage.getItem(k) || "0", 10);
-              if (Date.now() - last < 300000) return;
+              if (Date.now() - last < 600000) return;
               localStorage.setItem(k, String(Date.now()));
               var ping = "https://xroxx-emo-online-api.hf.space/api/ping";
               fetch(ping, { mode: "cors", credentials: "include", cache: "no-store" }).catch(function () {});
