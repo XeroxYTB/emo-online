@@ -34,6 +34,76 @@ def _domain(url: str) -> str:
         return ""
 
 
+# Sites qui bloquent le fetch serveur ou l'embed — aperçu carte + lien externe uniquement.
+_EXTERNAL_ONLY = re.compile(
+    r"(^|\.)("
+    r"youtube\.com|youtu\.be|facebook\.com|instagram\.com|twitter\.com|x\.com|"
+    r"tiktok\.com|linkedin\.com|netflix\.com|spotify\.com|accounts\.google\.com|"
+    r"discord\.com|twitch\.tv"
+    r")$",
+    re.I,
+)
+
+_SITE_TITLES = {
+    "youtube.com": "YouTube",
+    "youtu.be": "YouTube",
+    "google.com": "Google",
+    "facebook.com": "Facebook",
+    "instagram.com": "Instagram",
+    "twitter.com": "X (Twitter)",
+    "x.com": "X (Twitter)",
+    "tiktok.com": "TikTok",
+    "netflix.com": "Netflix",
+    "spotify.com": "Spotify",
+    "discord.com": "Discord",
+    "twitch.tv": "Twitch",
+}
+
+
+def _external_only_site(url: str) -> bool:
+    host = _domain(url)
+    if not host:
+        return False
+    return bool(_EXTERNAL_ONLY.search(host))
+
+
+def _site_title(url: str) -> str:
+    host = _domain(url)
+    if host in _SITE_TITLES:
+        return _SITE_TITLES[host]
+    for key, title in _SITE_TITLES.items():
+        if host.endswith("." + key) or host == key:
+            return title
+    return host.split(".")[0].capitalize() if host else "Site web"
+
+
+def _synthetic_browser_visit(url: str, *, note: str = "") -> dict:
+    """Aperçu fiable quand le fetch HTTP échoue (YouTube, réseaux sociaux, etc.)."""
+    url = normalize_url(url)
+    title = _site_title(url)
+    host = _domain(url)
+    favicon = f"https://www.google.com/s2/favicons?domain={host}&sz=128" if host else ""
+    images = [{"url": favicon, "alt": title}] if favicon else []
+    preview = (
+        f"{title} — ce site bloque la lecture automatique depuis le serveur. "
+        f"Utilise le bouton **Ouvrir** pour l'afficher dans ton navigateur."
+    )
+    out = {
+        "ok": True,
+        "url": url,
+        "title": title,
+        "text": preview,
+        "preview": preview,
+        "links": [{"text": f"Ouvrir {title}", "url": url}],
+        "images": images,
+        "embed_blocked": True,
+        "hint": "Site ouvert en mode aperçu externe.",
+    }
+    if note:
+        out["fetch_note"] = note[:200]
+    return out
+
+
 def normalize_url(url: str) -> str:
     """Préfixe https:// si absent — évite les échecs browser_visit / web_fetch."""
     u = (url or "").strip()
@@ -321,9 +391,19 @@ def calculate_expression(expression: str) -> dict:
 
 async def browser_visit(url: str, max_chars: int = 10000) -> dict:
     """Ouvre une page web (texte + liens) — visible dans le panneau Navigateur de l'UI."""
+    url = normalize_url(url)
+    if not url or not url.startswith(("http://", "https://")):
+        return {"ok": False, "error": "URL invalide"}
+
+    if _external_only_site(url):
+        return _synthetic_browser_visit(url)
+
     result = await web_fetch(url, max_chars=max_chars)
     if not result.get("ok"):
-        return result
+        err = result.get("error") or "fetch impossible"
+        if _external_only_site(url):
+            return _synthetic_browser_visit(url, note=err)
+        return {**result, "error": err}
     text = result.get("text") or ""
     return {
         **result,

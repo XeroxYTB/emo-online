@@ -112,7 +112,9 @@ const ActivityTab = ({ tools, agentOnline, browserFrames, reflectNotes }) => (
         {tools.slice(-8).map((t) => (
           <div key={t.id} className="text-xs px-2 py-1 rounded-lg" style={{ background: "var(--emo-subtle-bg)" }}>
             <span className="font-code text-[11px]" style={{ color: "var(--mode-color)" }}>{t.tool}</span>
-            <span className="text-muted-em ml-2">{t.state === "executing" ? "…" : "ok"}</span>
+            <span className="text-muted-em ml-2">
+              {t.state === "executing" ? "…" : t.state === "error" ? "erreur" : "ok"}
+            </span>
           </div>
         ))}
       </div>

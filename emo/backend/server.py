@@ -2318,7 +2318,7 @@ async def chat_stream(
                     title = (visit_result.get("title") or label).strip()
                     if visit_result.get("ok"):
                         reply = (
-                            f"**{title}** est ouvert dans le panneau Activité. "
+                            f"**{title}** est ouvert. "
                             f"Clique **Ouvrir** sur la carte pour l'afficher dans ton navigateur."
                         )
                     else:
@@ -2844,7 +2844,7 @@ async def ping():
         "ok": True,
         "google": google_auth.is_configured(),
         "service": "emo-online",
-        "build": "2026-06-20d",
+        "build": "2026-06-20e",
     }
 
 
