@@ -59,6 +59,12 @@ export default function Login() {
   }, [refreshGoogleStatus]);
 
   useEffect(() => {
+    if (!googleBusy) return;
+    const id = setTimeout(() => setGoogleBusy(false), 8000);
+    return () => clearTimeout(id);
+  }, [googleBusy]);
+
+  useEffect(() => {
     if (bootStarted.current) return;
     bootStarted.current = true;
 
@@ -82,24 +88,14 @@ export default function Login() {
     }
   }, [navigate, finishGoogleStatus, refreshGoogleStatus]);
 
-  const handleGoogleRedirect = useCallback(async () => {
+  const handleGoogleRedirect = useCallback(() => {
     setGoogleBusy(true);
-    const warm = await wakeBackend({ maxWaitMs: 60000 });
-    if (!warm.ok) {
-      setGoogleBusy(false);
-      toast.error("Service indisponible. Réessayez dans un instant.");
-      return;
-    }
-    const ok = await refreshGoogleStatus();
-    if (!ok && !isProductionSite()) {
-      setGoogleBusy(false);
-      toast.error("Google OAuth non configuré.");
-      return;
-    }
     const redirectUrl = frontendUrl("/auth/google/callback");
     const desktopFlag = desktop ? "&desktop=1" : "";
-    window.location.href = `${getApiBase()}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`;
-  }, [desktop, refreshGoogleStatus]);
+    window.location.assign(
+      `${getApiBase()}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}${desktopFlag}`
+    );
+  }, [desktop]);
 
   useEffect(() => {
     const err = searchParams.get("error");
@@ -131,7 +127,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await wakeBackend({ maxWaitMs: 45000 });
+      wakeBackend({ maxWaitMs: 15000 }).catch(() => {});
       if (mode === "signup") {
         const res = await http.post("/auth/signup", { email, password, name });
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
@@ -188,7 +184,7 @@ export default function Login() {
                 {googleBusy ? (
                   <>
                     <Loader2 size={16} className="animate-spin opacity-70" />
-                    Connexion…
+                    Redirection…
                   </>
                 ) : (
                   <>
