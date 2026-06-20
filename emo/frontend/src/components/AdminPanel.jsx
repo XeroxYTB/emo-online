@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { http, BACKEND_URL } from "../lib/api";
-import { KeyRound, RefreshCw, Save, Sparkles, Brain, Bug, Package, Download, ShieldCheck } from "lucide-react";
+import { KeyRound, RefreshCw, Save, Sparkles, Brain, Bug, Package, Download, ShieldCheck, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import EmoIdentityPanel from "./EmoIdentityPanel";
 import MemoryPanel from "./MemoryPanel";
@@ -23,6 +23,10 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [stripe, setStripe] = useState({});
+  const [stripeDraft, setStripeDraft] = useState({});
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeSaving, setStripeSaving] = useState(false);
 
   const loadKeys = async () => {
     setLoading(true);
@@ -38,6 +42,38 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
   };
 
   useEffect(() => { loadKeys(); }, []);
+
+  const loadStripe = async () => {
+    setStripeLoading(true);
+    try {
+      const r = await http.get("/admin/settings");
+      setStripe(r.data || {});
+      setStripeDraft({});
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Chargement Stripe impossible");
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === "stripe") loadStripe();
+  }, [tab]);
+
+  const saveStripe = async () => {
+    if (!Object.keys(stripeDraft).length) return;
+    setStripeSaving(true);
+    try {
+      await http.patch("/admin/settings", stripeDraft);
+      toast.success("Liens Stripe enregistrés");
+      setStripeDraft({});
+      await loadStripe();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Erreur");
+    } finally {
+      setStripeSaving(false);
+    }
+  };
 
   const saveKeys = async () => {
     if (!Object.keys(draft).length) return;
@@ -56,6 +92,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
 
   const tabs = [
     { id: "keys", label: "Clés IA", icon: KeyRound },
+    { id: "stripe", label: "Stripe", icon: CreditCard },
     { id: "emo", label: "Émo", icon: Sparkles },
     { id: "memory", label: "Mémoire", icon: Brain },
     { id: "system", label: "Système", icon: ShieldCheck },
@@ -117,6 +154,47 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
             style={{ background: "rgba(245,158,11,0.2)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.35)" }}
           >
             <Save size={14} /> {saving ? "Enregistrement…" : "Enregistrer les clés"}
+          </button>
+        </div>
+      )}
+
+      {tab === "stripe" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-em">Liens Payment Links Stripe par offre (Basic / Premium / Ultra).</p>
+            <button type="button" onClick={loadStripe} className="p-1.5 rounded hover:bg-white/10 text-muted-em">
+              <RefreshCw size={14} className={stripeLoading ? "animate-spin" : ""} />
+            </button>
+          </div>
+          {[
+            { id: "stripe_basic_link", label: "Basic", hint: "https://buy.stripe.com/..." },
+            { id: "stripe_premium_link", label: "Premium", hint: "https://buy.stripe.com/..." },
+            { id: "stripe_ultra_link", label: "Ultra", hint: "https://buy.stripe.com/..." },
+            { id: "stripe_payment_link", label: "Paiement unique (legacy)", hint: "Optionnel" },
+            { id: "stripe_subscription_link", label: "Abonnement (legacy)", hint: "Optionnel" },
+          ].map((row) => (
+            <div key={row.id} className="space-y-1">
+              <label className="text-[11px] text-muted-em">{row.label}</label>
+              <input
+                type="url"
+                placeholder={stripe[row.id] || row.hint}
+                value={stripeDraft[row.id] ?? ""}
+                onChange={(e) => setStripeDraft((d) => ({ ...d, [row.id]: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-xs font-code bg-black/40 border border-white/10 focus:outline-none focus:border-amber-500/40"
+              />
+              {stripe[row.id] && !stripeDraft[row.id] && (
+                <p className="text-[10px] text-muted-em truncate">Actuel : {stripe[row.id]}</p>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={saveStripe}
+            disabled={stripeSaving || !Object.keys(stripeDraft).length}
+            className="w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+            style={{ background: "rgba(99,91,255,0.2)", color: "#c4b5fd", border: "1px solid rgba(99,91,255,0.35)" }}
+          >
+            <Save size={14} /> {stripeSaving ? "Enregistrement…" : "Enregistrer les liens Stripe"}
           </button>
         </div>
       )}

@@ -1,9 +1,16 @@
 import React, { useEffect, useState, useCallback } from "react";
-import Editor from "@monaco-editor/react";
+import Editor, { loader } from "@monaco-editor/react";
 import { http } from "../lib/api";
-import { Folder, FolderOpen, File as FileIcon, RefreshCw, Save, ArrowUp } from "lucide-react";
+import { Folder, File as FileIcon, RefreshCw, Save, ArrowUp, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import SquarePreviewFrame, { isImagePath, previewTextSnippet } from "./SquarePreviewFrame";
+
+const joinPath = (base, name) => {
+  if (!base || base === "~") return name;
+  const sep = base.includes("\\") ? "\\" : "/";
+  if (base.endsWith(sep)) return `${base}${name}`;
+  return `${base}${sep}${name}`;
+};
 
 const detectLang = (path) => {
   const ext = path.split(".").pop().toLowerCase();
@@ -25,20 +32,33 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   const [content, setContent] = useState("");
   const [originalContent, setOriginalContent] = useState("");
   const [editorLoading, setEditorLoading] = useState(false);
+  const [fsError, setFsError] = useState("");
+  const [editorFailed, setEditorFailed] = useState(false);
 
   const refresh = useCallback(async (path) => {
     if (!agentOnline) return;
     setLoading(true);
+    setFsError("");
     try {
       const r = await http.get("/agent/fs/list", { params: { path } });
-      setListing(r.data);
-      setCwd(r.data.path);
+      setListing({
+        path: r.data?.path || path,
+        files: Array.isArray(r.data?.files) ? r.data.files : [],
+        dirs: Array.isArray(r.data?.dirs) ? r.data.dirs : [],
+      });
+      setCwd(r.data?.path || path);
     } catch (e) {
-      toast.error("Agent : " + (e?.response?.data?.detail || e.message));
+      const msg = e?.response?.data?.detail || e.message || "Erreur";
+      setFsError(String(msg));
+      toast.error("Fichiers : " + msg);
     } finally {
       setLoading(false);
     }
   }, [agentOnline]);
+
+  useEffect(() => {
+    loader.init().catch(() => setEditorFailed(true));
+  }, []);
 
   useEffect(() => {
     if (agentOnline) refresh("~");
@@ -56,8 +76,9 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   }, [externalPreview?.path]);
 
   const openFile = async (name) => {
-    const path = `${cwd}/${name}`;
+    const path = joinPath(cwd, name);
     setEditorLoading(true);
+    setEditorFailed(false);
     try {
       const r = await http.get("/agent/fs/read", { params: { path } });
       setCurrentFile(r.data.path);
@@ -82,15 +103,17 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   };
 
   const cdUp = () => {
-    const parts = cwd.split("/").filter(Boolean);
-    if (parts.length <= 1) {
-      refresh("/");
+    const normalized = cwd.replace(/[/\\]+$/, "");
+    const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
+    if (idx <= 0) {
+      refresh(normalized.match(/^[A-Za-z]:/) ? normalized.slice(0, 2) + "\\" : "/");
       return;
     }
-    parts.pop();
-    const next = (cwd.startsWith("/") ? "/" : "") + parts.join("/");
-    refresh(next || "/");
+    refresh(normalized.slice(0, idx));
   };
+
+  const dirs = listing.dirs || [];
+  const files = listing.files || [];
 
   const dirty = content !== originalContent;
   const previewPath = currentFile || externalPreview?.path || "";
@@ -129,6 +152,13 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
         </button>
       </div>
 
+      {fsError && (
+        <div className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+          <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+          <span>{fsError}</span>
+        </div>
+      )}
+
       {previewPath && (
         <div className="flex-shrink-0 p-3 border-b border-white/5">
           <SquarePreviewFrame
@@ -144,10 +174,10 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
 
       <div className="flex-1 overflow-hidden flex min-h-0">
         <div className="w-44 flex-shrink-0 border-r border-white/5 overflow-y-auto scrollbar-thin py-1.5" data-testid="file-tree">
-          {listing.dirs.map((d) => (
+          {dirs.map((d) => (
             <button
               key={`d-${d}`}
-              onClick={() => refresh(`${cwd}/${d}`)}
+              onClick={() => refresh(joinPath(cwd, d))}
               className="w-full flex items-center gap-1.5 px-3 py-1 text-xs hover:bg-white/[0.05] text-secondary-em"
               data-testid={`fs-dir-${d}`}
             >
@@ -155,7 +185,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
               <span className="truncate">{d}</span>
             </button>
           ))}
-          {listing.files.map((f) => (
+          {files.map((f) => (
             <button
               key={`f-${f}`}
               onClick={() => openFile(f)}
@@ -167,7 +197,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
               <span className="truncate">{f}</span>
             </button>
           ))}
-          {listing.files.length === 0 && listing.dirs.length === 0 && !loading && (
+          {files.length === 0 && dirs.length === 0 && !loading && (
             <p className="text-[10px] text-muted-em px-3 py-2">vide</p>
           )}
         </div>
@@ -191,23 +221,33 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
                 </button>
               </div>
               <div className="flex-1 min-h-0">
-                <Editor
-                  height="100%"
-                  language={detectLang(currentFile)}
-                  value={content}
-                  onChange={(v) => setContent(v ?? "")}
-                  theme="vs-dark"
-                  loading={<div className="p-4 text-xs text-muted-em">Chargement…</div>}
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 12,
-                    fontFamily: "JetBrains Mono, monospace",
-                    fontLigatures: true,
-                    scrollBeyondLastLine: false,
-                    padding: { top: 8, bottom: 8 },
-                    wordWrap: "on",
-                  }}
-                />
+                {editorFailed ? (
+                  <textarea
+                    className="w-full h-full bg-[#1e1e1e] text-xs font-code text-white p-3 resize-none focus:outline-none"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                  />
+                ) : (
+                  <Editor
+                    height="100%"
+                    language={detectLang(currentFile)}
+                    value={content}
+                    onChange={(v) => setContent(v ?? "")}
+                    theme="vs-dark"
+                    loading={<div className="p-4 text-xs text-muted-em">Chargement…</div>}
+                    onMount={() => setEditorFailed(false)}
+                    beforeMount={() => setEditorFailed(false)}
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 12,
+                      fontFamily: "JetBrains Mono, monospace",
+                      fontLigatures: true,
+                      scrollBeyondLastLine: false,
+                      padding: { top: 8, bottom: 8 },
+                      wordWrap: "on",
+                    }}
+                  />
+                )}
               </div>
             </>
           ) : (

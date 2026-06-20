@@ -11,8 +11,9 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, List
 
+import io
+import zipfile
 import httpx
-import bcrypt
 from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, BackgroundTasks, Query, Body
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse, RedirectResponse
@@ -69,6 +70,20 @@ from llm_config import (
 )
 import google_auth
 from llm_health import refresh_probe_cache, mark_provider_ok, mark_provider_failed
+
+
+def _safe_mark_provider_ok(provider: str) -> None:
+    try:
+        mark_provider_ok(provider)
+    except Exception:
+        pass
+
+
+def _safe_mark_provider_failed(provider: str, reason: str = "") -> None:
+    try:
+        mark_provider_failed(provider, reason)
+    except Exception:
+        pass
 from hf_models import refresh_hf_catalog
 from llm_providers import providers_status, configured_providers, api_key_available
 from tool_router import select_tools_for_message
@@ -110,6 +125,8 @@ def _cors_origins() -> list[str]:
         "http://localhost:3000",
         "http://127.0.0.1:8010",
         "http://localhost:8010",
+        "http://127.0.0.1:17841",
+        "http://localhost:17841",
     ]
 
 
@@ -129,6 +146,9 @@ db = client[DB_NAME]
 SETTING_KEYS = {
     "stripe_payment_link": str,
     "stripe_subscription_link": str,
+    "stripe_basic_link": str,
+    "stripe_premium_link": str,
+    "stripe_ultra_link": str,
     "license_price_eur": float,
     "license_interval": str,
     "daily_messages": int,
@@ -143,11 +163,19 @@ async def _load_settings():
     _SETTINGS_CACHE = {
         "stripe_payment_link": doc.get("stripe_payment_link") or STRIPE_PAYMENT_LINK,
         "stripe_subscription_link": doc.get("stripe_subscription_link") or STRIPE_SUBSCRIPTION_LINK,
+        "stripe_basic_link": doc.get("stripe_basic_link") or STRIPE_BASIC_LINK,
+        "stripe_premium_link": doc.get("stripe_premium_link") or STRIPE_PREMIUM_LINK,
+        "stripe_ultra_link": doc.get("stripe_ultra_link") or STRIPE_ULTRA_LINK,
         "license_price_eur": float(doc.get("license_price_eur") if doc.get("license_price_eur") is not None else LICENSE_PRICE_EUR),
         "license_interval": doc.get("license_interval") or LICENSE_INTERVAL,
         "daily_messages": int(doc.get("daily_messages") if doc.get("daily_messages") is not None else DAILY_MESSAGES),
         "subscription_period_days": int(doc.get("subscription_period_days") if doc.get("subscription_period_days") is not None else SUBSCRIPTION_PERIOD_DAYS),
     }
+    for key in ("stripe_basic_link", "stripe_premium_link", "stripe_ultra_link"):
+        val = _SETTINGS_CACHE.get(key) or ""
+        if val:
+            env_key = {"stripe_basic_link": "STRIPE_BASIC_LINK", "stripe_premium_link": "STRIPE_PREMIUM_LINK", "stripe_ultra_link": "STRIPE_ULTRA_LINK"}[key]
+            os.environ[env_key] = str(val)
     for env_name, val in (doc.get("llm_keys") or {}).items():
         if val:
             os.environ[str(env_name)] = str(val)
@@ -179,6 +207,9 @@ def s(key: str):
         return {
             "stripe_payment_link": STRIPE_PAYMENT_LINK,
             "stripe_subscription_link": STRIPE_SUBSCRIPTION_LINK,
+            "stripe_basic_link": STRIPE_BASIC_LINK,
+            "stripe_premium_link": STRIPE_PREMIUM_LINK,
+            "stripe_ultra_link": STRIPE_ULTRA_LINK,
             "license_price_eur": LICENSE_PRICE_EUR,
             "license_interval": LICENSE_INTERVAL,
             "daily_messages": DAILY_MESSAGES,
@@ -191,21 +222,24 @@ api = APIRouter(prefix="/api")
 
 @app.on_event("startup")
 async def _settings_startup():
-    await _load_settings()
-    seeded = await ensure_product_keys_seeded(db)
-    if seeded:
-        logger.info("Product keys seeded from EMO_PRODUCT_KEYS: %d", seeded)
-    llm_ok = configured_providers()
-    logger.info("App settings loaded: %s", _SETTINGS_CACHE)
-    logger.info(
-        "Google OAuth: %s | LLM cloud: %s",
-        "OK" if google_auth.has_client_id() else "non configuré",
-        ", ".join(llm_ok) if llm_ok else "aucune clé (.env)",
-    )
-    if os.environ.get("EMO_SKIP_STARTUP_PROBE", "").lower() not in ("1", "true", "yes"):
-        asyncio.create_task(refresh_probe_cache())
-    if api_key_available("huggingface"):
-        asyncio.create_task(refresh_hf_catalog())
+    async def _boot():
+        await _load_settings()
+        seeded = await ensure_product_keys_seeded(db)
+        if seeded:
+            logger.info("Product keys seeded from EMO_PRODUCT_KEYS: %d", seeded)
+        llm_ok = configured_providers()
+        logger.info("App settings loaded: %s", _SETTINGS_CACHE)
+        logger.info(
+            "Google OAuth: %s | LLM cloud: %s",
+            "OK" if google_auth.has_client_id() else "non configuré",
+            ", ".join(llm_ok) if llm_ok else "aucune clé (.env)",
+        )
+        if os.environ.get("EMO_SKIP_STARTUP_PROBE", "").lower() not in ("1", "true", "yes"):
+            asyncio.create_task(refresh_probe_cache())
+        if api_key_available("huggingface"):
+            asyncio.create_task(refresh_hf_catalog())
+
+    asyncio.create_task(_boot())
 
 logger = logging.getLogger("emo")
 logging.basicConfig(level=logging.INFO)
@@ -904,6 +938,46 @@ async def admin_patch_llm_keys(body: AdminLlmKeysBody, user: User = Depends(get_
     await db.app_settings.update_one({"_id": "config"}, {"$set": {"llm_keys": stored}}, upsert=True)
     asyncio.create_task(refresh_probe_cache())
     return {"ok": True}
+
+
+class AdminSettingsBody(BaseModel):
+    stripe_payment_link: Optional[str] = None
+    stripe_subscription_link: Optional[str] = None
+    stripe_basic_link: Optional[str] = None
+    stripe_premium_link: Optional[str] = None
+    stripe_ultra_link: Optional[str] = None
+    license_price_eur: Optional[float] = None
+    license_interval: Optional[str] = None
+    daily_messages: Optional[int] = None
+    subscription_period_days: Optional[int] = None
+
+
+@api.get("/admin/settings")
+async def admin_get_settings(user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin requis")
+    await _load_settings()
+    return {k: s(k) for k in SETTING_KEYS}
+
+
+@api.patch("/admin/settings")
+async def admin_patch_settings(body: AdminSettingsBody, user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin requis")
+    patch = {}
+    for field, val in body.model_dump(exclude_unset=True).items():
+        if field not in SETTING_KEYS:
+            continue
+        if val is None:
+            continue
+        if isinstance(val, str):
+            val = val.strip()
+        patch[field] = val
+    if not patch:
+        return {"ok": True, "updated": []}
+    await db.app_settings.update_one({"_id": "config"}, {"$set": patch}, upsert=True)
+    await _load_settings()
+    return {"ok": True, "updated": list(patch.keys()), "settings": {k: s(k) for k in patch}}
 
 
 @api.get("/subscriptions/plans")
@@ -2271,7 +2345,7 @@ async def chat_stream(
                     )
                     if clean.strip():
                         background_tasks.add_task(_extract_and_store_memories, user.user_id, body.content, clean)
-                    mark_provider_ok(provider)
+                    _safe_mark_provider_ok(provider)
                     yield _sse({
                         "type": "done",
                         "mood": mood or "neutre",
@@ -2291,7 +2365,7 @@ async def chat_stream(
                         code = _llm_http_status(e)
                         if code in (401, 402, 403):
                             _block_provider_models(blocked, provider, candidates)
-                        mark_provider_failed(provider, str(e)[:200])
+                        _safe_mark_provider_failed(provider, str(e)[:200])
                         remaining = [
                             c for c in candidates[cand_idx + 1:]
                             if (c[0], c[1]) not in blocked
@@ -2385,6 +2459,7 @@ async def serve_agent_script():
 
 AGENT_BINARIES = {
     "windows": ("emo-agent-windows-amd64.exe", "application/octet-stream"),
+    "windows-arm": ("emo-agent-windows-arm64.exe", "application/octet-stream"),
     "macos": ("emo-agent-macos-amd64", "application/octet-stream"),
     "macos-arm": ("emo-agent-macos-arm64", "application/octet-stream"),
     "linux": ("emo-agent-linux-amd64", "application/octet-stream"),
@@ -2394,6 +2469,7 @@ AGENT_BINARIES = {
 
 AGENT_DOWNLOAD_NAMES = {
     "windows": "Emo-Agent.exe",
+    "windows-arm": "Emo-Agent.exe",
     "macos": "Emo-Agent",
     "macos-arm": "Emo-Agent",
     "linux": "Emo-Agent",
@@ -2403,31 +2479,131 @@ AGENT_DOWNLOAD_NAMES = {
 AGENT_CONFIG_MAGIC = b"\nEMOAGENTCFG\n"
 
 
+def _agent_native_bundle(os_name: str, token: str, backend_url: str, bin_path: Path) -> bytes:
+    """Zip avec binaire Go intact (sans append — Windows refuse les PE modifiés)."""
+    download_name = AGENT_DOWNLOAD_NAMES.get(os_name, "Emo-Agent")
+    exe_bytes = bin_path.read_bytes()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(download_name, exe_bytes)
+        zf.writestr("token.txt", token)
+        zf.writestr("backend.txt", backend_url + "\n")
+        zf.writestr(
+            "README.txt",
+            "Emo Agent\n\n1. Extraire ce dossier\n2. Double-clic sur start.bat (Windows) ou start.sh\n"
+            "3. Autoriser les permissions dans la fenêtre http://127.0.0.1:17841\n\n"
+            f"Backend: {backend_url}\n",
+        )
+        icon_path = ROOT_DIR.parent / "agent-go" / "icon.ico"
+        if icon_path.exists():
+            zf.writestr("icon.ico", icon_path.read_bytes())
+        if os_name in ("windows", "windows-arm"):
+            zf.writestr(
+                "start.bat",
+                "@echo off\r\n"
+                "cd /d \"%~dp0\"\r\n"
+                "powershell -NoProfile -Command \"Unblock-File -LiteralPath '%~dp0"
+                + download_name
+                + "' -ErrorAction SilentlyContinue\"\r\n"
+                f"start \"\" \"{download_name}\"\r\n"
+                "echo Emo Agent demarre — ouvre http://127.0.0.1:17841\r\n"
+                "timeout /t 5 >nul\r\n",
+            )
+        elif os_name.startswith("macos"):
+            zf.writestr(
+                "start.command",
+                "#!/bin/bash\n"
+                "cd \"$(dirname \"$0\")\"\n"
+                f"chmod +x \"{download_name}\"\n"
+                f"./\"{download_name}\"\n",
+            )
+        else:
+            zf.writestr(
+                "start.sh",
+                "#!/bin/bash\n"
+                "cd \"$(dirname \"$0\")\"\n"
+                f"chmod +x \"{download_name}\"\n"
+                f"./\"{download_name}\"\n",
+            )
+    return buf.getvalue()
+
+
+def _agent_python_bundle(os_name: str, token: str, backend_url: str) -> bytes:
+    """Fallback zip (Python agent) si binaire Go absent."""
+    script_path = ROOT_DIR.parent / "agent" / "emo-agent.py"
+    if not script_path.exists():
+        raise HTTPException(status_code=404, detail="Agent indisponible")
+    script = script_path.read_text(encoding="utf-8")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("emo-agent.py", script)
+        zf.writestr(
+            "README.txt",
+            f"Emo Agent (Python)\n\n1. pip install httpx\n2. python emo-agent.py --token {token}\n\nBackend: {backend_url}\n",
+        )
+        if os_name == "windows":
+            zf.writestr(
+                "start.bat",
+                "@echo off\r\n"
+                "cd /d \"%~dp0\"\r\n"
+                "powershell -NoProfile -Command \"Unblock-File -LiteralPath '%~dp0emo-agent.py' -ErrorAction SilentlyContinue\"\r\n"
+                "python --version >nul 2>&1 || py --version >nul 2>&1 || (echo Installe Python 3.11+ & pause & exit /b 1)\r\n"
+                f"python emo-agent.py --token {token} 2>nul || py emo-agent.py --token {token}\r\n"
+                "pause\r\n",
+            )
+        else:
+            zf.writestr(
+                "start.sh",
+                "#!/bin/bash\n"
+                f"export EMO_AGENT_TOKEN='{token}'\n"
+                f"export EMO_BACKEND_URL='{backend_url}'\n"
+                "python3 emo-agent.py\n",
+            )
+    return buf.getvalue()
+
+
 @api.get("/agent/binary/{os_name}", include_in_schema=False)
-async def serve_agent_binary(os_name: str, token: str = Query(...)):
-    """Single executable per OS with embedded token + backend (permission UI inside)."""
+async def serve_agent_binary(os_name: str, user: User = Depends(get_current_user)):
+    """Binaire agent propre (login intégré dans l'app — pas de token embarqué)."""
     if os_name not in AGENT_BINARIES:
         raise HTTPException(status_code=404, detail="OS non supporté")
-    user_id = await _resolve_agent_user(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Token invalide")
 
-    bin_name, _ = AGENT_BINARIES[os_name]
+    bin_name, mime = AGENT_BINARIES[os_name]
     bin_path = ROOT_DIR / "agent_binaries" / bin_name
-    if not bin_path.exists():
-        raise HTTPException(status_code=404, detail="Binaire introuvable — rebuild CI requis")
-
-    import json as _json
-
     backend_url = EMO_PUBLIC_BACKEND_URL
-    payload = _json.dumps({"token": token, "backend": backend_url}, separators=(",", ":")).encode("utf-8")
-    data = bin_path.read_bytes() + AGENT_CONFIG_MAGIC + payload
+
+    if not bin_path.exists():
+        logger.warning("Agent binary missing: %s — fallback zip Python", bin_name)
+        doc = await db.agent_tokens.find_one({"user_id": user.user_id}, {"_id": 0})
+        token = (doc or {}).get("agent_token") or ""
+        if not token:
+            token = f"agent_{uuid.uuid4().hex}"
+            await db.agent_tokens.insert_one({
+                "agent_token": token,
+                "user_id": user.user_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+        data = _agent_python_bundle(os_name, token, backend_url)
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="Emo-Agent.zip"'},
+        )
 
     filename = AGENT_DOWNLOAD_NAMES.get(os_name, "Emo-Agent")
+    exe_bytes = bin_path.read_bytes()
+    # PE modifié (append token) = refusé par Windows — jamais modifier le binaire
+    if len(exe_bytes) >= 2 and exe_bytes[:2] != b"MZ":
+        logger.error("Invalid agent binary (not PE): %s", bin_name)
+        raise HTTPException(status_code=503, detail="Binaire agent corrompu — rebuild en cours")
+
     return Response(
-        content=data,
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        content=exe_bytes,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
     )
 
 
@@ -2496,7 +2672,12 @@ async def agent_selftest(user: User = Depends(get_current_user)):
 
 @api.get("/ping")
 async def ping():
-    return {"ok": True, "google": google_auth.is_configured(), "service": "emo-online"}
+    return {
+        "ok": True,
+        "google": google_auth.is_configured(),
+        "service": "emo-online",
+        "build": "2026-06-20b",
+    }
 
 
 @api.get("/health")

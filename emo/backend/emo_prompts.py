@@ -98,6 +98,12 @@ Mode **Chat** (sans tools) : réponse directe uniquement, pas d'appels d'outils.
 - **find_files(pattern, path=".", max_results=200)** : trouver des fichiers par glob ou nom (*.java, pom.xml, etc.).
 - **delete_path(path)** : supprimer fichier ou dossier.
 - **move_path(from, to)** : déplacer/renommer fichier ou dossier.
+- **print_file(path, printer?, copies=1)** : imprimer un fichier local (PDF, Word, TXT, images…) sur l'imprimante par défaut ou celle indiquée. Agent local requis + Spouleur Windows actif.
+
+## IMPRESSION & RÉSUMÉS (workflows)
+- Imprimer un fichier existant : `print_file(path="C:\\Users\\...\\doc.pdf")`
+- Chercher → résumer → enregistrer → imprimer : `web_search` → `write_file` (résumé sur Bureau ou Downloads) → `print_file`
+- Tu peux enregistrer un résumé sur le PC de Hugo puis l'imprimer dans la même session sans demander confirmation.
 
 ## Équivalents Cursor / Claude (mêmes outils, noms alternatifs)
 | Cursor / Claude | Émo |
@@ -111,6 +117,7 @@ Mode **Chat** (sans tools) : réponse directe uniquement, pas d'appels d'outils.
 | grep_search | grep |
 | file_search | find_files |
 | codebase_search | codebase_search (grep intelligent) |
+| print / imprimer | print_file |
 | web_search | web_search |
 | web_fetch | web_fetch |
 
@@ -551,6 +558,22 @@ EMO_TOOLS = [
                     "patch": {"type": "string", "description": "Contenu unified diff."},
                 },
                 "required": ["path", "patch"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "print_file",
+            "description": "Imprime un fichier local (PDF, DOCX, TXT, images…) sur l'imprimante par défaut ou celle choisie. Nécessite l'agent local et le Spouleur d'impression Windows actif.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Chemin absolu du fichier à imprimer."},
+                    "printer": {"type": "string", "description": "Nom exact de l'imprimante (optionnel, défaut = imprimante par défaut)."},
+                    "copies": {"type": "integer", "description": "Nombre de copies (défaut 1)."},
+                },
+                "required": ["path"],
             },
         },
     },

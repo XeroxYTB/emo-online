@@ -1,5 +1,4 @@
-# Hugging Face Spaces — API légère (gratuit, sans carte)
-# Pas de build Go agent ni Playwright (trop lourd pour le tier free HF)
+# Hugging Face — API légère (agent = zip Python si pas d'exe compilé)
 FROM python:3.11-slim
 WORKDIR /emo
 
@@ -14,6 +13,8 @@ COPY emo/backend/requirements.render.txt ./backend/requirements.render.txt
 RUN pip install --no-cache-dir -r backend/requirements.render.txt
 
 COPY emo/backend ./backend
+COPY emo/agent ./agent
+RUN mkdir -p ./backend/agent_binaries
 
 WORKDIR /emo/backend
 ENV EMO_SERVE_FRONTEND=false

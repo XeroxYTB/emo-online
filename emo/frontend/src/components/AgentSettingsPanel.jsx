@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { http, API, getSessionToken } from "../lib/api";
+import { http, getApiBase, getSessionToken } from "../lib/api";
 import { Copy, Check, RefreshCw, Download, ShieldAlert, Apple, Box, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
 const detectOS = () => {
   if (typeof navigator === "undefined") return "windows";
   const ua = navigator.userAgent || "";
-  if (/Win/i.test(ua)) return "windows";
+  if (/Win/i.test(ua)) {
+    const plat = navigator.userAgentData?.platform || navigator.platform || "";
+    if (/arm|aarch/i.test(plat)) return "windows-arm";
+    return "windows";
+  }
   if (/Mac/i.test(ua)) {
     const plat = navigator.userAgentData?.platform || navigator.platform || "";
     return /arm|aarch/i.test(plat) ? "macos-arm" : "macos";
@@ -19,11 +23,12 @@ const detectOS = () => {
 };
 
 const OS_OPTIONS = [
-  { id: "windows", label: "Windows", filename: "Emo-Agent.exe", icon: Box },
-  { id: "macos", label: "macOS Intel", filename: "Emo-Agent", icon: Apple },
-  { id: "macos-arm", label: "macOS Apple Silicon", filename: "Emo-Agent", icon: Apple },
-  { id: "linux", label: "Linux x64", filename: "Emo-Agent", icon: Cpu },
-  { id: "linux-arm", label: "Linux ARM64", filename: "Emo-Agent", icon: Cpu },
+  { id: "windows", label: "Windows x64", filename: "Emo-Agent.exe", icon: Box },
+  { id: "windows-arm", label: "Windows ARM", filename: "Emo-Agent.exe", icon: Box },
+  { id: "macos", label: "macOS Intel", filename: "Emo-Agent.zip", icon: Apple },
+  { id: "macos-arm", label: "macOS Apple Silicon", filename: "Emo-Agent.zip", icon: Apple },
+  { id: "linux", label: "Linux x64", filename: "Emo-Agent.zip", icon: Cpu },
+  { id: "linux-arm", label: "Linux ARM64", filename: "Emo-Agent.zip", icon: Cpu },
 ];
 
 const DOWNLOAD_NAMES = Object.fromEntries(OS_OPTIONS.map((o) => [o.id, o.filename]));
@@ -56,13 +61,9 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
   };
 
   const downloadAgent = async () => {
-    if (!token) {
-      toast.error("Token indisponible");
-      return;
-    }
     setDownloading(true);
     try {
-      const url = `${API}/agent/binary/${os}?token=${encodeURIComponent(token)}`;
+      const url = `${getApiBase()}/agent/binary/${os}`;
       const headers = {};
       const session = getSessionToken();
       if (session) {
@@ -79,7 +80,9 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
         throw new Error(typeof detail === "string" ? detail : "Téléchargement impossible");
       }
       const blob = await resp.blob();
-      const filename = DOWNLOAD_NAMES[os] || "Emo-Agent";
+      const isZip = resp.headers.get("content-type")?.includes("zip")
+        || resp.headers.get("content-disposition")?.includes(".zip");
+      const filename = isZip ? "Emo-Agent.zip" : (DOWNLOAD_NAMES[os] || "Emo-Agent.exe");
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = filename;
@@ -87,7 +90,11 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       a.click();
       a.remove();
       URL.revokeObjectURL(a.href);
-      toast.success(`${filename} téléchargé`);
+      toast.success(
+        isZip
+          ? "Emo-Agent.zip téléchargé"
+          : "Emo-Agent.exe — double-clic, connecte-toi avec ton compte Émo"
+      );
     } catch (e) {
       toast.error(e.message || "Téléchargement impossible");
     } finally {
@@ -95,6 +102,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
     }
   };
 
+  const isWindows = os.startsWith("windows");
   const isUnix = os.startsWith("macos") || os.startsWith("linux");
 
   return (
@@ -118,6 +126,11 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           <RefreshCw size={13} />
         </button>
       </div>
+
+      <p className="text-[11px] text-secondary-em leading-relaxed">
+        Installe l&apos;agent sur ton PC une fois. Ensuite pilote-le depuis{" "}
+        <strong>xeroxytb.com</strong> sur n&apos;importe quel appareil (téléphone, tablette…).
+      </p>
 
       <div>
         <label className="text-xs uppercase tracking-[0.18em] text-muted-em mb-2 block">Plateforme</label>
@@ -148,7 +161,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       <button
         data-testid="download-agent-btn"
         onClick={downloadAgent}
-        disabled={!token || downloading}
+        disabled={downloading}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-medium text-sm transition-all hover:scale-[1.01] disabled:opacity-50"
         style={{
           background: "var(--mode-color)",
@@ -160,17 +173,25 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       </button>
 
       <div className="text-[11px] text-secondary-em leading-relaxed space-y-2">
-        {os === "windows" ? (
-          <p>Windows : exécutez <code className="font-code">Emo-Agent.exe</code></p>
+        {isWindows ? (
+          <>
+            <p>
+              Un seul fichier <code className="font-code">Emo-Agent.exe</code> — double-clic, connexion avec ton
+              compte Émo.
+            </p>
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-100/90">
+              Windows bloque parfois l&apos;exe (SmartScreen) : clic droit → <strong>Propriétés</strong> → cocher{" "}
+              <strong>Débloquer</strong>, ou au lancement <strong>Informations complémentaires</strong> →{" "}
+              <strong>Exécuter quand même</strong>.
+            </p>
+          </>
         ) : isUnix ? (
-          <p>
-            <code className="font-code">chmod +x Emo-Agent && ./Emo-Agent</code>
-          </p>
+          <p>Archive zip avec l&apos;agent et l&apos;interface locale.</p>
         ) : null}
       </div>
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-muted-em hover:text-white">Token</summary>
+        <summary className="cursor-pointer text-muted-em hover:text-white">Token (avancé)</summary>
         <div className="mt-3 space-y-3">
           <div className="flex items-center gap-2">
             <code
