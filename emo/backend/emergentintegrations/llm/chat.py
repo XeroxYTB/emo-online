@@ -273,7 +273,7 @@ class LlmChat:
             "max_tokens": max_tokens,
             "stream": True,
         }
-        if self._openai_tools:
+        if self._openai_tools and self._provider != "huggingface":
             body["tools"] = self._openai_tools
             if self._provider == "groq":
                 body["tool_choice"] = "auto"

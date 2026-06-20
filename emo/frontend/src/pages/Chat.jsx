@@ -7,7 +7,7 @@ import Sidebar from "../components/Sidebar";
 import ChatComposer from "../components/ChatComposer";
 import ChatMessage from "../components/ChatMessage";
 import EmoEyes from "../components/EmoEyes";
-import { AppTopBar } from "../components/EmoLogo";
+import { AppTopBar, EmoLogo } from "../components/EmoLogo";
 import RightPanel from "../components/RightPanel";
 import AgentSettingsPanel from "../components/AgentSettingsPanel";
 import Paywall from "../components/SubscriptionPlans";
@@ -16,11 +16,7 @@ import ProfileDrawer from "../components/ProfileDrawer";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
 import { cleanDisplayText } from "../lib/messageClean";
 
-const MODE_TAGLINES = {
-  tech: "Code, debug et architecture — précision chirurgicale.",
-  creatif: "Idées sans filtre, brainstorming audacieux.",
-  brutal: "Vérité directe, zéro langue de bois.",
-};
+const MODE_LABELS = { tech: "Tech", creatif: "Créatif", brutal: "Brutal" };
 
 function cleanStreamText(text) {
   return cleanDisplayText(text);
@@ -64,7 +60,7 @@ export default function Chat() {
   const [useAgentTools, setUseAgentTools] = useState(
     typeof window !== "undefined" ? localStorage.getItem("emo_use_agent_tools") !== "0" : true
   );
-  const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto (meilleur modèle disponible)" }]);
+  const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto" }]);
   const chatAreaRef = useRef(null);
   const stickyBottomRef = useRef(true);
   const streamAbortRef = useRef(null);
@@ -189,7 +185,7 @@ export default function Chat() {
     try {
       const r = await http.get(`/license/checkout/status/${sessionId}`);
       if (r.data.payment_status === "paid") {
-        toast.success("Paiement confirmé — bienvenue dans Émo Online.");
+        toast.success("Paiement confirmé.");
         const lr = await http.get("/license/status");
         setLicense(lr.data);
         return;
@@ -330,7 +326,7 @@ export default function Chat() {
     streamAbortRef.current = abortController;
     const streamTimeout = setTimeout(() => {
       abortController.abort();
-      toast.error("Délai dépassé (3 min). Réessaie — le serveur était peut-être en veille.");
+      toast.error("Délai dépassé.");
     }, 180000);
 
     try {
@@ -426,10 +422,8 @@ export default function Chat() {
             }
           } else if (evt.type === "ping") {
             // keepalive SSE — connexion toujours active
-          } else if (evt.type === "info") {
-            toast.info(evt.content || "Changement de modèle…");
           } else if (evt.type === "error") {
-            toast.error(evt.content || "Une erreur est survenue.");
+            toast.error(evt.content || "Erreur.");
             setStreamingMsg(null);
             setStreamingTools([]);
           } else if (evt.type === "cancelled") {
@@ -440,7 +434,7 @@ export default function Chat() {
       });
     } catch (e) {
       if (e?.name !== "AbortError") {
-        toast.error(e?.message || "Connexion interrompue. Réessaie.");
+        toast.error(e?.message || "Connexion interrompue.");
       }
       setStreamingMsg(null);
       setStreamingTools([]);
@@ -503,7 +497,7 @@ export default function Chat() {
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-heading text-sm font-medium leading-none">{MODE_TAGLINES[mode]?.split("—")[0]?.trim() || "Chat"}</p>
+                <p className="font-heading text-sm font-medium leading-none">{MODE_LABELS[mode] || "Chat"}</p>
                 <button
                   type="button"
                   data-testid="agent-status-pill"
@@ -513,19 +507,19 @@ export default function Chat() {
                     background: agentOnline ? "rgba(52,211,153,0.15)" : "rgba(127,127,127,0.12)",
                     color: agentOnline ? "#34d399" : "var(--emo-text-muted)",
                   }}
-                  title="Agent local — télécharger et configurer"
+                  title="Agent local"
                 >
                   <span
                     className={`w-1 h-1 rounded-full ${agentOnline ? "bg-emerald-400" : "bg-zinc-500"}`}
                   />
-                  <span className="hidden sm:inline">{agentOnline ? "Agent connecté" : "Agent hors ligne"}</span>
+                  <span className="hidden sm:inline">{agentOnline ? "Connecté" : "Hors ligne"}</span>
                   <span className="sm:hidden">{agentOnline ? "On" : "Off"}</span>
                 </button>
               </div>
-              <p className="hidden sm:block text-xs text-muted-em mt-0.5 truncate">{MODE_TAGLINES[mode]}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+            <EmoLogo size="sm" showText={false} className="hidden sm:inline-flex opacity-95" />
             {license && !license.active && (
               <button
                 data-testid="trial-expired-pill"
@@ -533,7 +527,7 @@ export default function Chat() {
                 className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
                 style={{ background: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}
               >
-                <Clock size={10} /> Essai terminé
+                <Clock size={10} /> Expiré
               </button>
             )}
             {license && license.active && license.tier === "free" && !license.is_admin && (
@@ -561,7 +555,7 @@ export default function Chat() {
                 data-testid="admin-pill"
                 className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
                 style={{ background: "rgba(245,158,11,0.1)", color: "#fbbf24" }}
-                title="Accès illimité"
+                title="Admin"
               >
                 Admin
               </span>
@@ -610,16 +604,8 @@ export default function Chat() {
             className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin chat-scroll-area"
           >
             {!hasMessages && (
-              <div className="h-full min-h-[280px] flex flex-col items-center justify-center px-6 text-center">
+              <div className="h-full min-h-[280px] flex flex-col items-center justify-center px-6">
                 <EmoEyes mode={mode} mood={null} size={130} />
-                <h2 className="font-heading text-3xl md:text-4xl mt-6 font-medium tracking-tight">
-                  Salut {(user?.name?.split(" ")[0] || "toi").replace(/^./, (c) => c.toUpperCase())}.
-                </h2>
-                <p className="text-secondary-em mt-3 max-w-md leading-relaxed">
-                  {agentOnline
-                    ? "Ton agent est connecté — je peux coder et explorer ton PC."
-                    : "Connecte l'agent local pour que je travaille directement sur ta machine."}
-                </p>
               </div>
             )}
 
@@ -656,7 +642,7 @@ export default function Chat() {
               aria-label="Revenir en bas"
             >
               <ArrowDown size={14} />
-              {streaming ? "Nouveaux messages" : "Descendre"}
+              {streaming ? "En cours" : "Bas"}
             </button>
           )}
         </div>
@@ -682,7 +668,6 @@ export default function Chat() {
               onCancel={handleCancel}
               disabled={false}
               streaming={streaming}
-              showSuggestions={!hasMessages}
             />
           </div>
         </div>

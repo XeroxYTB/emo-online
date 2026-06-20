@@ -101,7 +101,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
     return (
       <div className="p-6 text-center text-sm text-secondary-em">
         <p className="mb-2">Agent local hors ligne.</p>
-        <p className="text-xs text-muted-em">Lance <code className="font-code text-purple-300">Emo-Agent.exe</code> sur ton PC pour explorer tes fichiers ici.</p>
+        <p className="text-xs text-muted-em">Agent local requis.</p>
         {externalPreview?.path && (
           <div className="mt-6">
             <SquarePreviewFrame

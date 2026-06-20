@@ -2,34 +2,16 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle } from "lucide-react";
 
 const MODES = [
-  { id: "tech", label: "Tech", Icon: Code, hint: "Code, debug, systèmes" },
-  { id: "creatif", label: "Créatif", Icon: Lightbulb, hint: "Brainstorming et idées" },
-  { id: "brutal", label: "Brutal", Icon: Flame, hint: "Feedback sans filtre" },
+  { id: "tech", label: "Tech", Icon: Code },
+  { id: "creatif", label: "Créatif", Icon: Lightbulb },
+  { id: "brutal", label: "Brutal", Icon: Flame },
 ];
-
-const QUICK_SUGGESTIONS = {
-  tech: [
-    "Crée un mini-projet de A à Z",
-    "Trouve la doc officielle et résume",
-    "Propose une architecture pour ma feature",
-  ],
-  creatif: [
-    "10 idées de projets perso",
-    "Trouve un nom pour mon projet",
-    "Concepts visuels originaux",
-  ],
-  brutal: [
-    "Mon idée tient-elle la route ?",
-    "Pourquoi je procrastine ?",
-    "Critique honnête de mon dernier choix",
-  ],
-};
 
 export const ChatComposer = ({
   mode, onChangeMode,
   modelPreference, onChangeModelPreference, availableModels,
   useAgentTools, onChangeUseAgentTools,
-  onSend, onCancel, disabled, streaming, showSuggestions,
+  onSend, onCancel, disabled, streaming,
 }) => {
   const [value, setValue] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -40,7 +22,7 @@ export const ChatComposer = ({
 
   const models = availableModels?.length
     ? availableModels
-    : [{ id: "auto", label: "Auto (meilleur modèle disponible)" }];
+    : [{ id: "auto", label: "Auto" }];
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -75,22 +57,6 @@ export const ChatComposer = ({
 
   return (
     <div className={`mode-${mode} w-full`}>
-      {showSuggestions && (
-        <div data-testid="quick-suggestions" className="flex flex-wrap gap-2 mb-3 justify-center">
-          {(QUICK_SUGGESTIONS[mode] || QUICK_SUGGESTIONS.tech).map((s) => (
-            <button
-              key={s}
-              data-testid={`suggestion-${s.slice(0, 20)}`}
-              onClick={() => onSend(s)}
-              disabled={disabled}
-              className="text-xs px-3 py-1.5 rounded-lg border text-secondary-em hover:text-white hover:border-white/20 transition-colors"
-              style={{ borderColor: "var(--emo-border)", background: "var(--emo-surface)" }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
       <div
         data-testid="chat-composer"
         className="rounded-xl p-2 flex flex-col gap-1 transition-colors"
@@ -111,7 +77,7 @@ export const ChatComposer = ({
             }
           }}
           rows={1}
-          placeholder={streaming ? "Émo répond… (Échap ou Arrêter pour interrompre)" : "Écris ton message…"}
+          placeholder={streaming ? "Réponse en cours…" : "Message"}
           disabled={disabled && !streaming}
           className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none py-3 px-3 text-base placeholder:text-muted-em disabled:opacity-60"
           style={{ maxHeight: 180, color: "var(--emo-text)" }}
@@ -129,7 +95,7 @@ export const ChatComposer = ({
                 borderColor: "var(--emo-border)",
                 color: "var(--emo-text-secondary)",
               }}
-              title={currentMode.hint}
+              title={currentMode.label}
             >
               <CurrentIcon size={12} />
               <span className="hidden sm:inline">{currentMode.label}</span>
@@ -138,7 +104,7 @@ export const ChatComposer = ({
             {pickerOpen && (
               <div
                 data-testid="mode-picker-menu"
-                className="absolute bottom-full left-0 mb-2 w-56 rounded-lg py-1 z-30 border"
+                className="absolute bottom-full left-0 mb-2 w-44 rounded-lg py-1 z-30 border"
                 style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
               >
                 {MODES.map((m) => {
@@ -152,13 +118,10 @@ export const ChatComposer = ({
                         onChangeMode?.(m.id);
                         setPickerOpen(false);
                       }}
-                      className={`w-full flex items-start gap-2.5 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
                     >
-                      <Icon size={13} className="mt-0.5 flex-shrink-0" style={{ color: active ? "var(--mode-color)" : "var(--emo-text-secondary)" }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>{m.label}</p>
-                        <p className="text-[10px] mt-0.5 text-muted-em">{m.hint}</p>
-                      </div>
+                      <Icon size={13} className="flex-shrink-0" style={{ color: active ? "var(--mode-color)" : "var(--emo-text-secondary)" }} />
+                      <span className="text-sm font-medium" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>{m.label}</span>
                     </button>
                   );
                 })}
@@ -176,7 +139,7 @@ export const ChatComposer = ({
                 borderColor: "var(--emo-border)",
                 color: "var(--emo-text-secondary)",
               }}
-              title={currentModel.label || "Modèle IA"}
+              title={currentModel.label || "Modèle"}
             >
               <Cpu size={12} />
               <span className="hidden sm:inline max-w-[120px] truncate">{modelShort}</span>
@@ -198,17 +161,12 @@ export const ChatComposer = ({
                         onChangeModelPreference?.(m.id);
                         setModelPickerOpen(false);
                       }}
-                      className={`w-full flex items-start gap-2 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition ${active ? "bg-white/5" : "hover:bg-white/[0.04]"}`}
                     >
-                      <Cpu size={13} className="mt-0.5 flex-shrink-0" style={{ color: active ? "#93c5fd" : "var(--emo-text-secondary)" }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>
-                          {m.label || m.id}
-                        </p>
-                        {m.id === "auto" && (
-                          <p className="text-[10px] mt-0.5 text-muted-em">Choisit le meilleur modèle, bascule si besoin</p>
-                        )}
-                      </div>
+                      <Cpu size={13} className="flex-shrink-0" style={{ color: active ? "#93c5fd" : "var(--emo-text-secondary)" }} />
+                      <span className="text-sm font-medium truncate" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>
+                        {m.label || m.id}
+                      </span>
                     </button>
                   );
                 })}
@@ -225,7 +183,7 @@ export const ChatComposer = ({
               borderColor: useAgentTools ? "var(--emo-accent)" : "var(--emo-border)",
               color: useAgentTools ? "var(--emo-text)" : "var(--emo-text-muted)",
             }}
-            title={useAgentTools ? "Mode Agent — tools actifs (Cursor/Claude)" : "Mode Chat — réponse directe sans tools"}
+            title={useAgentTools ? "Mode agent" : "Mode chat"}
           >
             {useAgentTools ? <Bot size={12} /> : <MessageCircle size={12} />}
             <span className="hidden sm:inline">{useAgentTools ? "Agent" : "Chat"}</span>
@@ -242,7 +200,7 @@ export const ChatComposer = ({
                 borderColor: "var(--emo-border)",
                 color: "var(--emo-text-secondary)",
               }}
-              title="Arrêter la réponse"
+              title="Arrêter"
             >
               <Square size={14} fill="currentColor" />
               <span className="hidden sm:inline">Arrêter</span>
@@ -263,9 +221,6 @@ export const ChatComposer = ({
           )}
         </div>
       </div>
-      <p className="hidden sm:block text-[11px] text-muted-em text-center mt-2">
-        Entrée pour envoyer · Maj+Entrée pour un saut de ligne
-      </p>
     </div>
   );
 };

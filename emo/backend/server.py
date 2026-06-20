@@ -69,7 +69,8 @@ from llm_config import (
 )
 import google_auth
 from llm_health import refresh_probe_cache
-from llm_providers import providers_status, configured_providers
+from hf_models import refresh_hf_catalog
+from llm_providers import providers_status, configured_providers, api_key_available
 from tool_router import select_tools_for_message
 from product_keys import (
     ensure_product_keys_seeded,
@@ -180,6 +181,8 @@ async def _settings_startup():
     )
     if os.environ.get("EMO_SKIP_STARTUP_PROBE", "").lower() not in ("1", "true", "yes"):
         asyncio.create_task(refresh_probe_cache())
+    if api_key_available("huggingface"):
+        asyncio.create_task(refresh_hf_catalog())
 
 logger = logging.getLogger("emo")
 logging.basicConfig(level=logging.INFO)
@@ -519,7 +522,7 @@ async def google_exchange(response: Response, token: str = Query(...)):
 async def google_session_legacy():
     raise HTTPException(
         status_code=410,
-        detail="Ancien flux Emergent désactivé. Utilise le bouton Continuer avec Google sur /login.",
+        detail="Utilisez la connexion Google.",
     )
 
 
@@ -577,34 +580,32 @@ def _friendly_llm_error(exc: Exception) -> str:
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
         if code == 429:
-            return "Quota API atteint (trop de requetes). Reessaie dans 1-2 min — Emo bascule sur une autre IA si disponible."
+            return "Quota API atteint. Réessayez dans quelques minutes."
         if code == 401:
-            return "Cle API invalide pour ce provider. Verifie backend/.env"
+            return "Clé API invalide."
         if code == 402:
-            return "Credits API epuises sur ce provider. Recharge ton compte ou change de cle."
+            return "Crédits API épuisés."
         if code == 413:
-            return "Requete trop volumineuse pour ce modele. Emo reessaie avec un modele plus leger."
+            return "Requête trop volumineuse."
         if code == 404:
-            return "Modele IA indisponible. Emo bascule sur un autre modele."
+            return "Modèle indisponible."
         if code == 400:
             lower = _http_response_snippet(exc.response, 500).lower()
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
-                return "Credits Anthropic epuises. Emo bascule sur ChatGPT ou Gemini."
+                return "Crédits API épuisés."
         snippet = _http_response_snippet(exc.response)
-        return _sanitize_error_msg(f"Erreur API ({code}): {snippet}" if snippet else f"Erreur API ({code})")
+        return _sanitize_error_msg(f"Erreur API ({code})" if not snippet else f"Erreur API ({code})")
     msg = _sanitize_error_msg(str(exc))
     lower = msg.lower()
     if "attempted to access streaming response content" in lower:
-        return "Erreur temporaire de l'API IA. Reessaie — Emo bascule sur un autre modele si besoin."
+        return "Erreur temporaire du service IA."
     if code == 400 and any(k in lower for k in ("credit balance", "too low", "insufficient", "billing")):
-        return "Credits Anthropic epuises. Emo bascule sur ChatGPT ou Gemini."
+        return "Crédits API épuisés."
     if "429" in msg or "rate limit" in lower or "quota" in lower or "too many requests" in lower:
-        return "Quota API atteint. Emo essaie ChatGPT ou Gemini automatiquement — reessaie dans 1-2 min."
+        return "Quota API atteint."
     if "credit balance" in lower or "too low" in lower:
-        return "Credits Anthropic epuises. Emo bascule sur ChatGPT ou Gemini."
-    if "generativelanguage.googleapis.com" in lower:
-        return "Quota Gemini atteint. Emo bascule sur ChatGPT."
-    return msg or "Erreur IA inconnue"
+        return "Crédits API épuisés."
+    return msg or "Erreur IA"
 
 
 def _retryable_llm_error(exc: Exception) -> bool:
@@ -628,6 +629,7 @@ def _retryable_llm_error(exc: Exception) -> bool:
         or "too many requests" in msg or "credit balance" in msg
         or "too low" in msg or "insufficient" in msg
         or "not found" in msg or "is not supported" in msg
+        or "tool" in msg or "function" in msg
         or "tpm" in msg or "tokens per minute" in msg
         or "model unavailable" in msg or "overloaded" in msg
     )
@@ -782,7 +784,7 @@ async def assert_license_active(user_id: str, email: str = None):
     if not info["active"]:
         tier = info.get("tier", "free")
         if info.get("status") == "expired":
-            msg = "Ton abonnement est expiré. Renouvelle depuis ton profil."
+            msg = "Abonnement expiré."
         else:
             daily_max = info.get("messages_per_day") or 15
             msg = f"Quota du jour atteint ({daily_max} msg). Passe Basique (IA gratuites illimitées), Premium (50 €/mois) ou Ultra (80 €/mois)."
@@ -962,7 +964,7 @@ async def claim_payment(user: User = Depends(get_current_user)):
         {"_id": 0},
     )
     if not txn:
-        return {"paid": False, "message": "Aucun paiement validé pour l'instant. Le webhook Stripe peut prendre 1-2 minutes. Réessaie."}
+        return {"paid": False, "message": "Paiement en attente."}
     tier = txn.get("tier") or "basic"
     now = datetime.now(timezone.utc)
     await db.licenses.update_one(
@@ -1759,7 +1761,7 @@ async def execute_tool(
     if not agent_registry.is_online(user_id):
         return {
             "ok": False,
-            "error": "Agent local hors ligne — lance Emo-Agent.exe sur ton PC.",
+            "error": "Agent local hors ligne.",
             "hint": "Utilise web_search puis browser_open (clics) ou browser_visit (lecture simple).",
         }
     timeout = 90
@@ -1923,10 +1925,12 @@ def _compact_llm_payload(
     user_message: str = "",
     tools_enabled: bool = True,
 ) -> tuple[str, list[dict], list[dict]]:
-    """Groq/Gemini/HF : prompt compact + outils sélectionnés par intent (style Cursor)."""
+    """Groq/Gemini : prompt compact + outils. HF : pas d'outils (router incompatible)."""
     if not tools_enabled:
         return system_msg, initial_messages, []
-    if provider not in ("groq", "gemini", "huggingface"):
+    if provider == "huggingface":
+        return system_msg, initial_messages, []
+    if provider not in ("groq", "gemini"):
         return system_msg, initial_messages, tools
     compact_sys = build_compact_system_prompt(mode, user_name=user_name, agent_online=agent_online)
     non_system = [m for m in initial_messages if m.get("role") != "system"]
@@ -2226,7 +2230,6 @@ async def chat_stream(
                         if remaining:
                             next_label = remaining[0][2]
                             logger.info("Fallback LLM %s/%s -> %s", provider, model, next_label)
-                            yield _sse({"type": "info", "content": f"{model_label} indisponible — bascule sur {next_label}..."})
                             yield _sse({"type": "ping"})
                             await asyncio.sleep(0.8)
                             continue
@@ -2239,12 +2242,12 @@ async def chat_stream(
             if last_error:
                 yield _sse({
                     "type": "error",
-                    "content": f"Tous les modèles ont échoué — {_friendly_llm_error(last_error)}",
+                    "content": _friendly_llm_error(last_error),
                 })
                 return
             yield _sse({
                 "type": "error",
-                "content": "Aucune réponse générée. Réessaie dans quelques secondes (API peut être en veille).",
+                "content": "Aucune réponse générée.",
             })
         except Exception as e:
             logger.exception("event_gen fatal")

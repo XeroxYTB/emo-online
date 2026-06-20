@@ -9,15 +9,12 @@ from pathlib import Path
 
 load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
 
+from hf_models import hf_free_models_flat, hf_models_for_tier
 from llm_providers import api_key_available
 
 # Modèles cloud reconnus (ChatGPT, Claude, DeepSeek, Gemini…)
-# Priorite fallback : Groq gratuit d'abord, puis OpenAI/Gemini, Claude en dernier
-# Fallback gratuit : Groq → HF Inference → OpenRouter free → APIs payantes
-HF_FREE_MODELS = [
-    {"provider": "huggingface", "model": "meta-llama/Llama-3.3-70B-Instruct", "label": "Llama 3.3 70B (HF — gratuit)"},
-    {"provider": "huggingface", "model": "moonshotai/Kimi-K2-Instruct-0905", "label": "Kimi K2 (HF — gratuit)"},
-]
+# Priorite fallback : HF gratuit → Groq → OpenRouter free → APIs payantes
+HF_FREE_MODELS = hf_free_models_flat()
 
 OPENROUTER_FREE_MODELS = [
     {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct:free", "label": "Llama 3.3 70B Free (OpenRouter)"},
@@ -25,8 +22,12 @@ OPENROUTER_FREE_MODELS = [
     {"provider": "openrouter", "model": "qwen/qwen-2.5-72b-instruct:free", "label": "Qwen 2.5 72B Free (OpenRouter)"},
 ]
 
+def _tier_hf(tier: str) -> list[dict]:
+    return hf_models_for_tier(tier) if api_key_available("huggingface") else []
+
+
 FREE_MODELS = [
-    *HF_FREE_MODELS,
+    *_tier_hf("free"),
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
@@ -42,7 +43,7 @@ FREE_MODELS = [
 ]
 
 BASIC_MODELS = [
-    *HF_FREE_MODELS,
+    *_tier_hf("basic"),
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
@@ -56,7 +57,7 @@ BASIC_MODELS = [
 ]
 
 PREMIUM_MODELS = [
-    *HF_FREE_MODELS,
+    *_tier_hf("premium"),
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
@@ -71,11 +72,11 @@ PREMIUM_MODELS = [
 ]
 
 ULTRA_MODELS = [
+    *_tier_hf("ultra"),
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
     {"provider": "anthropic", "model": "claude-opus-4-20250514", "label": "Claude Opus 4"},
     {"provider": "openai", "model": "gpt-4o", "label": "ChatGPT 4o"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
-    *HF_FREE_MODELS,
     {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
     *OPENROUTER_FREE_MODELS,
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
@@ -101,12 +102,12 @@ SUBSCRIPTION_PLANS = {
         "name": "Gratuit",
         "price_eur": 0,
         "messages_per_day": 15,
-        "label": "Essai · 15 msg/jour",
+        "label": "Gratuit · 15 msg/jour",
         "models": FREE_MODELS,
         "features": [
-            "15 messages par jour",
-            "ChatGPT mini · DeepSeek · Gemini",
-            "Mémoire + recherche web",
+            "15 messages / jour",
+            "Modèles cloud",
+            "Recherche web",
         ],
     },
     "basic": {
@@ -114,13 +115,13 @@ SUBSCRIPTION_PLANS = {
         "name": "Basique",
         "price_eur": float(os.environ.get("BASIC_PRICE_EUR", os.environ.get("LICENSE_PRICE_EUR", "15"))),
         "messages_per_day": None,
-        "label": "IA cloud · illimité",
+        "label": "Illimité",
         "stripe_link_env": "STRIPE_BASIC_LINK",
         "models": BASIC_MODELS,
         "features": [
             "Messages illimités",
-            "ChatGPT · DeepSeek · Gemini · Claude Haiku",
-            "Agent local PC",
+            "Modèles cloud",
+            "Agent local",
         ],
     },
     "premium": {
@@ -128,13 +129,13 @@ SUBSCRIPTION_PLANS = {
         "name": "Premium",
         "price_eur": 50,
         "messages_per_day": None,
-        "label": "Meilleures IA · illimité",
+        "label": "Premium",
         "stripe_link_env": "STRIPE_PREMIUM_LINK",
         "models": PREMIUM_MODELS,
         "features": [
             "Messages illimités",
-            "Claude Sonnet · ChatGPT 4o · DeepSeek",
-            "Agent local complet",
+            "Modèles avancés",
+            "Agent local",
         ],
     },
     "ultra": {
@@ -142,13 +143,13 @@ SUBSCRIPTION_PLANS = {
         "name": "Ultra",
         "price_eur": 80,
         "messages_per_day": None,
-        "label": "Top du top · illimité",
+        "label": "Ultra",
         "stripe_link_env": "STRIPE_ULTRA_LINK",
         "models": ULTRA_MODELS,
         "features": [
             "Messages illimités",
-            "Claude Opus · ChatGPT 4o · DeepSeek R1",
-            "Priorité maximale",
+            "Modèles prioritaires",
+            "Agent local",
         ],
     },
 }
@@ -210,7 +211,10 @@ async def resolve_model_candidates(
     plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS["free"])
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str, str]] = []
-    for entry in plan["models"] + FREE_MODELS + HF_FREE_MODELS + OPENROUTER_FREE_MODELS:
+    extras = FREE_MODELS + OPENROUTER_FREE_MODELS
+    if api_key_available("huggingface"):
+        extras = hf_free_models_flat() + extras
+    for entry in plan["models"] + extras:
         key = (entry["provider"], entry["model"])
         if key in seen or key in BLOCKED_MODELS:
             continue
@@ -229,7 +233,10 @@ async def resolve_model_candidates(
         return out
 
     pin_label = pm
-    for entry in plan["models"] + FREE_MODELS + HF_FREE_MODELS + OPENROUTER_FREE_MODELS:
+    extras = FREE_MODELS + OPENROUTER_FREE_MODELS
+    if api_key_available("huggingface"):
+        extras = hf_free_models_flat() + extras
+    for entry in plan["models"] + extras:
         if entry["provider"] == pp and entry["model"] == pm:
             pin_label = entry.get("label", pm)
             break
@@ -243,7 +250,7 @@ async def resolve_model_candidates(
 async def models_for_tier(tier: str) -> list[dict]:
     """Catalogue UI : auto + modèles disponibles pour le palier."""
     candidates = await resolve_model_candidates(tier)
-    items = [{"id": "auto", "label": "Auto (fallback intelligent)", "provider": None, "model": None}]
+    items = [{"id": "auto", "label": "Auto", "provider": None, "model": None}]
     seen_ids: set[str] = set()
     for provider, model, label in candidates:
         mid = model_preference_id(provider, model)

@@ -20,9 +20,9 @@ function LogoMark({ size = 36, className = "" }) {
       className={className}
       aria-hidden="true"
     >
-      <rect width={size} height={size} rx={r * 2} fill="var(--emo-logo-bg, #27272a)" />
-      <rect x={pad} y={pad + 1} width={eye} height={h} rx={r} fill="var(--emo-accent)" />
-      <rect x={size - pad - eye} y={pad + 1} width={eye} height={h} rx={r} fill="var(--emo-accent)" />
+      <rect width={size} height={size} rx={r * 2} fill="var(--emo-logo-bg, #8b5cf6)" />
+      <rect x={pad} y={pad + 1} width={eye} height={h} rx={r} fill="var(--emo-logo-eye, #fafafa)" />
+      <rect x={size - pad - eye} y={pad + 1} width={eye} height={h} rx={r} fill="var(--emo-logo-eye, #fafafa)" />
     </svg>
   );
 }

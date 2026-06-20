@@ -115,7 +115,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
               data-testid="verified-badge"
               className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full flex items-center gap-1"
               style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}
-              title="Émo a vérifié avec ses outils"
+              title="Vérifié"
             >
               Vérifié
             </span>
@@ -125,7 +125,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
               data-testid="partial-badge"
               className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full"
               style={{ background: "rgba(245,158,11,0.12)", color: "#fbbf24" }}
-              title="Vérification partielle"
+              title="Partiel"
             >
               Partiel
             </span>

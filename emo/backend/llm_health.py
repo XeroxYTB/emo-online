@@ -23,7 +23,7 @@ _PROBE_MODELS = {
     "anthropic": ("claude-3-5-haiku-20241022", None),
     "deepseek": ("https://api.deepseek.com/chat/completions", "deepseek-chat"),
     "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "meta-llama/llama-3.3-70b-instruct:free"),
-    "huggingface": ("https://router.huggingface.co/v1/chat/completions", "meta-llama/Llama-3.3-70B-Instruct"),
+    "huggingface": ("https://router.huggingface.co/v1/chat/completions", "meta-llama/Meta-Llama-3.1-8B-Instruct"),
 }
 
 
@@ -48,6 +48,8 @@ _TRANSIENT_FAILURE = (
 
 
 def mark_provider_failed(provider: str, reason: str = "") -> None:
+    if provider == "huggingface":
+        return
     lower = (reason or "").lower()
     if any(m in lower for m in _TRANSIENT_FAILURE):
         return

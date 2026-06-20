@@ -16,25 +16,6 @@ const isDesktopApp = () => {
   try { return localStorage.getItem("emo_desktop") === "1"; } catch (_) { return false; }
 };
 
-function BootScreen({ message, showRetry, onRetry }) {
-  return (
-    <div className="login-page h-screen w-full flex flex-col">
-      <AppTopBar />
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
-        <p className="text-sm text-secondary-em">{message}</p>
-        <div className="login-boot-dots flex justify-center gap-1.5">
-          <span /><span /><span />
-        </div>
-        {showRetry && (
-          <button type="button" onClick={onRetry} className="login-submit px-8 py-2.5 rounded-lg text-sm font-medium mt-2">
-            Réessayer
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -43,8 +24,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [bootPhase, setBootPhase] = useState("connecting");
-  const [bootMessage, setBootMessage] = useState("Préparation de ton espace…");
   const [googleReady, setGoogleReady] = useState(false);
   const [googleAuto, setGoogleAuto] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
@@ -52,56 +31,44 @@ export default function Login() {
   const autoGoogleTried = useRef(false);
   const bootStarted = useRef(false);
 
-  const runBoot = useCallback(async () => {
-    setBootPhase("connecting");
-    setBootMessage("Préparation de ton espace…");
-
-    const warm = await wakeBackend({
-      maxWaitMs: 90000,
-      onProgress: ({ message }) => setBootMessage(message || "Connexion…"),
-    });
-
-    if (!warm.ok) {
-      setBootPhase("offline");
-      setBootMessage("Connexion au serveur en cours. Réessaie dans un instant.");
+  const finishGoogleStatus = useCallback(async (warm) => {
+    if (warm?.google) {
+      setGoogleReady(true);
       return;
     }
-
-    setGoogleReady(!!warm.google);
-
     try {
-      await http.get("/auth/me");
-      navigate("/chat", { replace: true });
-      return;
-    } catch (_) {}
-
-    if (!warm.google) {
-      try {
-        const r = await http.get("/auth/google/status");
-        setGoogleReady(!!(r.data?.configured || r.data?.client_id));
-      } catch (_) {
-        setGoogleReady(false);
-      }
+      const r = await http.get("/auth/google/status", { timeout: 8000 });
+      setGoogleReady(!!(r.data?.configured || r.data?.client_id));
+    } catch (_) {
+      setGoogleReady(false);
     }
-
-    setBootPhase("ready");
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     if (bootStarted.current) return;
     bootStarted.current = true;
-    runBoot();
-  }, [runBoot]);
+
+    (async () => {
+      const warmPromise = wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
+
+      try {
+        await http.get("/auth/me", { timeout: 8000 });
+        navigate("/chat", { replace: true });
+        return;
+      } catch (_) {}
+
+      const warm = await warmPromise;
+      if (warm?.ok) await finishGoogleStatus(warm);
+      else finishGoogleStatus({ ok: false });
+    })();
+  }, [navigate, finishGoogleStatus]);
 
   const handleGoogleRedirect = useCallback(async () => {
     setGoogleBusy(true);
-    const warm = await wakeBackend({
-      maxWaitMs: 60000,
-      onProgress: ({ message }) => setBootMessage(message || "Connexion…"),
-    });
+    const warm = await wakeBackend({ maxWaitMs: 45000 });
     if (!warm.ok) {
       setGoogleBusy(false);
-      toast.error("Connexion momentanément indisponible. Réessaie dans quelques secondes.");
+      toast.error("Service indisponible.");
       return;
     }
     if (warm.google) setGoogleReady(true);
@@ -115,39 +82,32 @@ export default function Login() {
     if (err) {
       setGoogleAuto(false);
       const msgs = {
-        google_auth_failed: "Connexion Google impossible. Réessaie.",
+        google_auth_failed: "Connexion Google impossible.",
         access_denied: "Connexion annulée.",
-        no_email: "Email Google non disponible.",
+        no_email: "Email Google indisponible.",
         missing_code: "Réponse Google invalide.",
-        missing_token: "Session expirée — reconnecte-toi.",
+        missing_token: "Session expirée.",
         redirect_uri_mismatch: "Configuration OAuth incorrecte.",
         invalid_client: "Configuration Google incorrecte.",
-        rate_limited: "Trop de tentatives — attends un moment.",
+        rate_limited: "Trop de tentatives.",
       };
-      toast.error(msgs[err] || "Connexion impossible. Réessaie.");
+      toast.error(msgs[err] || "Connexion impossible.");
     }
   }, [searchParams]);
 
   useEffect(() => {
-    if (bootPhase !== "ready" || !googleReady || !desktop || searchParams.get("error")) return;
+    if (!googleReady || !desktop || searchParams.get("error")) return;
     if (autoGoogleTried.current) return;
     autoGoogleTried.current = true;
     setGoogleAuto(true);
     handleGoogleRedirect();
-  }, [bootPhase, googleReady, desktop, searchParams, handleGoogleRedirect]);
+  }, [googleReady, desktop, searchParams, handleGoogleRedirect]);
 
   const handlePassword = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (bootPhase === "offline") {
-        const warm = await wakeBackend({ maxWaitMs: 45000 });
-        if (!warm.ok) {
-          toast.error("Serveur indisponible. Réessaie dans quelques secondes.");
-          return;
-        }
-        setBootPhase("ready");
-      }
+      await wakeBackend({ maxWaitMs: 45000 });
       if (mode === "signup") {
         const res = await http.post("/auth/signup", { email, password, name });
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
@@ -163,25 +123,15 @@ export default function Login() {
     }
   };
 
-  if (bootPhase === "connecting" || googleAuto) {
+  if (googleAuto) {
     return (
-      <BootScreen
-        message={googleAuto ? "Connexion Google…" : bootMessage}
-        showRetry={false}
-      />
-    );
-  }
-
-  if (bootPhase === "offline") {
-    return (
-      <BootScreen
-        message={bootMessage}
-        showRetry
-        onRetry={() => {
-          bootStarted.current = false;
-          runBoot();
-        }}
-      />
+      <div className="login-page h-screen w-full flex flex-col">
+        <AppTopBar />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
+          <Loader2 size={24} className="animate-spin text-muted-em" />
+          <p className="text-sm text-secondary-em">Connexion Google…</p>
+        </div>
+      </div>
     );
   }
 
@@ -199,9 +149,6 @@ export default function Login() {
             <h1 className="font-heading text-xl font-semibold" style={{ color: "var(--emo-text)" }}>
               Connexion
             </h1>
-            <p className="text-sm text-secondary-em mt-1">
-              Ton assistant IA pour code et projets.
-            </p>
           </div>
 
           {googleReady && (
@@ -216,7 +163,7 @@ export default function Login() {
                 {googleBusy ? (
                   <>
                     <Loader2 size={16} className="animate-spin opacity-70" />
-                    Connexion en cours…
+                    Connexion…
                   </>
                 ) : (
                   <>
@@ -282,13 +229,13 @@ export default function Login() {
                   Connexion…
                 </>
               ) : (
-                mode === "signup" ? "Créer mon compte" : "Se connecter"
+                mode === "signup" ? "Créer un compte" : "Se connecter"
               )}
             </button>
           </form>
 
           <p className="text-center text-xs text-muted-em mt-5">
-            {mode === "signup" ? "Déjà un compte ?" : "Pas encore inscrit ?"}{" "}
+            {mode === "signup" ? "Compte existant" : "Créer un compte"}{" "}
             <button
               data-testid="toggle-mode-btn"
               type="button"
@@ -296,7 +243,7 @@ export default function Login() {
               className="underline hover:text-secondary-em transition"
               style={{ color: "var(--emo-text-secondary)" }}
             >
-              {mode === "signup" ? "Connecte-toi" : "Crée un compte"}
+              {mode === "signup" ? "Se connecter" : "S'inscrire"}
             </button>
           </p>
         </div>

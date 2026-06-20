@@ -13,12 +13,8 @@ export default function BrowserPanel({ frames = [], reflectNotes = [] }) {
 
   if (!frames.length && !reflectNotes.length) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-6 text-center" data-testid="browser-panel-empty">
-        <Globe size={32} className="text-muted-em mb-3 opacity-50" />
-        <p className="text-sm text-muted-em leading-relaxed">
-          Émo utilise <strong className="text-secondary-em">browser_open</strong> pour contrôler les sites
-          (clics, saisie) et <strong className="text-secondary-em">emo_reflect</strong> pour réfléchir — tu vois tout ici.
-        </p>
+      <div className="h-full flex flex-col items-center justify-center p-6" data-testid="browser-panel-empty">
+        <Globe size={32} className="text-muted-em opacity-50" />
       </div>
     );
   }

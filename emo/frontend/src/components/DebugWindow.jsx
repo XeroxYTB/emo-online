@@ -150,12 +150,6 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
 
       {tab === "selftest" && (
         <div className="flex-1 overflow-y-auto scrollbar-thin p-5 space-y-4">
-          <div className="p-4 rounded-xl" style={{ background: "rgba(6,182,212,0.04)", border: "1px solid rgba(6,182,212,0.15)" }}>
-            <p className="text-xs leading-relaxed text-secondary-em">
-              Lance 4 tests sur ton agent local : commande shell, écriture fichier,
-              lecture round-trip, listage de dossier.
-            </p>
-          </div>
           <button
             data-testid="selftest-run-btn"
             onClick={runSelftest}
@@ -167,7 +161,7 @@ export default function DebugWindow({ events, onClose, onClearEvents }) {
               boxShadow: "0 0 24px rgba(6,182,212,0.35), inset 0 1px 0 rgba(255,255,255,0.2)",
             }}
           >
-            {running ? <><Loader2 size={14} className="animate-spin" /> exécution…</> : <><Play size={14} /> Lancer le diagnostic</>}
+            {running ? <><Loader2 size={14} className="animate-spin" /> En cours…</> : <><Play size={14} /> Diagnostic</>}
           </button>
 
           {results && (

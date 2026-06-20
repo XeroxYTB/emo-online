@@ -50,7 +50,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
   };
 
   const resetLicense = async () => {
-    if (!window.confirm("Reset ta license active ? (admin only, pour test du paywall)")) return;
+    if (!window.confirm("Réinitialiser la licence ?")) return;
     await http.post("/profile/reset-license");
     toast.success("License reset");
     const r = await http.get("/profile");
@@ -147,11 +147,8 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
               </Section>
 
               {/* Agent local — permissions */}
-              <Section icon={Shield} label="Agent local & permissions">
+              <Section icon={Shield} label="Agent local">
                 <AgentPermissionsPanel agentOnline={agentOnline} />
-                <p className="text-[10px] text-muted-em mt-2">
-                  Les permissions s&apos;appliquent sur ton PC via Emo-Agent (127.0.0.1:17841). Le chat et les LLM restent sur le cloud.
-                </p>
               </Section>
 
               {/* Theme mode */}
@@ -181,36 +178,26 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                     );
                   })}
                 </div>
-                <p className="text-[10px] text-muted-em">Choisis ton thème. &quot;Système&quot; suit les préférences de ton OS.</p>
               </Section>
 
               {/* Custom prompt */}
-              <Section icon={Sparkles} label="Instructions perso pour Émo">
+              <Section icon={Sparkles} label="Instructions">
                 <textarea
                   data-testid="custom-prompt-input"
                   value={addon}
                   onChange={(e) => setAddon(e.target.value)}
                   rows={5}
-                  placeholder="Ex: Réponds toujours en français formel. Préfère TypeScript à JavaScript. Mes projets sont sous /home/hugo/dev/..."
+                  placeholder="Instructions optionnelles"
                   className="w-full px-3 py-2.5 rounded-xl bg-black/40 border border-white/5 text-sm focus:outline-none focus:border-purple-500/40 resize-none font-code text-[13px]"
                   maxLength={4000}
                 />
-                <p className="text-[11px] text-muted-em mt-1">
-                  Injecté dans chaque conversation. {addon.length}/4000 caractères.
-                </p>
               </Section>
 
               {/* Stripe payouts — admin only */}
               {profile.license.is_admin && (
                 <>
-                  <Section icon={Package} label="Code source complet (self-hosting)">
+                  <Section icon={Package} label="Code source">
                     <div className="p-3 rounded-xl text-xs space-y-2.5" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                      <p className="text-secondary-em leading-relaxed">
-                        Télécharge tout le code source d&apos;Émo (backend + frontend + agent Go + doc) pour l&apos;héberger sur ton propre domaine et garder 100% des revenus.
-                      </p>
-                      <p className="text-muted-em text-[10px]">
-                        Inclus : <code className="font-code">backend/</code>, <code className="font-code">frontend/</code>, <code className="font-code">agent-go/</code>, <code className="font-code">memory/</code>, <code className="font-code">SELF_HOSTING.md</code>. Les <code className="font-code">.env</code> sont sanitizés en <code className="font-code">.env.example</code> (clés à remettre).
-                      </p>
                       <button
                         data-testid="download-source-btn"
                         onClick={() => {
@@ -218,37 +205,19 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                           const url = `${base}/api/admin/project-export`;
                           const w = window.open(url, "_blank");
                           if (!w) window.location.href = url;
-                          toast.success("Téléchargement du code source lancé");
+                          toast.success("Téléchargement lancé");
                         }}
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]"
                         style={{ background: "#10B981", color: "#021F14", boxShadow: "0 0 18px rgba(16,185,129,0.35)" }}
                       >
-                        <Download size={13} /> Télécharger emo-source.tar.gz
+                        <Download size={13} /> emo-source.tar.gz
                       </button>
-                      <p className="text-[10px] text-muted-em">
-                        Lis <code className="font-code">SELF_HOSTING.md</code> dans l&apos;archive pour les étapes de déploiement (Vercel, Render, Railway, VPS, etc.).
-                      </p>
                     </div>
                   </Section>
 
-                  <Section icon={Package} label="Revenus Stripe">
+                  <Section icon={Package} label="Stripe">
                   <div className="p-3 rounded-xl text-xs space-y-2.5" style={{ background: "rgba(99,91,255,0.06)", border: "1px solid rgba(99,91,255,0.18)" }}>
-                    <p className="text-secondary-em leading-relaxed">
-                      Les paiements clients vont directement sur ton compte Stripe (celui dont la clé est dans <code className="font-code">STRIPE_API_KEY</code>).
-                    </p>
-                    <p className="text-muted-em leading-relaxed">
-                      <strong>Mode actuel</strong> : <code className="font-code text-amber-300">test</code> (sk_test_emergent — paiements simulés, pas de vrais fonds).
-                    </p>
-                    <div className="space-y-1 pt-1">
-                      <p className="text-muted-em">Pour encaisser pour de vrai :</p>
-                      <ol className="ml-4 list-decimal space-y-1 text-secondary-em">
-                        <li>Crée un compte sur <a href="https://stripe.com" target="_blank" rel="noreferrer" className="underline text-purple-300">stripe.com</a></li>
-                        <li>Dashboard → Developers → API keys → copie ta <code className="font-code">sk_live_...</code></li>
-                        <li>Remplace <code className="font-code">STRIPE_API_KEY</code> dans <code className="font-code">/app/backend/.env</code></li>
-                        <li>Redémarre le backend</li>
-                      </ol>
-                    </div>
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex gap-2">
                       <a
                         href="https://dashboard.stripe.com/payouts"
                         target="_blank"
@@ -257,7 +226,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                         className="flex-1 text-center px-3 py-2 rounded-lg text-[11px] font-medium"
                         style={{ background: "rgba(99,91,255,0.18)", color: "#a5b4fc" }}
                       >
-                        Voir mes payouts →
+                        Payouts
                       </a>
                       <a
                         href="https://dashboard.stripe.com/payments"
@@ -267,12 +236,9 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                         className="flex-1 text-center px-3 py-2 rounded-lg text-[11px] font-medium"
                         style={{ background: "rgba(99,91,255,0.18)", color: "#a5b4fc" }}
                       >
-                        Voir les paiements →
+                        Paiements
                       </a>
                     </div>
-                    <p className="text-[10px] text-muted-em pt-1">
-                      Sur Stripe, payouts vers ta banque toutes les 2-7 jours en auto (configurable). Tu peux aussi déclencher un payout manuel.
-                    </p>
                   </div>
                 </Section>
                 </>

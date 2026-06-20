@@ -79,7 +79,6 @@ export const Sidebar = ({
       <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: "var(--emo-border)" }}>
         <EmoLogo size="sm" showSubtitle={false} />
         <div className="flex items-center gap-1">
-          <span className="text-[10px] tracking-[0.25em] uppercase text-muted-em">v1</span>
           <button
             data-testid="sidebar-collapse-btn"
             onClick={onToggleCollapsed}
@@ -105,7 +104,7 @@ export const Sidebar = ({
 
       <div className="mt-4 flex-1 overflow-y-auto scrollbar-thin px-2 pb-3">
         {Object.keys(groups).length === 0 && (
-          <p className="text-xs text-muted-em px-3 mt-6">Pas encore d&apos;historique. Lance une convo.</p>
+          <p className="text-xs text-muted-em px-3 mt-6">Aucune conversation</p>
         )}
         {Object.entries(groups).map(([label, items]) => (
           <div key={label} className="mt-3">

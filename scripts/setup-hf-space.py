@@ -5,6 +5,13 @@ from __future__ import annotations
 import os
 import sys
 
+# SSL Windows (CERTIFICATE_VERIFY_FAILED)
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "emo" / "backend"))
+try:
+    import ssl_fix  # noqa: F401
+except ImportError:
+    pass
+
 from huggingface_hub import HfApi
 
 REPO_ID = os.environ.get("HF_SPACE_REPO", "Xroxx/emo-online-api")

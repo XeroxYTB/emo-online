@@ -5,11 +5,11 @@ import { toast } from "sonner";
 const AGENT_LOCAL = "http://127.0.0.1:17841";
 
 const PERM_FIELDS = [
-  { key: "allow_shell", label: "Commandes shell", desc: "exec_shell, git, npm, etc." },
-  { key: "allow_read", label: "Lire / lister fichiers", desc: "read_file, list_dir, find_files, git_status" },
-  { key: "allow_grep", label: "Recherche (grep)", desc: "grep, codebase_search" },
-  { key: "allow_write", label: "Écrire / modifier", desc: "write_file, edit_file, append_file, copy_path" },
-  { key: "allow_delete", label: "Supprimer", desc: "delete_path" },
+  { key: "allow_shell", label: "Shell" },
+  { key: "allow_read", label: "Lecture" },
+  { key: "allow_grep", label: "Recherche" },
+  { key: "allow_write", label: "Écriture" },
+  { key: "allow_delete", label: "Suppression" },
 ];
 
 export default function AgentPermissionsPanel({ agentOnline }) {
@@ -56,10 +56,10 @@ export default function AgentPermissionsPanel({ agentOnline }) {
         body: JSON.stringify({ permissions: { ...perms, enabled: true } }),
       });
       if (!r.ok) throw new Error("save failed");
-      toast.success("Permissions agent enregistrées");
+      toast.success("Permissions enregistrées");
       refresh();
     } catch {
-      toast.error("Agent local inaccessible — lance Emo-Agent sur ton PC");
+      toast.error("Agent local indisponible");
     }
   };
 
@@ -93,7 +93,7 @@ export default function AgentPermissionsPanel({ agentOnline }) {
           style={{ boxShadow: agentOnline ? "0 0 8px #34d39988" : "none" }}
         />
         <span className="text-secondary-em">
-          Site → agent : <strong style={{ color: agentOnline ? "#34d399" : "#a89bbd" }}>{agentOnline ? "EN LIGNE" : "HORS LIGNE"}</strong>
+          Agent : <strong style={{ color: agentOnline ? "#34d399" : "#a89bbd" }}>{agentOnline ? "En ligne" : "Hors ligne"}</strong>
         </span>
         <button type="button" onClick={refresh} className="ml-auto p-1 rounded hover:bg-white/10" title="Rafraîchir">
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
@@ -106,8 +106,7 @@ export default function AgentPermissionsPanel({ agentOnline }) {
           style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}
         >
           <p className="text-amber-200/90">
-            L&apos;interface permissions locale n&apos;est pas joignable. Télécharge et lance <strong>Emo-Agent</strong> sur ton PC
-            (onglet Agent du panneau droit).
+            Agent local non détecté. Installez et lancez Emo-Agent.
           </p>
           <a
             href={AGENT_LOCAL}
@@ -126,22 +125,18 @@ export default function AgentPermissionsPanel({ agentOnline }) {
           </div>
 
           <div className="space-y-2">
-            {PERM_FIELDS.map(({ key, label, desc }) => (
+            {PERM_FIELDS.map(({ key, label }) => (
               <label
                 key={key}
-                className="flex items-start gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-white/[0.03]"
+                className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-white/[0.03]"
                 style={{ border: "1px solid rgba(255,255,255,0.05)" }}
               >
                 <input
                   type="checkbox"
                   checked={!!perms[key]}
                   onChange={(e) => setPerms((p) => ({ ...p, [key]: e.target.checked }))}
-                  className="mt-0.5"
                 />
-                <span>
-                  <span className="block text-[13px]">{label}</span>
-                  <span className="block text-[10px] text-muted-em">{desc}</span>
-                </span>
+                <span className="text-[13px]">{label}</span>
               </label>
             ))}
           </div>
@@ -153,7 +148,7 @@ export default function AgentPermissionsPanel({ agentOnline }) {
               className="flex-1 py-2 rounded-lg text-xs font-medium"
               style={{ background: "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.35)" }}
             >
-              Enregistrer permissions
+              Enregistrer
             </button>
             {state?.running ? (
               <button type="button" onClick={stopAgent} className="px-3 py-2 rounded-lg text-xs flex items-center gap-1 bg-red-500/10 border border-red-500/30">

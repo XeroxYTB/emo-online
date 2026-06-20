@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { http, API, getSessionToken } from "../lib/api";
-import { Copy, Check, RefreshCw, Download, ShieldAlert, Terminal as TerminalIcon, Apple, Box, Cpu } from "lucide-react";
+import { Copy, Check, RefreshCw, Download, ShieldAlert, Apple, Box, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
 const detectOS = () => {
@@ -44,7 +44,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       setCopied(key);
       setTimeout(() => setCopied(""), 1500);
     } catch {
-      toast.error("Impossible de copier");
+      toast.error("Copie impossible");
     }
   };
 
@@ -57,7 +57,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
 
   const downloadAgent = async () => {
     if (!token) {
-      toast.error("Token pas encore prêt, réessaie dans 1s");
+      toast.error("Token indisponible");
       return;
     }
     setDownloading(true);
@@ -87,9 +87,9 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       a.click();
       a.remove();
       URL.revokeObjectURL(a.href);
-      toast.success(`${filename} téléchargé — double-clique pour ouvrir l'interface permissions`);
+      toast.success(`${filename} téléchargé`);
     } catch (e) {
-      toast.error(e.message || "Échec du téléchargement");
+      toast.error(e.message || "Téléchargement impossible");
     } finally {
       setDownloading(false);
     }
@@ -120,7 +120,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       </div>
 
       <div>
-        <label className="text-xs uppercase tracking-[0.18em] text-muted-em mb-2 block">Ta plateforme</label>
+        <label className="text-xs uppercase tracking-[0.18em] text-muted-em mb-2 block">Plateforme</label>
         <div className="grid grid-cols-2 gap-2">
           {OS_OPTIONS.map((opt) => {
             const Icon = opt.icon;
@@ -156,41 +156,21 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           boxShadow: "0 0 24px var(--mode-glow)",
         }}
       >
-        <Download size={15} /> {downloading ? "Téléchargement…" : "Télécharger Emo Agent (1 fichier)"}
+        <Download size={15} /> {downloading ? "Téléchargement…" : "Télécharger Emo Agent"}
       </button>
 
       <div className="text-[11px] text-secondary-em leading-relaxed space-y-2">
-        <p>
-          <strong>Un seul fichier</strong> — token et URL du site déjà intégrés. Pas de ZIP, pas de script à lancer
-          manuellement.
-        </p>
         {os === "windows" ? (
-          <p>
-            <strong>Windows :</strong> double-clique sur <code className="font-code">Emo-Agent.exe</code>. Une fenêtre
-            locale s&apos;ouvre dans ton navigateur pour gérer les permissions (shell, fichiers, grep…) puis démarrer
-            l&apos;agent.
-          </p>
+          <p>Windows : exécutez <code className="font-code">Emo-Agent.exe</code></p>
         ) : isUnix ? (
           <p>
-            <strong>{os.startsWith("macos") ? "macOS" : "Linux"} :</strong>{" "}
             <code className="font-code">chmod +x Emo-Agent && ./Emo-Agent</code>
-            {os.startsWith("macos") && (
-              <>
-                {" "}
-                — si Gatekeeper bloque : clic droit → Ouvrir, ou{" "}
-                <code className="font-code">xattr -d com.apple.quarantine Emo-Agent</code>
-              </>
-            )}
           </p>
         ) : null}
-        <p className="text-muted-em">
-          Le chat, les LLM et les paiements restent sur le site. Configure les permissions dans{" "}
-          <strong>Profil → Agent local & permissions</strong>.
-        </p>
       </div>
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-muted-em hover:text-white">Avancé : token brut</summary>
+        <summary className="cursor-pointer text-muted-em hover:text-white">Token</summary>
         <div className="mt-3 space-y-3">
           <div className="flex items-center gap-2">
             <code
@@ -213,12 +193,6 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           </button>
         </div>
       </details>
-
-      <div className="text-[11px] text-muted-em leading-relaxed border-t border-white/5 pt-3">
-        <TerminalIcon size={11} className="inline mr-1" />
-        L&apos;agent exécute ce qu&apos;Émo demande selon tes permissions locales. Le token lie uniquement ton compte —
-        personne d&apos;autre ne peut piloter ta machine.
-      </div>
     </div>
   );
 }

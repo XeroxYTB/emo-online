@@ -26,7 +26,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
         tier,
       });
       if (r.data.already_paid) {
-        toast.success(`Tu es déjà abonné ${r.data.tier}`);
+        toast.success(`Abonnement ${r.data.tier} actif`);
         onRefresh?.();
         return;
       }
@@ -45,7 +45,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
     setRedeeming(true);
     try {
       const r = await http.post("/license/redeem-key", { key });
-      toast.success(`Clé activée — ${r.data.tier?.toUpperCase() || "Ultra"} illimité !`);
+      toast.success(`Licence ${(r.data.tier || "ultra").toUpperCase()} activée`);
       setProductKey("");
       onRefresh?.();
     } catch (err) {
@@ -60,10 +60,10 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
     try {
       const r = await http.post("/license/claim-payment");
       if (r.data.paid) {
-        toast.success(`Abonnement ${r.data.tier} activé !`);
+        toast.success(`Abonnement ${r.data.tier} activé`);
         onRefresh?.();
       } else {
-        toast.info(r.data.message || "Paiement pas encore reçu — réessaie dans 30s");
+        toast.info(r.data.message || "Paiement en attente");
       }
     } catch (_) {
       toast.error("Erreur vérification");
@@ -81,9 +81,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
             {license.tier_name || "Ultra"} · Licence produit
           </strong>
         </div>
-        <p className="text-[11px] text-secondary-em mt-1">
-          Accès illimité à vie · Tous les modèles IA
-        </p>
+        <p className="text-[11px] text-secondary-em mt-1">Accès illimité</p>
       </div>
     );
   }
@@ -93,12 +91,11 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
       <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
         <div className="flex items-center gap-2">
           <Crown size={14} style={{ color: "#fbbf24" }} />
-          <strong style={{ color: "#fbbf24" }}>Ultra Admin · illimité</strong>
+          <strong style={{ color: "#fbbf24" }}>Admin</strong>
         </div>
-        <p className="text-[11px] text-secondary-em mt-1">Accès complet, tous les modèles IA.</p>
         {onReset && (
           <button onClick={onReset} className="mt-2 text-[11px] flex items-center gap-1 text-muted-em hover:text-amber-400">
-            <RotateCcw size={10} /> Reset license (test)
+            <RotateCcw size={10} /> Réinitialiser (test)
           </button>
         )}
       </div>
@@ -128,10 +125,10 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
         <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.25)" }}>
           <div className="flex items-center gap-2">
             <Clock size={14} style={{ color: "var(--mode-color)" }} />
-            <strong style={{ color: "var(--mode-color)" }}>Gratuit · IA open-source</strong>
+            <strong style={{ color: "var(--mode-color)" }}>Gratuit</strong>
           </div>
           <p className="text-[11px] text-secondary-em mt-1">
-            {license?.messages_left_today ?? 0} / {license?.messages_per_day ?? 15} messages restants aujourd&apos;hui
+            {license?.messages_left_today ?? 0} / {license?.messages_per_day ?? 15} messages
             {license?.model_label && <> · {license.model_label}</>}
           </p>
         </div>
@@ -140,7 +137,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
       {(currentTier === "free" || !license?.active) && (
         <form onSubmit={redeemKey} className="p-3 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
           <p className="text-[11px] text-secondary-em flex items-center gap-1.5">
-            <ShieldCheck size={12} /> Tu as acheté Émo ? Entre ta clé produit
+            <ShieldCheck size={12} /> Clé produit
           </p>
           <input
             type="text"
@@ -156,7 +153,7 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
             style={{ background: "rgba(52,211,153,0.15)", color: "#6ee7b7", border: "1px solid rgba(52,211,153,0.3)" }}
           >
             {redeeming ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-            Activer ma licence
+            Activer
           </button>
         </form>
       )}
@@ -233,10 +230,10 @@ export function SubscriptionSection({ license, plans, onRefresh, onReset }) {
         className="w-full py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 text-secondary-em hover:text-white hover:bg-white/5 disabled:opacity-50"
       >
         {checking ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-        J&apos;ai payé · vérifier mon abonnement
+        Vérifier le paiement
       </button>
       <p className="text-[10px] text-muted-em text-center flex items-center justify-center gap-1">
-        <ShieldCheck size={10} /> Paiement sécurisé Stripe · Annulable à tout moment
+        <ShieldCheck size={10} /> Paiement Stripe
       </p>
     </div>
   );
@@ -267,7 +264,7 @@ export default function Paywall({ info, plans, onPaid }) {
       else {
         const lic = await http.get("/license/status");
         if (lic.data.active && lic.data.tier !== "free") onPaid?.();
-        else alert(r.data.message || "Pas encore reçu. Patiente 30s puis réessaie.");
+        else alert(r.data.message || "Paiement en attente.");
       }
     } catch (_) { /* ignore */ }
     finally { setChecking(false); }
@@ -288,8 +285,8 @@ export default function Paywall({ info, plans, onPaid }) {
         </h2>
         <p className="text-center text-secondary-em mt-2 text-sm">
           {expired
-            ? "Renouvelle ton abonnement pour continuer."
-            : <>Tu as utilisé tes <strong>{info?.messages_per_day || 15} messages gratuits</strong>. Passe <strong>Basique</strong> pour des IA gratuites illimitées, ou Premium / Ultra pour de meilleurs modèles.</>}
+            ? "Renouvelez votre abonnement."
+            : <>Quota journalier atteint ({info?.messages_per_day || 15} messages).</>}
         </p>
 
         <div className="mt-6 space-y-3">
@@ -320,7 +317,7 @@ export default function Paywall({ info, plans, onPaid }) {
           className="w-full mt-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 text-secondary-em hover:bg-white/5 disabled:opacity-50"
         >
           {checking ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-          J&apos;ai payé · vérifier
+          J&apos;ai payé
         </button>
       </div>
     </div>

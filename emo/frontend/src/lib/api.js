@@ -39,7 +39,7 @@ function backendCandidates() {
   return out;
 }
 
-async function probePing(base, timeoutMs = 20000) {
+async function probePing(base, timeoutMs = 8000) {
   const url = base ? `${base}/api/ping` : "/api/ping";
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -49,9 +49,15 @@ async function probePing(base, timeoutMs = 20000) {
       cache: "no-store",
       signal: ctrl.signal,
     });
-    if (!r.ok) return null;
-    const data = await r.json().catch(() => ({}));
-    return { base: base || "same-origin", google: !!data.google };
+    if (r.ok) {
+      const data = await r.json().catch(() => ({}));
+      return { base: base || "same-origin", google: !!data.google, waking: false };
+    }
+    // HF cold start / rate limit : le serveur répond quand même — ne pas bloquer le login 90s
+    if (RETRY_STATUSES.has(r.status) || r.status === 429) {
+      return { base: base || "same-origin", google: false, waking: true };
+    }
+    return null;
   } catch (_) {
     return null;
   } finally {
@@ -75,7 +81,7 @@ async function _fetchWithFallback(path, options = {}) {
       lastErr = e;
     }
   }
-  throw lastErr || new Error("Service momentanément indisponible");
+  throw lastErr || new Error("Service indisponible");
 }
 
 export function saveSessionToken(token) {
@@ -130,9 +136,9 @@ http.interceptors.response.use(
       }
     }
     if (status === 429) {
-      err.message = "Service momentanément saturé. Réessaie dans quelques secondes.";
+      err.message = "Service saturé. Réessayez.";
     } else if (!err.response) {
-      err.message = "Connexion impossible pour le moment. Vérifie ta connexion et réessaie.";
+      err.message = "Connexion impossible.";
     }
     return Promise.reject(err);
   }
@@ -170,11 +176,11 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
       finish({ type: "cancelled" });
       return;
     }
-    finish({ type: "error", content: "Connexion impossible pour le moment. Réessaie." });
+    finish({ type: "error", content: "Connexion impossible." });
     return;
   }
   if (resp.status === 429) {
-    finish({ type: "error", content: "Service momentanément saturé. Réessaie dans quelques secondes." });
+    finish({ type: "error", content: "Service saturé. Réessayez." });
     return;
   }
   if (!resp.ok) {
@@ -214,7 +220,7 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
       }
     }
     if (!terminal) {
-      finish({ type: "error", content: "Réponse interrompue. Réessaie." });
+      finish({ type: "error", content: "Réponse interrompue." });
     }
   } catch (e) {
     if (e?.name === "AbortError") {
@@ -224,48 +230,48 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
     finish({
       type: "error",
       content: e?.message?.includes("network") || e?.name === "TypeError"
-        ? "Connexion perdue. Réessaie."
+        ? "Connexion perdue."
         : (e?.message || "Erreur de connexion"),
     });
   }
 }
 
-const BOOT_MESSAGES = [
-  "Préparation de ton espace…",
-  "Connexion sécurisée…",
-  "Presque prêt…",
-  "Encore quelques secondes…",
-];
-
-/**
- * Réveille le backend (cold-start HF). Jusqu'à ~90s, messages pro sans jargon technique.
- * @returns {{ ok: boolean, google?: boolean, base?: string }}
- */
+const BOOT_MESSAGE = "Chargement…";
 export async function wakeBackend(options = {}) {
-  const maxWaitMs = options.maxWaitMs ?? 90000;
+  const maxWaitMs = options.maxWaitMs ?? 35000;
   const onProgress = options.onProgress;
   const start = Date.now();
   let attempt = 0;
+  let sawWaking = false;
 
   while (Date.now() - start < maxWaitMs) {
     attempt += 1;
     onProgress?.({
       attempt,
       elapsed: Date.now() - start,
-      message: BOOT_MESSAGES[Math.min(attempt - 1, BOOT_MESSAGES.length - 1)],
+      message: BOOT_MESSAGE,
     });
 
     for (const base of backendCandidates()) {
-      const hit = await probePing(base, attempt <= 2 ? 25000 : 15000);
+      const hit = await probePing(base, attempt <= 1 ? 8000 : 5000);
       if (hit) {
         if (base) activeBase = base;
-        return { ok: true, google: hit.google, base: hit.base };
+        if (hit.waking) sawWaking = true;
+        return {
+          ok: true,
+          google: !!hit.google,
+          base: hit.base,
+          waking: !!hit.waking,
+        };
       }
     }
 
-    const wait = Math.min(3000 + attempt * 800, 12000);
+    const wait = Math.min(2000 + attempt * 600, 8000);
     await sleep(wait);
   }
 
+  if (sawWaking) {
+    return { ok: true, google: false, waking: true };
+  }
   return { ok: false };
 }
