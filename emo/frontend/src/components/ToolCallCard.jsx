@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2 } from "lucide-react";
+import ToolInlinePreview from "./ToolInlinePreview";
 
 const ICONS = {
   exec_shell: Terminal,
@@ -119,6 +120,7 @@ export const ToolCallCard = ({ event }) => {
       </button>
       {open && (
         <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2">
+          <ToolInlinePreview event={event} />
           {event.args && Object.keys(event.args).length > 0 && (
             <div>
               <div className="text-[9px] uppercase tracking-[0.18em] text-muted-em mb-1">args</div>
@@ -135,6 +137,11 @@ export const ToolCallCard = ({ event }) => {
               </pre>
             </div>
           )}
+        </div>
+      )}
+      {!open && event.state === "done" && !isError && (
+        <div className="px-3 pb-2">
+          <ToolInlinePreview event={event} />
         </div>
       )}
     </div>

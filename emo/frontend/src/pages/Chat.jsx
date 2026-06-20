@@ -2,18 +2,15 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { http, streamChat, clearSessionToken, wakeBackend } from "../lib/api";
 import { toast } from "sonner";
-import { PanelRightOpen, PanelRightClose, Bug, Clock, User as UserIcon, Menu, Settings, ArrowDown } from "lucide-react";
+import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDown } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ChatComposer from "../components/ChatComposer";
 import ChatMessage from "../components/ChatMessage";
 import EmoEyes from "../components/EmoEyes";
-import { AppTopBar, EmoLogo } from "../components/EmoLogo";
+import { AppTopBar } from "../components/EmoLogo";
 import RightPanel from "../components/RightPanel";
-import AgentSettingsPanel from "../components/AgentSettingsPanel";
 import Paywall from "../components/SubscriptionPlans";
-import DebugWindow from "../components/DebugWindow";
 import ProfileDrawer from "../components/ProfileDrawer";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
 import { cleanDisplayText } from "../lib/messageClean";
 
 const MODE_LABELS = { tech: "Tech", creatif: "Créatif", brutal: "Brutal" };
@@ -36,19 +33,15 @@ export default function Chat() {
   const [streamingMsg, setStreamingMsg] = useState(null);
   const [streamingTools, setStreamingTools] = useState([]); // tools in current streaming turn
   const [agentOnline, setAgentOnline] = useState(false);
-  const [allTools, setAllTools] = useState([]); // recent tools (right panel activity)
-  const [browserFrames, setBrowserFrames] = useState([]);
-  const [reflectNotes, setReflectNotes] = useState([]);
+  const [allTools, setAllTools] = useState([]);
   const [filePreview, setFilePreview] = useState(null);
-  const [rightPanelTab, setRightPanelTab] = useState("site");
+  const [rightPanelTab, setRightPanelTab] = useState("activity");
   const [rightOpen, setRightOpen] = useState(true);
-  const [agentPanelOpen, setAgentPanelOpen] = useState(false);
+  const [debugEvents, setDebugEvents] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     typeof window !== "undefined" && localStorage.getItem("emo_sidebar_collapsed") === "1"
   );
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(false);
-  const [debugEvents, setDebugEvents] = useState([]);
   const [license, setLicense] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [themeMode, setThemeMode] = useState(
@@ -100,7 +93,7 @@ export default function Chat() {
   // Load preferences
   useEffect(() => {
     if (authState !== "ok") return;
-    wakeBackend(2).catch(() => {});
+    wakeBackend({ maxWaitMs: 8000 }).catch(() => {});
   }, [authState]);
 
   useEffect(() => {
@@ -301,6 +294,14 @@ export default function Chat() {
     return () => window.removeEventListener("keydown", onKey);
   }, [streaming, handleCancel]);
 
+  const attachInlinePreview = (turnTools, preview) => {
+    if (!turnTools.length) return turnTools;
+    const updated = [...turnTools];
+    const idx = updated.length - 1;
+    updated[idx] = { ...updated[idx], inlinePreview: preview };
+    return updated;
+  };
+
   const handleSend = async (text) => {
     if (streaming) return;
     let convId = activeId;
@@ -363,34 +364,22 @@ export default function Chat() {
               return updated;
             });
           } else if (evt.type === "browser") {
-            const frame = {
-              id: `browser_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-              action: evt.action,
-              query: evt.query,
-              results: evt.results,
-              url: evt.url,
-              title: evt.title,
-              preview: evt.preview,
-              links: evt.links,
-              elements: evt.elements,
-              screenshot_base64: evt.screenshot_base64,
-              session_id: evt.session_id,
-            };
-            setBrowserFrames((prev) => [frame, ...prev].slice(0, 30));
-            setRightPanelTab("browser");
-            setRightOpen(true);
+            const preview = { type: "browser", ...evt };
+            if (turnTools.length) {
+              const updated = attachInlinePreview(turnTools, preview);
+              turnTools.splice(0, turnTools.length, ...updated);
+              setStreamingTools([...turnTools]);
+            }
+            setRightPanelTab("activity");
           } else if (evt.type === "reflect") {
-            setReflectNotes((prev) => [
-              {
-                id: `reflect_${Date.now()}`,
-                thought: evt.thought,
-                plan: evt.plan,
-              },
-              ...prev,
-            ].slice(0, 20));
-            setRightPanelTab("browser");
-            setRightOpen(true);
+            /* réflexion affichée dans le chat via tool emo_reflect */
           } else if (evt.type === "file_preview") {
+            const preview = { type: "file", ...evt };
+            if (turnTools.length) {
+              const updated = attachInlinePreview(turnTools, preview);
+              turnTools.splice(0, turnTools.length, ...updated);
+              setStreamingTools([...turnTools]);
+            }
             setFilePreview({
               path: evt.path,
               preview: evt.preview,
@@ -398,7 +387,6 @@ export default function Chat() {
               language: evt.language,
             });
             setRightPanelTab("files");
-            setRightOpen(true);
           } else if (evt.type === "done") {
             const finalContent = cleanStreamText(buffer).trim();
             setMessages((m) => [
@@ -496,100 +484,32 @@ export default function Chat() {
               <Menu size={18} />
             </button>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-heading text-sm font-medium leading-none">{MODE_LABELS[mode] || "Chat"}</p>
-                <button
-                  type="button"
-                  data-testid="agent-status-pill"
-                  onClick={() => setAgentPanelOpen(true)}
-                  className="lg:pointer-events-none text-[9px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded-full flex items-center gap-1 cursor-pointer lg:cursor-default hover:ring-1 hover:ring-white/10 lg:hover:ring-0 transition"
-                  style={{
-                    background: agentOnline ? "rgba(52,211,153,0.15)" : "rgba(127,127,127,0.12)",
-                    color: agentOnline ? "#34d399" : "var(--emo-text-muted)",
-                  }}
-                  title="Agent local"
-                >
-                  <span
-                    className={`w-1 h-1 rounded-full ${agentOnline ? "bg-emerald-400" : "bg-zinc-500"}`}
-                  />
-                  <span className="hidden sm:inline">{agentOnline ? "Connecté" : "Hors ligne"}</span>
-                  <span className="sm:hidden">{agentOnline ? "On" : "Off"}</span>
-                </button>
-              </div>
+              <p className="font-heading text-sm font-medium leading-none">{MODE_LABELS[mode] || "Chat"}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-            <EmoLogo size="sm" showText={false} className="hidden sm:inline-flex opacity-95" />
-            {license && !license.active && (
-              <button
-                data-testid="trial-expired-pill"
-                onClick={() => setLicense({ ...license, _showPaywall: true })}
-                className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}
-              >
-                <Clock size={10} /> Expiré
-              </button>
-            )}
             {license && license.active && license.tier === "free" && !license.is_admin && (
               <span
                 data-testid="trial-pill"
                 className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
                 style={{ background: "rgba(168,85,247,0.1)", color: "var(--mode-color)" }}
               >
-                <Clock size={10} /> {license.messages_left_today}/{license.messages_per_day} restants
+                <Clock size={10} /> {license.messages_left_today}/{license.messages_per_day}
               </span>
-            )}
-            {license && license.active && license.tier && !["free"].includes(license.tier) && !license.is_admin && (
-              <span
-                className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
-                style={{
-                  background: license.tier === "ultra" ? "rgba(245,158,11,0.1)" : license.tier === "basic" ? "rgba(99,102,241,0.12)" : "rgba(52,211,153,0.1)",
-                  color: license.tier === "ultra" ? "#fbbf24" : license.tier === "basic" ? "#a5b4fc" : "#34d399",
-                }}
-              >
-                {license.tier_name}
-              </span>
-            )}
-            {license && license.is_admin && (
-              <span
-                data-testid="admin-pill"
-                className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(245,158,11,0.1)", color: "#fbbf24" }}
-                title="Admin"
-              >
-                Admin
-              </span>
-            )}
-            {license?.is_admin && (
-              <button
-                data-testid="toggle-debug"
-                onClick={() => setDebugOpen(!debugOpen)}
-                className="p-2 rounded-lg hover:bg-white/10 text-muted-em hover:text-cyan-300 transition"
-                title="Debug (admin)"
-              >
-                <Bug size={15} />
-              </button>
             )}
             <button
               data-testid="header-profile-btn"
               onClick={() => setProfileOpen(true)}
               className="p-2 rounded-lg hover:bg-white/10 text-muted-em transition"
-              title="Profil"
+              title="Paramètres"
             >
               <UserIcon size={15} />
-            </button>
-            <button
-              data-testid="mobile-agent-btn"
-              onClick={() => setAgentPanelOpen(true)}
-              className="lg:hidden p-2 rounded-lg hover:bg-white/10 text-muted-em transition"
-              title="Agent local"
-            >
-              <Settings size={15} />
             </button>
             <button
               data-testid="toggle-right-panel"
               onClick={() => setRightOpen(!rightOpen)}
               className="hidden lg:inline-flex p-2 rounded-lg hover:bg-white/10 text-muted-em"
+              title="Panneau latéral"
             >
               {rightOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </button>
@@ -680,10 +600,7 @@ export default function Chat() {
             tools={allTools}
             agentOnline={agentOnline}
             onRefreshStatus={refreshAgentStatus}
-            browserFrames={browserFrames}
-            reflectNotes={reflectNotes}
             filePreview={filePreview}
-            isAdmin={Boolean(license?.is_admin)}
             activeTab={rightPanelTab}
             onTabChange={setRightPanelTab}
           />
@@ -718,25 +635,6 @@ export default function Chat() {
         </>
       )}
 
-      <Sheet open={agentPanelOpen} onOpenChange={setAgentPanelOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md glass-panel border-white/10 overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="font-heading text-left">Agent local</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4">
-            <AgentSettingsPanel agentOnline={agentOnline} onRefreshStatus={refreshAgentStatus} />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {debugOpen && (
-        <DebugWindow
-          events={debugEvents}
-          onClose={() => setDebugOpen(false)}
-          onClearEvents={() => setDebugEvents([])}
-        />
-      )}
-
       {license && (!license.active || license._showPaywall) && (
         <Paywall
           info={license}
@@ -753,6 +651,8 @@ export default function Chat() {
         onClose={() => setProfileOpen(false)}
         onLogout={handleLogout}
         agentOnline={agentOnline}
+        debugEvents={debugEvents}
+        onClearDebugEvents={() => setDebugEvents([])}
         onPreferencesChange={(prefs) => {
           if (prefs?.theme_mode) setThemeMode(prefs.theme_mode);
         }}

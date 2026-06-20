@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { http, API, BACKEND_URL } from "../lib/api";
-import { X, User as UserIcon, Sparkles, Palette, ShieldCheck, AlertTriangle, Trash2, LogOut, Save, Moon, Sun, Monitor, Package, Download, Shield } from "lucide-react";
+import { http } from "../lib/api";
+import { X, User as UserIcon, Sparkles, Palette, ShieldCheck, AlertTriangle, Trash2, LogOut, Save, Moon, Sun, Monitor, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { SubscriptionSection } from "./SubscriptionPlans";
 import AgentPermissionsPanel from "./AgentPermissionsPanel";
+import AdminPanel from "./AdminPanel";
 
 const THEME_OPTIONS = [
   { id: "dark", label: "Sombre", Icon: Moon },
@@ -11,8 +12,9 @@ const THEME_OPTIONS = [
   { id: "system", label: "Système", Icon: Monitor },
 ];
 
-export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesChange, agentOnline }) {
+export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesChange, agentOnline, debugEvents, onClearDebugEvents }) {
   const [profile, setProfile] = useState(null);
+  const [section, setSection] = useState("profile");
   const [name, setName] = useState("");
   const [addon, setAddon] = useState("");
   const [themeMode, setThemeMode] = useState("dark");
@@ -21,6 +23,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
 
   useEffect(() => {
     if (!open) return;
+    setSection("profile");
     http.get("/profile").then((r) => {
       setProfile(r.data);
       setName(r.data.user.name || "");
@@ -88,17 +91,48 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
         }}
       >
         <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between glass-panel" style={{ borderBottom: "1px solid var(--emo-border)", borderRadius: 0 }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <UserIcon size={16} style={{ color: "var(--mode-color)" }} />
-            <h2 className="font-heading text-lg">Profil</h2>
+            <h2 className="font-heading text-lg">Paramètres</h2>
           </div>
           <button data-testid="profile-close-btn" onClick={onClose} className="p-1.5 rounded hover:bg-white/10">
             <X size={16} />
           </button>
         </div>
 
+        {profile?.license?.is_admin && (
+          <div className="px-6 pt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSection("profile")}
+              className="px-3 py-1.5 rounded-lg text-xs"
+              style={{
+                background: section === "profile" ? "rgba(168,85,247,0.15)" : "transparent",
+                color: section === "profile" ? "var(--emo-text)" : "var(--emo-text-muted)",
+              }}
+            >
+              Profil
+            </button>
+            <button
+              type="button"
+              onClick={() => setSection("admin")}
+              className="px-3 py-1.5 rounded-lg text-xs"
+              style={{
+                background: section === "admin" ? "rgba(245,158,11,0.15)" : "transparent",
+                color: section === "admin" ? "#fbbf24" : "var(--emo-text-muted)",
+              }}
+            >
+              Admin
+            </button>
+          </div>
+        )}
+
         <div className="p-6 space-y-6">
-          {profile && (
+          {profile && section === "admin" && profile.license.is_admin && (
+            <AdminPanel debugEvents={debugEvents} onClearDebugEvents={onClearDebugEvents} />
+          )}
+
+          {profile && section === "profile" && (
             <>
               {/* User card */}
               <Section icon={UserIcon} label="Compte">
@@ -146,8 +180,9 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                 />
               </Section>
 
-              {/* Agent local — permissions */}
+              {/* Agent local — permissions (détail dans panneau Agent) */}
               <Section icon={Shield} label="Agent local">
+                <p className="text-xs text-muted-em mb-2">Téléchargement et permissions dans le panneau Agent (à droite).</p>
                 <AgentPermissionsPanel agentOnline={agentOnline} />
               </Section>
 
@@ -193,55 +228,11 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                 />
               </Section>
 
-              {/* Stripe payouts — admin only */}
+              {/* Stripe / export — déplacés vers AdminPanel */}
               {profile.license.is_admin && (
-                <>
-                  <Section icon={Package} label="Code source">
-                    <div className="p-3 rounded-xl text-xs space-y-2.5" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                      <button
-                        data-testid="download-source-btn"
-                        onClick={() => {
-                          const base = BACKEND_URL || window.location.origin;
-                          const url = `${base}/api/admin/project-export`;
-                          const w = window.open(url, "_blank");
-                          if (!w) window.location.href = url;
-                          toast.success("Téléchargement lancé");
-                        }}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]"
-                        style={{ background: "#10B981", color: "#021F14", boxShadow: "0 0 18px rgba(16,185,129,0.35)" }}
-                      >
-                        <Download size={13} /> emo-source.tar.gz
-                      </button>
-                    </div>
-                  </Section>
-
-                  <Section icon={Package} label="Stripe">
-                  <div className="p-3 rounded-xl text-xs space-y-2.5" style={{ background: "rgba(99,91,255,0.06)", border: "1px solid rgba(99,91,255,0.18)" }}>
-                    <div className="flex gap-2">
-                      <a
-                        href="https://dashboard.stripe.com/payouts"
-                        target="_blank"
-                        rel="noreferrer"
-                        data-testid="stripe-payouts-link"
-                        className="flex-1 text-center px-3 py-2 rounded-lg text-[11px] font-medium"
-                        style={{ background: "rgba(99,91,255,0.18)", color: "#a5b4fc" }}
-                      >
-                        Payouts
-                      </a>
-                      <a
-                        href="https://dashboard.stripe.com/payments"
-                        target="_blank"
-                        rel="noreferrer"
-                        data-testid="stripe-payments-link"
-                        className="flex-1 text-center px-3 py-2 rounded-lg text-[11px] font-medium"
-                        style={{ background: "rgba(99,91,255,0.18)", color: "#a5b4fc" }}
-                      >
-                        Paiements
-                      </a>
-                    </div>
-                  </div>
-                </Section>
-                </>
+                <p className="text-xs text-muted-em">
+                  Clés IA, debug, export : onglet <strong style={{ color: "#fbbf24" }}>Admin</strong>.
+                </p>
               )}
 
               {/* Save */}

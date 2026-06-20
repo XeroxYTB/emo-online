@@ -68,7 +68,7 @@ from llm_config import (
     stripe_link_for_tier,
 )
 import google_auth
-from llm_health import refresh_probe_cache
+from llm_health import refresh_probe_cache, mark_provider_ok, mark_provider_failed
 from hf_models import refresh_hf_catalog
 from llm_providers import providers_status, configured_providers, api_key_available
 from tool_router import select_tools_for_message
@@ -148,6 +148,29 @@ async def _load_settings():
         "daily_messages": int(doc.get("daily_messages") if doc.get("daily_messages") is not None else DAILY_MESSAGES),
         "subscription_period_days": int(doc.get("subscription_period_days") if doc.get("subscription_period_days") is not None else SUBSCRIPTION_PERIOD_DAYS),
     }
+    for env_name, val in (doc.get("llm_keys") or {}).items():
+        if val:
+            os.environ[str(env_name)] = str(val)
+
+
+LLM_ADMIN_KEYS = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "huggingface": "HF_TOKEN",
+}
+
+
+def _mask_secret(val: str) -> str:
+    v = (val or "").strip()
+    if not v:
+        return ""
+    if len(v) <= 8:
+        return "••••"
+    return f"{v[:4]}…{v[-4:]}"
 
 def s(key: str):
     """Return current runtime setting (env default if not loaded yet)."""
@@ -836,6 +859,51 @@ async def llm_models(user: User = Depends(get_current_user)):
     tier = get_user_tier(lic, is_admin=user.email.lower() in ADMIN_EMAILS)
     models = await models_for_tier(tier)
     return {"tier": tier, "models": models, "default": "auto"}
+
+
+class AdminLlmKeysBody(BaseModel):
+    keys: dict[str, Optional[str]] = {}
+
+
+@api.get("/admin/llm-keys")
+async def admin_get_llm_keys(user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin requis")
+    doc = await db.app_settings.find_one({"_id": "config"}) or {}
+    stored = doc.get("llm_keys") or {}
+    out = {}
+    for pid, env_key in LLM_ADMIN_KEYS.items():
+        val = os.environ.get(env_key, "").strip() or str(stored.get(env_key) or "").strip()
+        out[pid] = {
+            "env": env_key,
+            "configured": bool(val),
+            "preview": _mask_secret(val),
+        }
+    return {"keys": out}
+
+
+@api.patch("/admin/llm-keys")
+async def admin_patch_llm_keys(body: AdminLlmKeysBody, user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin requis")
+    doc = await db.app_settings.find_one({"_id": "config"}) or {}
+    stored = dict(doc.get("llm_keys") or {})
+    for pid, val in (body.keys or {}).items():
+        env_key = LLM_ADMIN_KEYS.get(pid)
+        if not env_key:
+            continue
+        if val is None:
+            continue
+        cleaned = val.strip()
+        if cleaned:
+            os.environ[env_key] = cleaned
+            stored[env_key] = cleaned
+        else:
+            os.environ.pop(env_key, None)
+            stored.pop(env_key, None)
+    await db.app_settings.update_one({"_id": "config"}, {"$set": {"llm_keys": stored}}, upsert=True)
+    asyncio.create_task(refresh_probe_cache())
+    return {"ok": True}
 
 
 @api.get("/subscriptions/plans")
