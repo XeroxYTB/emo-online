@@ -87,6 +87,7 @@ def _safe_mark_provider_failed(provider: str, reason: str = "") -> None:
 from hf_models import refresh_hf_catalog, is_uncensored_model
 from llm_providers import providers_status, configured_providers, api_key_available
 from tool_router import select_tools_for_message
+from open_site_intent import resolve_open_site_url, is_simple_open_request, open_site_label
 from product_keys import (
     ensure_product_keys_seeded,
     create_product_keys,
@@ -2276,6 +2277,89 @@ async def chat_stream(
         cancelled = False
         try:
             yield _sse({"type": "ping"})
+
+            # « ouvres ytb » → browser_visit direct, pas web_search
+            open_url = resolve_open_site_url(body.content) if use_tools else None
+            simple_open = bool(open_url and is_simple_open_request(body.content))
+            pre_tool_log: list[dict] = []
+
+            if open_url and use_tools:
+                tc_id = f"call_{uuid.uuid4().hex[:12]}"
+                yield _sse({"type": "tool_start", "id": tc_id, "name": "browser_visit"})
+                yield _sse({
+                    "type": "tool_executing",
+                    "id": tc_id, "name": "browser_visit",
+                    "arguments": {"url": open_url},
+                })
+                try:
+                    visit_result = await asyncio.wait_for(
+                        execute_tool(
+                            user.user_id, "browser_visit", {"url": open_url}, is_owner=is_owner,
+                        ),
+                        timeout=45.0,
+                    )
+                except asyncio.TimeoutError:
+                    visit_result = {"ok": False, "error": "Ouverture timeout (45s)."}
+                pre_tool_log.append({
+                    "id": tc_id, "name": "browser_visit",
+                    "arguments": {"url": open_url}, "result": visit_result,
+                })
+                yield _sse({
+                    "type": "tool_result",
+                    "id": tc_id, "name": "browser_visit",
+                    "result": _shrink_for_ui(visit_result),
+                })
+                browser_evt = _browser_sse_payload("browser_visit", visit_result)
+                if browser_evt:
+                    yield _sse(browser_evt)
+
+                if simple_open:
+                    label = open_site_label(open_url)
+                    title = (visit_result.get("title") or label).strip()
+                    if visit_result.get("ok"):
+                        reply = (
+                            f"**{title}** est ouvert dans le panneau Activité. "
+                            f"Clique **Ouvrir** sur la carte pour l'afficher dans ton navigateur."
+                        )
+                    else:
+                        err = visit_result.get("error") or "erreur inconnue"
+                        reply = f"Impossible d'ouvrir **{label}** : {err}"
+                    now_done = datetime.now(timezone.utc).isoformat()
+                    assistant_msg = {
+                        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+                        "conversation_id": body.conversation_id,
+                        "user_id": user.user_id,
+                        "role": "emo", "content": reply,
+                        "mode": mode, "mood": "neutre", "verified": None,
+                        "tool_calls": [
+                            {
+                                "name": t["name"],
+                                "arguments": t["arguments"],
+                                "result_summary": _summarize_result(t["result"]),
+                            }
+                            for t in pre_tool_log
+                        ],
+                        "created_at": now_done,
+                    }
+                    await db.messages.insert_one(assistant_msg)
+                    update = {"updated_at": now_done, "mode": mode}
+                    if conv.get("title") in (None, "", "Nouvelle conversation") and len(history) <= 1:
+                        update["title"] = body.content.strip()[:60]
+                    await db.conversations.update_one(
+                        {"conversation_id": body.conversation_id}, {"$set": update}
+                    )
+                    yield _sse({"type": "delta", "content": reply})
+                    yield _sse({
+                        "type": "done",
+                        "mood": "neutre",
+                        "verified": None,
+                        "message_id": assistant_msg["message_id"],
+                        "title": update.get("title"),
+                        "tool_calls": assistant_msg["tool_calls"],
+                        "model_label": "browser_visit",
+                    })
+                    return
+
             for cand_idx, (provider, model, model_label) in enumerate(candidates):
                 if await _client_gone():
                     cancelled = True
@@ -2291,6 +2375,12 @@ async def chat_stream(
                     tool_set = _tools_for_message(body.content, tool_set)
                 model_uncensored = is_uncensored_model(provider, model)
                 effective_system = system_msg
+                if open_url and pre_tool_log:
+                    effective_system += (
+                        f"\n\n# SITE DÉJÀ OUVERT\n"
+                        f"browser_visit({open_url!r}) a déjà été exécuté avec succès. "
+                        f"Ne rappelle PAS web_search pour ouvrir ce site.\n"
+                    )
                 if model_uncensored:
                     effective_system += "\n\n" + UNCENSORED_SYSTEM_APPEND.strip()
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
@@ -2312,7 +2402,7 @@ async def chat_stream(
                     model=model,
                 ).with_model(provider, model).with_tools(prov_tools)
                 full_text_parts: list[str] = []
-                tool_call_log: list[dict] = []
+                tool_call_log: list[dict] = list(pre_tool_log)
                 user_message_for_iter: Optional[UserMessage] = UserMessage(text=body.content)
                 started = False
                 try:
@@ -2754,7 +2844,7 @@ async def ping():
         "ok": True,
         "google": google_auth.is_configured(),
         "service": "emo-online",
-        "build": "2026-06-20c",
+        "build": "2026-06-20d",
     }
 
 

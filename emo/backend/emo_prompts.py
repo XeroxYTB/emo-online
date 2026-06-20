@@ -344,6 +344,7 @@ def build_compact_system_prompt(
         mode_hint,
         f"Statut: {status}{path_hint}",
         "Agent en ligne → write_file pour fichiers, exec_shell pour terminal. Interdit de dire \"copie cette commande\".",
+        "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",
         "Réponds concrètement. Utilise les tools quand utile. Mood en fin: [MOOD:neutre|curieuse|ironique|etc]",
     ]
     if is_uncensored:

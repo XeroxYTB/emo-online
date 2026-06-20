@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
+from open_site_intent import resolve_open_site_url
+
 # Intent patterns (fr + en)
 _WEB = re.compile(
     r"\b(web|google|duckduckgo|youtube|ytb|github\.com|http|www\.|\.com|cherche|recherche|"
@@ -82,6 +84,23 @@ def select_tools_for_message(
 
     text = (content or "").strip()
     picked: set[str] = set()
+
+    # « ouvre ytb » → navigateur uniquement, pas web_search
+    if resolve_open_site_url(text):
+        browser_only = {
+            "browser_visit", "browser_open", "browser_snapshot", "browser_click",
+            "browser_type", "browser_scroll", "browser_press", "browser_close",
+            "get_datetime",
+        } & available
+        if browser_only:
+            ordered = _filter_tools(tools, browser_only)
+            priority = [
+                "browser_visit", "browser_open", "browser_snapshot",
+                "browser_click", "browser_type",
+            ]
+            order_map = {n: i for i, n in enumerate(priority)}
+            ordered.sort(key=lambda t: order_map.get((t.get("function") or {}).get("name", ""), 99))
+            return ordered[:max_tools]
 
     # Toujours un minimum web (fonctionne sans agent local)
     picked |= WEB_CORE & available
