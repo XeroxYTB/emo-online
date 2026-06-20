@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, saveSessionToken, wakeBackend } from "../lib/api";
+import { http, saveSessionToken, authRequest, formatApiError } from "../lib/api";
 import { AppTopBar, EmoLogo } from "../components/EmoLogo";
 import GoogleSignInButton, { getGoogleClientId, loadGoogleIdentity } from "../components/GoogleSignInButton";
 import { toast } from "sonner";
@@ -16,9 +16,7 @@ const isDesktopApp = () => {
   try { return localStorage.getItem("emo_desktop") === "1"; } catch (_) { return false; }
 };
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const GOOGLE_ORIGINS = ["https://xeroxytb.com", "https://www.xeroxytb.com"];
 
 export default function Login() {
   const navigate = useNavigate();
@@ -35,10 +33,11 @@ export default function Login() {
   const bootStarted = useRef(false);
 
   const googleReady = !!googleClientId;
+  const siteOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
   const refreshGoogleStatus = useCallback(async () => {
     try {
-      const r = await http.get("/auth/google/status", { timeout: 12000 });
+      const r = await authRequest(() => http.get("/auth/google/status", { timeout: 15000 }), { maxAttempts: 3 });
       if (r.data?.client_id) setGoogleClientId(r.data.client_id);
       return !!r.data?.client_id;
     } catch (_) {}
@@ -47,30 +46,17 @@ export default function Login() {
 
   const verifyGoogleCredential = useCallback(async (credential) => {
     setGoogleBusy(true);
-    let lastErr;
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      try {
-        if (attempt > 0) {
-          await wakeBackend({ maxWaitMs: 20000 });
-          await sleep(1500 + attempt * 800);
-        }
-        const res = await http.post("/auth/google/verify", { credential }, { timeout: 45000 });
-        if (res.data?.session_token) saveSessionToken(res.data.session_token);
-        navigate("/chat", { replace: true, state: { user: res.data } });
-        return;
-      } catch (err) {
-        lastErr = err;
-        const status = err?.response?.status;
-        if (status === 429 || status === 503 || !err.response) continue;
-        break;
-      }
-    }
-    setGoogleBusy(false);
-    const detail = lastErr?.response?.data?.detail;
-    if (lastErr?.response?.status === 429) {
-      toast.error("Serveur saturé (HF). Réessayez dans 1 minute.");
-    } else {
-      toast.error(typeof detail === "string" ? detail : "Connexion Google impossible.");
+    try {
+      const res = await authRequest(
+        () => http.post("/auth/google/verify", { credential }, { timeout: 45000 }),
+        { maxAttempts: 8 }
+      );
+      if (res.data?.session_token) saveSessionToken(res.data.session_token);
+      navigate("/chat", { replace: true, state: { user: res.data } });
+    } catch (err) {
+      toast.error(formatApiError(err, "Connexion Google impossible."));
+    } finally {
+      setGoogleBusy(false);
     }
   }, [navigate]);
 
@@ -80,12 +66,11 @@ export default function Login() {
 
     (async () => {
       try {
-        await http.get("/auth/me", { timeout: 8000 });
+        await authRequest(() => http.get("/auth/me", { timeout: 10000 }), { maxAttempts: 2 });
         navigate("/chat", { replace: true });
         return;
       } catch (_) {}
 
-      wakeBackend({ maxWaitMs: 12000 }).catch(() => {});
       refreshGoogleStatus();
     })();
   }, [navigate, refreshGoogleStatus]);
@@ -101,6 +86,7 @@ export default function Login() {
       missing_token: "Session expirée.",
       redirect_uri_mismatch: "Configuration OAuth incorrecte.",
       invalid_client: "Configuration Google incorrecte.",
+      origin_mismatch: "Ajoutez xeroxytb.com dans Google Cloud Console (origines JavaScript).",
       rate_limited: "Trop de tentatives.",
     };
     toast.error(msgs[err] || "Connexion impossible.");
@@ -123,17 +109,22 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      wakeBackend({ maxWaitMs: 15000 }).catch(() => {});
       if (mode === "signup") {
-        const res = await http.post("/auth/signup", { email, password, name });
+        const res = await authRequest(
+          () => http.post("/auth/signup", { email, password, name }),
+          { maxAttempts: 8 }
+        );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       } else {
-        const res = await http.post("/auth/login", { email, password });
+        const res = await authRequest(
+          () => http.post("/auth/login", { email, password }),
+          { maxAttempts: 8 }
+        );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       }
       navigate("/chat", { replace: true });
     } catch (err) {
-      toast.error(err?.response?.data?.detail || err?.message || "Identifiants incorrects");
+      toast.error(formatApiError(err, "Identifiants incorrects"));
     } finally {
       setLoading(false);
     }
@@ -158,6 +149,24 @@ export default function Login() {
 
           {googleReady && (
             <>
+              <div
+                className="mb-3 rounded-lg px-3 py-2 text-xs leading-relaxed"
+                style={{ background: "var(--emo-surface-raised)", color: "var(--emo-text-secondary)", border: "1px solid var(--emo-border)" }}
+              >
+                Google bloqué (origin_mismatch) ? Ajoute dans{" "}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                  style={{ color: "var(--emo-accent)" }}
+                >
+                  Google Cloud Console
+                </a>
+                {" "}→ Origines JS : {GOOGLE_ORIGINS.join(", ")}
+                {siteOrigin && !GOOGLE_ORIGINS.includes(siteOrigin) ? ` (et ${siteOrigin})` : ""}
+              </div>
+
               <GoogleSignInButton
                 clientId={googleClientId}
                 onCredential={verifyGoogleCredential}

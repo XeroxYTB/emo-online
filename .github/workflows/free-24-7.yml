@@ -1,9 +1,10 @@
 name: Free 24/7 Hosting
 
 on:
-  schedule:
-    - cron: "*/20 * * * *"
   workflow_dispatch:
+  # Keepalive désactivé — les pings provoquaient des 429 HF sur l'API gratuite
+  # schedule:
+  #   - cron: "*/20 * * * *"
 
 env:
   # Hugging Face Spaces — gratuit, sans carte bancaire

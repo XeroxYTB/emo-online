@@ -21,9 +21,45 @@ export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 const SESSION_KEY = "emo_session_token";
 const RETRY_STATUSES = new Set([429, 502, 503, 504]);
+const AUTH_MAX_ATTEMPTS = 8;
 
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
+}
+
+function isRetriableStatus(status) {
+  return !status || RETRY_STATUSES.has(status);
+}
+
+export function formatApiError(err, fallback = "Erreur réseau") {
+  const status = err?.response?.status;
+  const detail = err?.response?.data?.detail;
+  if (status === 429) return "API saturée (Hugging Face). Attendez 2 min puis réessayez.";
+  if (status === 401 || status === 403) {
+    return typeof detail === "string" ? detail : "Identifiants incorrects";
+  }
+  if (typeof detail === "string") return detail;
+  if (!err?.response) {
+    return "API injoignable. Le serveur HF est peut‑être bloqué (429). Réessayez dans 2 minutes.";
+  }
+  return err?.message || fallback;
+}
+
+/** Requêtes auth avec retries (HF cold start / 429). */
+export async function authRequest(requestFn, options = {}) {
+  const maxAttempts = options.maxAttempts ?? AUTH_MAX_ATTEMPTS;
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      return await requestFn();
+    } catch (err) {
+      lastErr = err;
+      const status = err?.response?.status;
+      if (!isRetriableStatus(status) || attempt >= maxAttempts - 1) break;
+      await sleep(1800 + attempt * 1200);
+    }
+  }
+  throw lastErr;
 }
 
 function backendCandidates() {
@@ -122,23 +158,25 @@ http.interceptors.response.use(
   async (err) => {
     const cfg = err.config || {};
     const status = err.response?.status;
-    const canRetry = !cfg._emoRetried && (RETRY_STATUSES.has(status) || !err.response);
+    const retries = cfg._emoRetryCount || 0;
+    const maxRetries = cfg._emoMaxRetries ?? 4;
+    const canRetry = retries < maxRetries && isRetriableStatus(status);
     if (canRetry) {
       const bases = backendCandidates();
       const current = getActiveBase();
       const next = bases.find((b) => b && b !== current) || bases[0];
       if (next !== undefined) {
-        cfg._emoRetried = true;
+        cfg._emoRetryCount = retries + 1;
         activeBase = next || activeBase;
         cfg.baseURL = getApiBase();
-        await sleep(status === 429 ? 2500 : 800);
+        await sleep(status === 429 ? 2200 + retries * 900 : 800);
         return http.request(cfg);
       }
     }
     if (status === 429) {
-      err.message = "Service saturé. Réessayez.";
+      err.message = "API saturée (Hugging Face). Attendez 2 min puis réessayez.";
     } else if (!err.response) {
-      err.message = "Connexion impossible.";
+      err.message = "API injoignable. Le serveur HF est peut‑être bloqué (429). Réessayez dans 2 minutes.";
     }
     return Promise.reject(err);
   }

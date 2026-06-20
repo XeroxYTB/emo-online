@@ -25,18 +25,6 @@
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
         <title>Émo Online</title>
-        <script>
-          (function () {
-            try {
-              var k = "emo_last_wake";
-              var last = parseInt(localStorage.getItem(k) || "0", 10);
-              if (Date.now() - last < 600000) return;
-              localStorage.setItem(k, String(Date.now()));
-              var ping = "https://xroxx-emo-online-api.hf.space/api/ping";
-              fetch(ping, { mode: "cors", credentials: "include", cache: "no-store" }).catch(function () {});
-            } catch (_) {}
-          })();
-        </script>
         <style>#emergent-badge,[id="emergent-badge"]{display:none!important;visibility:hidden!important}</style>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
     </head>
