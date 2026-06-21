@@ -86,8 +86,9 @@ export function resolveToolPreview(event) {
     );
   }
 
-  if (preview?.type === "image" && preview.src) {
-    return { kind: "image", src: preview.src, title: preview.title || "Image" };
+  if (preview?.type === "image") {
+    const src = buildImagePreviewSrc(preview);
+    if (src) return { kind: "image", src, title: preview.title || "Image" };
   }
 
   if (!result || result.ok === false) {
@@ -108,27 +109,15 @@ export function resolveToolPreview(event) {
   }
 
   if (tool === "generate_image" && result?.ok) {
-    const remoteSrc = result.image_url || result.url;
-    if (remoteSrc && /^https?:\/\//i.test(remoteSrc)) {
+    const src = buildImagePreviewSrc(result);
+    if (src) {
       return {
         kind: "image",
-        src: remoteSrc,
-        title: args.prompt || result.prompt || "Image générée",
+        src,
+        title: args.prompt || result.prompt || result.subject || "Image générée",
       };
     }
-    const mime = result.mime || "image/png";
-    const b64 = result.image_base64;
-    if (b64 && !String(b64).startsWith("[")) {
-      return {
-        kind: "image",
-        src: `data:${mime};base64,${b64}`,
-        title: args.prompt || result.prompt || "Image générée",
-      };
-    }
-  }
-
-  if (tool === "generate_image" && result?.has_image) {
-    return null;
+    if (result.has_image) return null;
   }
 
   if (tool === "web_search" && (result.results || []).length) {
