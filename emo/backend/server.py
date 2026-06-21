@@ -2067,6 +2067,15 @@ class BrowserTypeBody(BaseModel):
     fast: bool = True
 
 
+class BrowserFillBody(BaseModel):
+    session_id: str = "default"
+    ref: Optional[int] = None
+    selector: Optional[str] = None
+    text: str
+    press_enter: bool = False
+    fast: bool = True
+
+
 class BrowserScrollBody(BaseModel):
     session_id: str = "default"
     direction: str = "down"
