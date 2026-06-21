@@ -4,6 +4,9 @@ const IFRAME_BLOCKED =
 
 const YOUTUBE_HOST = /youtube\.com|youtu\.be/i;
 
+const VIDEO_STREAM_HOST =
+  /youtube\.com|youtu\.be|twitch\.tv|kick\.com|vimeo\.com|dailymotion\.com|rumble\.com|odysee\.com/i;
+
 export function isIframeBlocked(url = "") {
   try {
     const u = new URL(url);
@@ -41,6 +44,8 @@ export function youtubeVideoId(url = "") {
     if (u.hostname.includes("youtu.be")) return u.pathname.slice(1).split("/")[0] || null;
     if (u.hostname.includes("youtube.com")) {
       if (u.pathname === "/watch") return u.searchParams.get("v");
+      const live = u.pathname.match(/^\/live\/([^/?]+)/);
+      if (live) return live[1];
       const m = u.pathname.match(/\/(embed|shorts|v)\/([^/?]+)/);
       return m ? m[2] : null;
     }
@@ -48,6 +53,91 @@ export function youtubeVideoId(url = "") {
     /* ignore */
   }
   return null;
+}
+
+/** True si l'URL pointe vers une plateforme vidéo / live (YouTube, Twitch, Kick, …). */
+export function isVideoStreamUrl(url = "") {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    const hostPath = `${u.hostname}${u.pathname}`;
+    if (VIDEO_STREAM_HOST.test(u.hostname)) return true;
+    if (youtubeVideoId(url)) return true;
+    return /\/live\b|\/watch\b|\/embed\b|\/video\b|\/shorts\b/i.test(hostPath);
+  } catch {
+    return false;
+  }
+}
+
+function twitchEmbedUrl(url = "", parentDomain = "localhost") {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes("twitch.tv")) return null;
+    const parts = u.pathname.split("/").filter(Boolean);
+    const parent = encodeURIComponent(parentDomain || "localhost");
+    if (parts[0] === "videos" && parts[1]) {
+      return `https://player.twitch.tv/?video=${encodeURIComponent(parts[1])}&parent=${parent}&autoplay=true`;
+    }
+    const channel = parts[0];
+    const skip = new Set(["directory", "settings", "downloads", "p", "search", ""]);
+    if (channel && !skip.has(channel.toLowerCase())) {
+      return `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${parent}&autoplay=true`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function kickEmbedUrl(url = "") {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes("kick.com")) return null;
+    const parts = u.pathname.split("/").filter(Boolean);
+    const skip = new Set(["categories", "browse", "search", ""]);
+    const channel = parts[0];
+    if (channel && !skip.has(channel.toLowerCase())) {
+      return `https://player.kick.com/${encodeURIComponent(channel)}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function vimeoEmbedUrl(url = "") {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes("vimeo.com")) return null;
+    const m = u.pathname.match(/\/(\d+)/);
+    if (m) return `https://player.vimeo.com/video/${m[1]}?autoplay=0`;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** URL lecteur embed pour vidéos / lives (YouTube, Twitch, Kick, Vimeo). */
+export function videoEmbedUrl(url = "", parentDomain = "") {
+  const yt = youtubeEmbedUrl(url);
+  if (yt) return yt;
+  const parent =
+    parentDomain ||
+    (typeof window !== "undefined" ? window.location.hostname : "localhost");
+  return twitchEmbedUrl(url, parent) || kickEmbedUrl(url) || vimeoEmbedUrl(url);
+}
+
+export function videoPlatformLabel(url = "") {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    if (h.includes("youtube") || h.includes("youtu.be")) return "YouTube";
+    if (h.includes("twitch")) return "Twitch";
+    if (h.includes("kick")) return "Kick";
+    if (h.includes("vimeo")) return "Vimeo";
+  } catch {
+    /* ignore */
+  }
+  return "Vidéo";
 }
 
 /** URL embed YouTube (lecture vidéo dans iframe — youtube.com/watch est bloqué en iframe direct). */
@@ -72,7 +162,7 @@ function clipText(text = "", max = 900) {
 /** Choisit le mode d'aperçu : iframe, image (screenshot/miniature), texte, ou carte bloquée. */
 export function resolveSitePreview(url, { screenshot, previewText } = {}) {
   if (screenshot) return { kind: "image", src: screenshot };
-  const embed = youtubeEmbedUrl(url);
+  const embed = videoEmbedUrl(url);
   if (embed) return { kind: "iframe", url: embed, embed: true };
   const thumb = siteThumbnail(url);
   if (thumb && isYouTubeUrl(url)) {

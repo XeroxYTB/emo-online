@@ -168,7 +168,7 @@ function normalizeToolEvent(t, i) {
   }
   if (
     !inlinePreview &&
-    ["browser_visit", "browser_open", "web_fetch", "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type"].includes(tool) &&
+    ["browser_visit", "browser_open", "web_fetch", "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type", "browser_fill"].includes(tool) &&
     (t.result?.url || args.url || t.result?.screenshot_base64)
   ) {
     inlinePreview = {

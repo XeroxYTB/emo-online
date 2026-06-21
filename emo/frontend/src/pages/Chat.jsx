@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { http, streamChat, clearSessionToken, wakeBackend } from "../lib/api";
 import { toast } from "sonner";
 import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDown, Wifi, RefreshCw, Loader2 } from "lucide-react";
@@ -103,6 +103,8 @@ export default function Chat() {
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [license, setLicense] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileSection, setProfileSection] = useState("profile");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [themeMode, setThemeMode] = useState(
     typeof window !== "undefined" ? (localStorage.getItem("emo_theme_mode") || "dark") : "dark"
@@ -210,6 +212,17 @@ export default function Chat() {
   }, [rightPanelMobileOpen]);
 
   useEffect(() => {
+    const settings = searchParams.get("settings");
+    if (settings === "connections") {
+      setProfileSection("connections");
+      setProfileOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("settings");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     if (!profileOpen) return;
     const onKey = (e) => {
       if (e.key === "Escape") setProfileOpen(false);
@@ -221,6 +234,7 @@ export default function Chat() {
   const openProfile = () => {
     setSidebarOpenMobile(false);
     setRightPanelMobileOpen(false);
+    setProfileSection("profile");
     setProfileOpen(true);
   };
 
@@ -499,7 +513,7 @@ export default function Chat() {
       for (let i = updated.length - 1; i >= 0; i -= 1) {
         if ([
           "browser_visit", "browser_open", "web_fetch", "web_search",
-          "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
+          "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type", "browser_fill",
         ].includes(updated[i].tool)) {
           idx = i;
           break;
@@ -1114,6 +1128,7 @@ export default function Chat() {
       <ProfileDrawer
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
+        initialSection={profileSection}
         onLogout={handleLogout}
         themeMode={themeMode}
         onThemeModeChange={setThemeMode}

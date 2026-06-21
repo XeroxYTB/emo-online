@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { http, BACKEND_URL } from "../lib/api";
-import { KeyRound, RefreshCw, Save, Sparkles, Brain, Bug, Package, Download, ShieldCheck, CreditCard, MessageSquare } from "lucide-react";
+import { KeyRound, RefreshCw, Save, Sparkles, Brain, Bug, Package, Download, ShieldCheck, CreditCard, MessageSquare, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import EmoIdentityPanel from "./EmoIdentityPanel";
 import MemoryPanel from "./MemoryPanel";
 import DebugWindow from "./DebugWindow";
 import FeedbackSessionsPanel from "./FeedbackSessionsPanel";
+import ConnectedAccountsPanel from "./ConnectedAccountsPanel";
 
 const KEY_META = [
   { id: "groq", label: "Groq", hint: "Llama / Gemma gratuit" },
@@ -98,6 +99,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
     { id: "emo", label: "Émo", icon: Sparkles },
     { id: "memory", label: "Mémoire", icon: Brain },
     { id: "system", label: "Système", icon: ShieldCheck },
+    { id: "connections", label: "Comptes OAuth", icon: Link2 },
   ];
 
   return (
@@ -227,6 +229,15 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
             <a href="https://dashboard.stripe.com/payments" target="_blank" rel="noreferrer" className="flex-1 text-center py-2 rounded-lg text-[11px] emo-btn-soft">Stripe</a>
             <a href="https://huggingface.co/spaces/Xroxx/emo-online-api/settings" target="_blank" rel="noreferrer" className="flex-1 text-center py-2 rounded-lg text-[11px] emo-btn-soft">HF Space</a>
           </div>
+        </div>
+      )}
+
+      {tab === "connections" && (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-em">
+            Comptes liés pour l&apos;admin (GitHub API + token Google stocké pour Gmail/Drive à venir).
+          </p>
+          <ConnectedAccountsPanel />
         </div>
       )}
 

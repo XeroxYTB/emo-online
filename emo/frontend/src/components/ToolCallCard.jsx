@@ -22,6 +22,7 @@ const ICONS = {
   browser_open: Compass,
   browser_click: MousePointer2,
   browser_type: Compass,
+  browser_fill: Compass,
   browser_snapshot: Compass,
   browser_scroll: Compass,
   browser_press: Compass,
@@ -52,6 +53,7 @@ const COLORS = {
   browser_open: "#6366F1",
   browser_click: "#38BDF8",
   browser_type: "#818CF8",
+  browser_fill: "#818CF8",
   emo_reflect: "#E879F9",
   emo_remember: "#C084FC",
   emo_introspect: "#A855F7",
@@ -72,7 +74,7 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   const canPreview = hasToolPreview(event) || Boolean(isImageGen && imagePreviewSrc) || Boolean(
     event.args?.url && [
       "browser_visit", "browser_open", "web_fetch",
-      "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
+      "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type", "browser_fill",
     ].includes(event.tool),
   );
   const [previewOpen, setPreviewOpen] = useState(

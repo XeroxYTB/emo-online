@@ -20,7 +20,11 @@ import {
 import { mapImageClickToViewport } from "../lib/browserClickCoords";
 import { formatApiError } from "../lib/api";
 import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
-import { isYouTubeUrl, youtubeEmbedUrl } from "../lib/sitePreview";
+import {
+  isVideoStreamUrl,
+  videoEmbedUrl,
+  videoPlatformLabel,
+} from "../lib/sitePreview";
 import {
   prefersTouchKeyboard,
   useVisualViewportKeyboard,
@@ -35,7 +39,8 @@ const SPECIAL_KEYS = new Set([
 const SCROLL_THROTTLE_MS = 16;
 const KEY_SNAPSHOT_MS = 80;
 const LIVE_SYNC_MS = 2500;
-const LIVE_SYNC_VIDEO_MS = 1200;
+/** Pause sync après interaction utilisateur (regarder vidéo, cliquer, etc.) */
+const USER_ACTIVITY_PAUSE_MS = 120_000;
 
 function mapDomKey(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -87,6 +92,10 @@ export default function InteractiveBrowser({
   const flushScrollAccumRef = useRef(() => {});
   const actionGenRef = useRef(0);
   const liveSyncGenRef = useRef(0);
+  const userActivityUntilRef = useRef(0);
+  const embedHostRef = useRef(
+    typeof window !== "undefined" ? window.location.hostname : "localhost",
+  );
   const [local, setLocal] = useState(frame || null);
   const [navigating, setNavigating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,8 +109,9 @@ export default function InteractiveBrowser({
   const autoOpenedRef = useRef(false);
 
   const pageUrl = local?.url || frame?.url || "";
-  const embedUrl = youtubeEmbedUrl(pageUrl);
+  const embedUrl = videoEmbedUrl(pageUrl, embedHostRef.current);
   const showEmbed = Boolean(embedUrl);
+  const isStreamPage = isVideoStreamUrl(pageUrl);
   const viewportW = local?.viewport_width || frame?.viewport_width || 1280;
   const viewportH = local?.viewport_height || frame?.viewport_height || 900;
   const secure = isSecureUrl(pageUrl);
@@ -176,8 +186,13 @@ export default function InteractiveBrowser({
     [applyFrame],
   );
 
+  const markUserActivity = useCallback(() => {
+    userActivityUntilRef.current = Date.now() + USER_ACTIVITY_PAUSE_MS;
+  }, []);
+
   const runSilentSync = useCallback(async () => {
-    if (showEmbed || navigating || refreshing || document.hidden) return;
+    if (showEmbed || isStreamPage || navigating || refreshing || document.hidden) return;
+    if (Date.now() < userActivityUntilRef.current) return;
     const gen = ++liveSyncGenRef.current;
     try {
       const next = await browserSnapshot(sessionId);
@@ -196,12 +211,11 @@ export default function InteractiveBrowser({
     } catch {
       /* sync silencieux — pas de toast */
     }
-  }, [showEmbed, navigating, refreshing, sessionId, onFrameUpdate]);
+  }, [showEmbed, isStreamPage, navigating, refreshing, sessionId, onFrameUpdate]);
 
   useEffect(() => {
-    if (!liveSync || showEmbed || !hasValidScreenshot(local)) return undefined;
-    const intervalMs = isYouTubeUrl(pageUrl) ? LIVE_SYNC_VIDEO_MS : LIVE_SYNC_MS;
-    const id = setInterval(runSilentSync, intervalMs);
+    if (!liveSync || showEmbed || isStreamPage || !hasValidScreenshot(local)) return undefined;
+    const id = setInterval(runSilentSync, LIVE_SYNC_MS);
     const onVis = () => {
       if (!document.hidden) runSilentSync();
     };
@@ -210,7 +224,7 @@ export default function InteractiveBrowser({
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [liveSync, showEmbed, local?.screenshot_base64, pageUrl, runSilentSync]);
+  }, [liveSync, showEmbed, isStreamPage, local?.screenshot_base64, runSilentSync]);
 
   const scheduleKeySnapshot = useCallback(() => {
     if (keySnapshotTimerRef.current) clearTimeout(keySnapshotTimerRef.current);
@@ -343,14 +357,15 @@ export default function InteractiveBrowser({
   );
 
   const activateKeyboardCapture = useCallback(() => {
-    if (navigating) return;
+    if (navigating || showEmbed) return;
+    markUserActivity();
     setKeyboardFocused(true);
     if (touchKeyboardRef.current && mobileInputRef.current) {
       mobileInputRef.current.focus({ preventScroll: true });
       return;
     }
     containerRef.current?.focus({ preventScroll: true });
-  }, [navigating]);
+  }, [navigating, showEmbed, markUserActivity]);
 
   const handleContainerBlur = () => {
     requestAnimationFrame(() => {
@@ -376,6 +391,7 @@ export default function InteractiveBrowser({
 
   const handleScreenshotClick = (e) => {
     if (navigating || !imgRef.current) return;
+    markUserActivity();
     activateKeyboardCapture();
     const coords = mapImageClickToViewport(
       imgRef.current,
@@ -470,6 +486,27 @@ export default function InteractiveBrowser({
         )}
 
         <div className="hidden sm:flex items-center gap-0.5">
+          {!showEmbed && (
+            <button
+              type="button"
+              title={keyboardFocused ? "Désactiver le clavier distant" : "Activer le clavier distant"}
+              disabled={busy}
+              onClick={() => {
+                if (keyboardFocused) {
+                  setKeyboardFocused(false);
+                  mobileInputRef.current?.blur();
+                  containerRef.current?.blur();
+                } else {
+                  activateKeyboardCapture();
+                }
+              }}
+              className="emo-icon-btn"
+              data-keyboard-toggle="true"
+              aria-pressed={keyboardFocused}
+            >
+              <Keyboard size={14} style={{ color: keyboardFocused ? "var(--emo-accent)" : undefined }} />
+            </button>
+          )}
           <button
             type="button"
             title="Défiler vers le haut"
@@ -516,10 +553,14 @@ export default function InteractiveBrowser({
 
       {/* Viewport */}
       {showEmbed ? (
-        <div className="emo-browser-viewport" data-testid="browser-youtube-embed">
+        <div
+          className="emo-browser-viewport"
+          data-testid="browser-video-embed"
+          onPointerDown={markUserActivity}
+        >
           <iframe
             key={embedUrl}
-            title={local?.title || "YouTube"}
+            title={local?.title || videoPlatformLabel(pageUrl)}
             src={embedUrl}
             className="w-full border-0 block"
             style={{ height: viewportHeight, background: "#000" }}
@@ -532,12 +573,15 @@ export default function InteractiveBrowser({
         <div
           ref={containerRef}
           tabIndex={touchKeyboardRef.current ? -1 : 0}
-          onFocus={() => setKeyboardFocused(true)}
+          onFocus={() => {
+            markUserActivity();
+            setKeyboardFocused(true);
+          }}
           onBlur={handleContainerBlur}
           onPointerDown={(e) => {
             if (e.pointerType === "mouse" && e.button !== 0) return;
             if (e.target.closest(".emo-browser-keyboard-input")) return;
-            activateKeyboardCapture();
+            markUserActivity();
           }}
           className="emo-browser-viewport"
           data-focused={keyboardFocused ? "true" : "false"}
@@ -659,7 +703,8 @@ export default function InteractiveBrowser({
             style={{ background: busy ? "#fbbf24" : "var(--emo-status-online)" }}
           />
           {touchKeyboardRef.current ? "Clic · Toucher · Clavier" : "Clic · Molette · Clavier"}
-          {showEmbed && " · Vidéo YouTube"}
+          {showEmbed && ` · ${videoPlatformLabel(pageUrl)}`}
+          {isStreamPage && !showEmbed && " · Flux vidéo (sync pause)"}
         </span>
         {local?.title && (
           <span className="truncate max-w-[55%] font-medium" title={local.title}>

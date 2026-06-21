@@ -146,14 +146,18 @@ class BrowserController:
                                 el.innerText || el.value || el.placeholder ||
                                 el.getAttribute('aria-label') || el.name || ''
                             ).trim().slice(0, 100);
+                            const inputType = el.type || null;
+                            let label = text || `[${tag}]`;
+                            if (tag === 'input' && inputType === 'password') label = `[password] ${label}`.trim();
                             if (!text && !['input', 'textarea', 'select'].includes(tag)) continue;
                             ref += 1;
                             el.setAttribute('data-emo-ref', String(ref));
                             out.push({
                                 ref,
                                 tag,
-                                text: text || `[${tag}]`,
-                                type: el.type || null,
+                                text: label,
+                                type: inputType,
+                                name: el.name || null,
                                 href: el.href ? el.href.slice(0, 200) : null,
                             });
                             if (out.length >= 45) break;
@@ -191,7 +195,7 @@ class BrowserController:
         if not fast:
             out["text"] = text
             out["elements"] = elements[:MAX_ELEMENTS]
-            out["hint"] = "browser_click(ref=N|x,y) · browser_type(ref=N, text=...) · browser_snapshot()"
+            out["hint"] = "browser_click(ref=N|x,y) · browser_fill(ref=N, text=...) · browser_type · browser_snapshot()"
         return out
 
     async def _settle(self, page: "Page", *, fast: bool) -> None:
@@ -320,6 +324,44 @@ class BrowserController:
         snap["action"] = "type"
         return snap
 
+    async def fill_text(
+        self,
+        user_id: str,
+        text: str,
+        session_id: str = "default",
+        ref: Optional[int] = None,
+        selector: Optional[str] = None,
+        press_enter: bool = False,
+        *,
+        fast: bool = False,
+    ) -> dict[str, Any]:
+        """Remplit un champ (login, password) — préféré à browser_type pour formulaires."""
+        try:
+            sess = await self._get_session(user_id, session_id, create=False)
+        except RuntimeError as e:
+            return {"ok": False, "error": str(e)}
+        page = sess.page
+        fill_timeout = 5000 if fast else 12000
+        try:
+            if ref is not None:
+                loc = page.locator(f'[data-emo-ref="{int(ref)}"]')
+                await loc.first.click(timeout=fill_timeout)
+                await loc.first.fill(text, timeout=fill_timeout)
+            elif selector:
+                loc = page.locator(selector)
+                await loc.first.click(timeout=fill_timeout)
+                await loc.first.fill(text, timeout=fill_timeout)
+            else:
+                return {"ok": False, "error": "Indique ref ou selector pour browser_fill."}
+            if press_enter:
+                await page.keyboard.press("Enter")
+            await self._settle(page, fast=fast)
+        except Exception as e:
+            return {"ok": False, "error": f"Remplissage échoué: {e}"}
+        snap = await self._snapshot(page, session_id, fast=fast)
+        snap["action"] = "fill"
+        return snap
+
     async def scroll(
         self,
         user_id: str,
@@ -446,6 +488,21 @@ async def browser_type(
     )
 
 
+async def browser_fill(
+    user_id: str,
+    text: str,
+    session_id: str = "default",
+    ref: Optional[int] = None,
+    selector: Optional[str] = None,
+    press_enter: bool = False,
+    *,
+    fast: bool = False,
+) -> dict:
+    return await browser_controller.fill_text(
+        user_id, text, session_id, ref=ref, selector=selector, press_enter=press_enter, fast=fast,
+    )
+
+
 async def browser_scroll(
     user_id: str,
     direction: str = "down",
@@ -542,6 +599,27 @@ BROWSER_CONTROL_TOOLS = [
                     "selector": {"type": "string"},
                     "clear": {"type": "boolean"},
                     "press_enter": {"type": "boolean"},
+                    "session_id": {"type": "string"},
+                },
+                "required": ["text"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "browser_fill",
+            "description": (
+                "Remplit un champ de formulaire (email, login, password). "
+                "Préféré à browser_type pour connexion — remplace le contenu du champ."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "Valeur à saisir (identifiant, mot de passe, etc.)."},
+                    "ref": {"type": "integer", "description": "Ref du champ depuis browser_snapshot."},
+                    "selector": {"type": "string", "description": "Selector CSS alternatif (ex: input[type=password])."},
+                    "press_enter": {"type": "boolean", "description": "Appuyer sur Entrée après saisie."},
                     "session_id": {"type": "string"},
                 },
                 "required": ["text"],

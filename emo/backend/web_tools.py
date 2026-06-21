@@ -10,6 +10,7 @@ import math
 import operator
 import re
 from datetime import datetime, timezone
+from typing import Optional
 from urllib.parse import quote_plus, urljoin, urlparse
 from bs4 import BeautifulSoup
 
@@ -39,7 +40,7 @@ _EXTERNAL_ONLY = re.compile(
     r"(^|\.)("
     r"youtube\.com|youtu\.be|facebook\.com|instagram\.com|twitter\.com|x\.com|"
     r"tiktok\.com|linkedin\.com|netflix\.com|spotify\.com|accounts\.google\.com|"
-    r"discord\.com|twitch\.tv"
+    r"discord\.com|twitch\.tv|kick\.com"
     r")$",
     re.I,
 )
@@ -57,6 +58,7 @@ _SITE_TITLES = {
     "spotify.com": "Spotify",
     "discord.com": "Discord",
     "twitch.tv": "Twitch",
+    "kick.com": "Kick",
 }
 
 
@@ -88,9 +90,37 @@ def _youtube_video_id(url: str) -> str | None:
         if "youtube.com" in host:
             if p.path == "/watch":
                 return (parse_qs(p.query).get("v") or [None])[0]
+            m_live = re.match(r"^/live/([^/?]+)", p.path)
+            if m_live:
+                return m_live.group(1)
             m = re.match(r"^/(embed|shorts|v)/([^/?]+)", p.path)
             if m:
                 return m.group(2)
+    except Exception:
+        pass
+    return None
+
+
+def _video_embed_url(url: str, parent: str = "localhost") -> str | None:
+    """URL lecteur embed pour vidéos / lives (YouTube, Twitch, Kick)."""
+    vid = _youtube_video_id(url)
+    if vid:
+        return f"https://www.youtube-nocookie.com/embed/{vid}?rel=0&modestbranding=1&playsinline=1"
+    try:
+        p = urlparse(url)
+        host = (p.netloc or "").lower()
+        parts = [x for x in p.path.split("/") if x]
+        if "twitch.tv" in host:
+            parent_q = quote_plus(parent or "localhost")
+            if parts and parts[0] == "videos" and len(parts) > 1:
+                return f"https://player.twitch.tv/?video={quote_plus(parts[1])}&parent={parent_q}&autoplay=true"
+            channel = parts[0] if parts else ""
+            if channel and channel.lower() not in ("directory", "settings", "downloads", "p", "search"):
+                return f"https://player.twitch.tv/?channel={quote_plus(channel)}&parent={parent_q}&autoplay=true"
+        if "kick.com" in host:
+            channel = parts[0] if parts else ""
+            if channel and channel.lower() not in ("categories", "browse", "search"):
+                return f"https://player.kick.com/{quote_plus(channel)}"
     except Exception:
         pass
     return None
@@ -104,7 +134,8 @@ def _synthetic_browser_visit(url: str, *, note: str = "") -> dict:
     favicon = f"https://www.google.com/s2/favicons?domain={host}&sz=128" if host else ""
     images = [{"url": favicon, "alt": title}] if favicon else []
     vid = _youtube_video_id(url)
-    if vid:
+    embed = _video_embed_url(url)
+    if embed:
         preview = f"{title} — vidéo prête à lire dans le navigateur intégré."
     else:
         preview = (
@@ -119,12 +150,13 @@ def _synthetic_browser_visit(url: str, *, note: str = "") -> dict:
         "preview": preview,
         "links": [{"text": f"Ouvrir {title}", "url": url}],
         "images": images,
-        "embed_blocked": not bool(vid),
-        "hint": "Site ouvert en mode aperçu externe." if not vid else "Vidéo YouTube — lecteur embed.",
+        "embed_blocked": not bool(embed),
+        "hint": "Site ouvert en mode aperçu externe." if not embed else "Vidéo — lecteur embed dans le panneau.",
     }
     if vid:
         out["youtube_video_id"] = vid
-        out["embed_url"] = f"https://www.youtube-nocookie.com/embed/{vid}?rel=0&modestbranding=1&playsinline=1"
+    if embed:
+        out["embed_url"] = embed
     if note:
         out["fetch_note"] = note[:200]
     return out
@@ -363,11 +395,26 @@ async def web_fetch_json(url: str, max_chars: int = 8000) -> dict:
         return {"ok": False, "error": str(e), "url": url}
 
 
-async def github_search(query: str, limit: int = 8) -> dict:
+async def github_search(query: str, limit: int = 8, access_token: Optional[str] = None) -> dict:
     q = (query or "").strip()
     if not q:
         return {"ok": False, "error": "query missing"}
+    if access_token:
+        from connected_accounts import github_search_authenticated
+        return await github_search_authenticated(q, access_token, limit=min(limit, 15))
     return await web_search(q, limit=min(limit, 15), focus="code")
+
+
+async def github_api(
+    access_token: str,
+    method: str,
+    path: str,
+    *,
+    params: Optional[dict] = None,
+    json_body: Optional[dict] = None,
+) -> dict:
+    from connected_accounts import github_api as _github_api
+    return await _github_api(access_token, method, path, params=params, json_body=json_body)
 
 
 async def stackoverflow_search(query: str, limit: int = 8) -> dict:
@@ -539,7 +586,10 @@ WEB_TOOLS = [
         "type": "function",
         "function": {
             "name": "github_search",
-            "description": "Recherche GitHub (repos, issues, code) via web search ciblée.",
+            "description": (
+                "Recherche GitHub (repos, issues, code). "
+                "Si l'utilisateur a lié son compte GitHub, utilise l'API authentifiée."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -547,6 +597,26 @@ WEB_TOOLS = [
                     "limit": {"type": "integer", "description": "Max résultats."},
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "github_api",
+            "description": (
+                "Appel authentifié à l'API GitHub REST (repos, issues, PRs, gists…). "
+                "Nécessite un compte GitHub connecté par l'utilisateur."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "method": {"type": "string", "enum": ["GET", "POST", "PATCH", "PUT", "DELETE"], "description": "Verbe HTTP."},
+                    "path": {"type": "string", "description": "Chemin API (ex: repos/owner/repo/issues) ou URL complète."},
+                    "params": {"type": "object", "description": "Query params optionnels."},
+                    "json": {"type": "object", "description": "Corps JSON pour POST/PATCH."},
+                },
+                "required": ["path"],
             },
         },
     },

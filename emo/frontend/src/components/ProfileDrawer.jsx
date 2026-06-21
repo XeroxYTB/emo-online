@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { http } from "../lib/api";
 import {
   X, User as UserIcon, Sparkles, Palette, ShieldCheck, AlertTriangle,
-  Trash2, LogOut, Save, Moon, Sun, Monitor, Shield, CreditCard, FileText,
+  Trash2, LogOut, Save, Moon, Sun, Monitor, Shield, CreditCard, FileText, Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SubscriptionSection } from "./SubscriptionPlans";
 import AgentPermissionsPanel from "./AgentPermissionsPanel";
 import AdminPanel from "./AdminPanel";
+import ConnectedAccountsPanel from "./ConnectedAccountsPanel";
 
 const THEME_OPTIONS = [
   { id: "dark", label: "Sombre", Icon: Moon },
@@ -17,6 +18,7 @@ const THEME_OPTIONS = [
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profil", Icon: UserIcon },
+  { id: "connections", label: "Comptes connectés", Icon: Link2 },
   { id: "subscription", label: "Abonnement", Icon: CreditCard },
   { id: "appearance", label: "Apparence", Icon: Palette },
   { id: "instructions", label: "Instructions", Icon: FileText },
@@ -32,6 +34,7 @@ export default function ProfileDrawer({
   agentOnline,
   debugEvents,
   onClearDebugEvents,
+  initialSection = "profile",
 }) {
   const [profile, setProfile] = useState(null);
   const [section, setSection] = useState("profile");
@@ -42,13 +45,13 @@ export default function ProfileDrawer({
 
   useEffect(() => {
     if (!open) return;
-    setSection("profile");
+    setSection(initialSection || "profile");
     http.get("/profile").then((r) => {
       setProfile(r.data);
       setName(r.data.user.name || "");
       setAddon(r.data.preferences.custom_prompt_addon || "");
     });
-  }, [open]);
+  }, [open, initialSection]);
 
   const save = async () => {
     setSaving(true);
@@ -243,6 +246,15 @@ export default function ProfileDrawer({
                 </>
               )}
 
+              {section === "connections" && (
+                <div className="emo-settings-section">
+                  <h3 className="emo-settings-section-title">
+                    <Link2 size={12} /> Comptes connectés
+                  </h3>
+                  <ConnectedAccountsPanel />
+                </div>
+              )}
+
               {section === "subscription" && (
                 <div className="emo-settings-section">
                   <h3 className="emo-settings-section-title">
@@ -320,7 +332,7 @@ export default function ProfileDrawer({
                 </div>
               )}
 
-              {section !== "admin" && (
+              {section !== "admin" && section !== "connections" && (
                 <button
                   data-testid="profile-save-btn"
                   onClick={save}

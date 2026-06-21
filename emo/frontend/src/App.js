@@ -6,6 +6,7 @@ import ThemedToaster from "@/components/ThemedToaster";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/pages/Login";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
+import ConnectionsCallback from "@/pages/ConnectionsCallback";
 import Chat from "@/pages/Chat";
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
             <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
+            <Route path="/auth/connections/callback" element={<ConnectionsCallback />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="*" element={<Navigate to="/chat" replace />} />
           </Routes>

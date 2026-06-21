@@ -34,8 +34,8 @@ _FILE = re.compile(
 # Core sets
 WEB_CORE = {
     "web_search", "web_fetch", "browser_visit", "browser_open", "browser_snapshot",
-    "browser_click", "browser_type", "browser_scroll", "browser_press", "browser_close",
-    "github_search", "stackoverflow_search", "get_datetime", "calculate", "generate_image",
+    "browser_click", "browser_type", "browser_fill", "browser_scroll", "browser_press", "browser_close",
+    "github_search", "github_api", "stackoverflow_search", "get_datetime", "calculate", "generate_image",
 }
 LOCAL_CORE = {
     "read_file", "write_file", "edit_file", "list_dir", "grep", "find_files",
@@ -90,14 +90,14 @@ def select_tools_for_message(
     if resolve_open_site_url(text):
         browser_only = {
             "browser_visit", "browser_open", "browser_snapshot", "browser_click",
-            "browser_type", "browser_scroll", "browser_press", "browser_close",
+            "browser_type", "browser_fill", "browser_scroll", "browser_press", "browser_close",
             "get_datetime",
         } & available
         if browser_only:
             ordered = _filter_tools(tools, browser_only)
             priority = [
                 "browser_visit", "browser_open", "browser_snapshot",
-                "browser_click", "browser_type",
+                "browser_click", "browser_type", "browser_fill",
             ]
             order_map = {n: i for i, n in enumerate(priority)}
             ordered.sort(key=lambda t: order_map.get((t.get("function") or {}).get("name", ""), 99))
@@ -133,7 +133,7 @@ def select_tools_for_message(
     ordered = _filter_tools(tools, picked)
     # Priorité: browser > web > local > self
     priority = [
-        "browser_open", "browser_click", "browser_type", "browser_snapshot",
+        "browser_open", "browser_click", "browser_type", "browser_fill", "browser_snapshot",
         "web_search", "web_fetch", "browser_visit", "generate_image",
         "read_file", "edit_file", "write_file", "exec_shell", "print_file", "grep", "find_files",
         "emo_reflect", "emo_edit_self",

@@ -3,7 +3,7 @@ import { htmlPreviewUrl, isHtmlPath } from "./filePreview";
 
 const BROWSER_TOOLS = [
   "web_fetch", "browser_visit", "browser_open",
-  "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
+  "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type", "browser_fill",
 ];
 
 function hasValidScreenshot(data) {

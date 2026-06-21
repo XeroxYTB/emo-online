@@ -61,6 +61,7 @@ from web_tools import (
     browser_visit as do_browser_visit,
     get_datetime as do_get_datetime,
     github_search as do_github_search,
+    github_api as do_github_api,
     stackoverflow_search as do_stackoverflow_search,
     calculate_expression as do_calculate,
     WEB_TOOLS,
@@ -71,6 +72,7 @@ from llm_config import (
     stripe_link_for_tier, resolve_free_vision_candidates, vision_keys_missing_message,
 )
 import google_auth
+import connected_accounts as conn_accounts
 from image_tools import generate_image as do_generate_image, GENERATE_IMAGE_TOOL
 from site_intent import is_full_site_request, resolve_site_output_dir
 from site_builder import build_sales_site
@@ -1566,7 +1568,92 @@ async def delete_account(user: User = Depends(get_current_user)):
     await db.memories.delete_many({"user_id": uid})
     await db.licenses.delete_many({"user_id": uid})
     await db.agent_tokens.delete_many({"user_id": uid})
+    await db.connected_accounts.delete_many({"user_id": uid})
     return {"ok": True}
+
+
+# ============================ CONNECTED ACCOUNTS ============================ #
+
+@api.get("/connections")
+async def list_connections(user: User = Depends(get_current_user)):
+    """List linked OAuth accounts for the current user (no tokens exposed)."""
+    accounts = await conn_accounts.list_public_accounts(db, user.user_id)
+    return {"accounts": accounts}
+
+
+@api.get("/oauth/{provider}/start")
+async def oauth_connect_start(
+    provider: str,
+    request: Request,
+    return_url: str = Query(default=""),
+    session: str = Query(default=""),
+):
+    provider = provider.lower().strip()
+    if provider not in conn_accounts.PROVIDER_IDS:
+        raise HTTPException(status_code=404, detail="Provider inconnu")
+    if not conn_accounts.is_provider_configured(provider):
+        raise HTTPException(
+            status_code=503,
+            detail=f"{conn_accounts.PROVIDERS[provider]['label']} OAuth non configuré sur le serveur",
+        )
+    token = await get_session_token_from_request(request) or (session.strip() if session else None)
+    user = await resolve_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    target = conn_accounts.normalize_return_url(return_url or request.headers.get("referer", ""))
+    url = conn_accounts.build_authorize_url(provider, user.user_id, target)
+    return RedirectResponse(url)
+
+
+@api.get("/oauth/{provider}/callback")
+async def oauth_connect_callback(
+    provider: str,
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+):
+    provider = provider.lower().strip()
+    if provider not in conn_accounts.PROVIDER_IDS:
+        raise HTTPException(status_code=404, detail="Provider inconnu")
+    user_id, return_url = conn_accounts.decode_state(state or "")
+    sep = "&" if "?" in return_url else "?"
+    if error:
+        return RedirectResponse(f"{return_url}{sep}provider={provider}&status=error&error={error}")
+    if not user_id or not code:
+        return RedirectResponse(f"{return_url}{sep}provider={provider}&status=error&error=missing_code")
+    if not conn_accounts.is_provider_configured(provider):
+        return RedirectResponse(f"{return_url}{sep}provider={provider}&status=error&error=not_configured")
+    try:
+        token_data = await conn_accounts.exchange_code(provider, code)
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise ValueError("missing_access_token")
+        profile = await conn_accounts.fetch_profile(provider, access_token)
+        await conn_accounts.store_connection(db, user_id, provider, token_data, profile)
+    except ValueError as exc:
+        logger.warning("OAuth connect %s failed: %s", provider, exc)
+        return RedirectResponse(f"{return_url}{sep}provider={provider}&status=error&error=exchange_failed")
+    return RedirectResponse(f"{return_url}{sep}provider={provider}&status=ok")
+
+
+@api.delete("/connections/{provider}")
+async def disconnect_connection(provider: str, user: User = Depends(get_current_user)):
+    provider = provider.lower().strip()
+    if provider not in conn_accounts.PROVIDER_IDS:
+        raise HTTPException(status_code=404, detail="Provider inconnu")
+    removed = await conn_accounts.disconnect_account(db, user.user_id, provider)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Compte non connecté")
+    return {"ok": True, "provider": provider}
+
+
+@api.get("/admin/connected-accounts")
+async def admin_connected_accounts(user: User = Depends(get_current_user)):
+    """Admin: view own linked accounts (tokens never exposed)."""
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Réservé aux admins")
+    accounts = await conn_accounts.list_public_accounts(db, user.user_id)
+    return {"accounts": accounts, "note": "Google token stored for future Gmail/Drive tools"}
 
 
 # ---- Admin only: export the whole project as a tarball ---- #
@@ -2130,7 +2217,26 @@ async def execute_tool(
     if tool_name == "get_datetime":
         return await do_get_datetime(str(args.get("timezone") or "UTC"))
     if tool_name == "github_search":
-        return await do_github_search(args.get("query", ""), int(args.get("limit", 8) or 8))
+        gh_token = await conn_accounts.get_account_token(db, user_id, "github")
+        return await do_github_search(
+            args.get("query", ""),
+            int(args.get("limit", 8) or 8),
+            access_token=gh_token,
+        )
+    if tool_name == "github_api":
+        gh_token = await conn_accounts.get_account_token(db, user_id, "github")
+        if not gh_token:
+            return {
+                "ok": False,
+                "error": "GitHub non connecté. L'utilisateur doit lier son compte GitHub dans Paramètres → Comptes connectés.",
+            }
+        return await do_github_api(
+            gh_token,
+            str(args.get("method") or "GET"),
+            str(args.get("path") or ""),
+            params=args.get("params"),
+            json_body=args.get("json"),
+        )
     if tool_name == "stackoverflow_search":
         return await do_stackoverflow_search(args.get("query", ""), int(args.get("limit", 8) or 8))
     if tool_name == "calculate":
@@ -2781,6 +2887,8 @@ async def chat_stream(
                         "type": "image",
                         "id": tc_id,
                         "src": f"data:{mime};base64,{gen_result['image_base64']}",
+                        "image_base64": gen_result["image_base64"],
+                        "mime": mime,
                         "title": (gen_result.get("subject") or body.content.strip())[:80],
                     })
                     clean = "Voici l'image générée."
@@ -3147,6 +3255,8 @@ async def chat_stream(
                                     "type": "image",
                                     "id": tc.id,
                                     "src": f"data:{mime};base64,{result['image_base64']}",
+                                    "image_base64": result["image_base64"],
+                                    "mime": mime,
                                     "title": prompt[:80],
                                 })
                             reflect_evt = _reflect_sse_payload(tc.name, result)
@@ -3561,8 +3671,11 @@ async def ping():
     return {
         "ok": True,
         "google": google_auth.is_configured(),
+        "oauth_connections": {
+            p: conn_accounts.is_provider_configured(p) for p in conn_accounts.PROVIDER_IDS
+        },
         "service": "emo-online",
-        "build": "2026-06-21b",
+        "build": "2026-06-21c",
     }
 
 
