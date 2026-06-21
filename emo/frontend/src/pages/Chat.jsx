@@ -12,6 +12,7 @@ import RightPanel from "../components/RightPanel";
 import Paywall from "../components/SubscriptionPlans";
 import ProfileDrawer from "../components/ProfileDrawer";
 import { cleanDisplayText } from "../lib/messageClean";
+import { isHtmlPath, normalizeFilePath } from "../lib/filePreview";
 
 const MODE_LABELS = { tech: "Tech", creatif: "Créatif", brutal: "Brutal" };
 
@@ -35,6 +36,7 @@ export default function Chat() {
   const [agentOnline, setAgentOnline] = useState(false);
   const [allTools, setAllTools] = useState([]);
   const [filePreview, setFilePreview] = useState(null);
+  const [liveHtmlByPath, setLiveHtmlByPath] = useState({});
   const [browserFrames, setBrowserFrames] = useState([]);
   const handleBrowserFrameUpdate = useCallback((frameId, next) => {
     setBrowserFrames((prev) =>
@@ -319,10 +321,24 @@ export default function Chat() {
     const updated = [...turnTools];
     let idx = updated.length - 1;
     if (preview.type === "file") {
+      const previewPath = preview.path ? normalizeFilePath(preview.path) : "";
+      let matched = false;
       for (let i = updated.length - 1; i >= 0; i -= 1) {
-        if (["write_file", "read_file", "edit_file"].includes(updated[i].tool)) {
+        const tool = updated[i].tool;
+        if (!["write_file", "read_file", "edit_file"].includes(tool)) continue;
+        const toolPath = updated[i].args?.path || updated[i].result?.path || "";
+        if (previewPath && toolPath && normalizeFilePath(toolPath) === previewPath) {
           idx = i;
+          matched = true;
           break;
+        }
+      }
+      if (!matched) {
+        for (let i = updated.length - 1; i >= 0; i -= 1) {
+          if (["write_file", "read_file", "edit_file"].includes(updated[i].tool)) {
+            idx = i;
+            break;
+          }
         }
       }
     } else if (preview.type === "browser") {
@@ -350,6 +366,13 @@ export default function Chat() {
       is_image: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"].includes(ext),
       language: ext,
     };
+  };
+
+  const syncLiveHtml = (path, content) => {
+    if (!path || content == null || !isHtmlPath(path)) return;
+    const preview = String(content).slice(0, 50000);
+    const key = normalizeFilePath(path);
+    setLiveHtmlByPath((prev) => ({ ...prev, [key]: preview, [path]: preview }));
   };
 
   const buildBrowserPreview = (tool, args, result) => {
@@ -431,14 +454,22 @@ export default function Chat() {
               const args = turnTools[i].args || {};
               if (evt.result?.ok !== false) {
                 if (tool === "write_file") {
-                  const fp = buildFilePreview(args.path || evt.result?.path, args.content || evt.result?.content);
+                  const filePath = args.path || evt.result?.path;
+                  const fileContent = args.content || evt.result?.content;
+                  const fp = buildFilePreview(filePath, fileContent);
                   if (fp) turnTools[i].inlinePreview = fp;
+                  syncLiveHtml(filePath, fileContent);
                 } else if (tool === "edit_file") {
-                  const fp = buildFilePreview(args.path || evt.result?.path, args.content || evt.result?.content);
+                  const filePath = args.path || evt.result?.path;
+                  const fileContent = evt.result?.content || evt.result?.preview;
+                  const fp = buildFilePreview(filePath, fileContent);
                   if (fp) turnTools[i].inlinePreview = fp;
+                  syncLiveHtml(filePath, fileContent);
                 } else if (tool === "read_file" && evt.result?.content) {
-                  const fp = buildFilePreview(args.path || evt.result?.path, evt.result.content);
+                  const filePath = args.path || evt.result?.path;
+                  const fp = buildFilePreview(filePath, evt.result.content);
                   if (fp) turnTools[i].inlinePreview = fp;
+                  syncLiveHtml(filePath, evt.result.content);
                 } else if (tool === "web_search" && evt.result?.results?.length) {
                   turnTools[i].inlinePreview = {
                     type: "browser",
@@ -518,6 +549,7 @@ export default function Chat() {
               is_image: evt.is_image,
               language: evt.language,
             });
+            syncLiveHtml(evt.path, evt.preview);
             setRightPanelTab("files");
           } else if (evt.type === "done") {
             const finalContent = cleanStreamText(buffer).trim();
@@ -664,7 +696,7 @@ export default function Chat() {
 
             <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-4 space-y-6">
               {messages.map((m) => (
-                <ChatMessage key={m.message_id} message={m} />
+                <ChatMessage key={m.message_id} message={m} liveHtmlByPath={liveHtmlByPath} />
               ))}
               {(streamingMsg || streamingTools.length > 0) && (
                 <ChatMessage
@@ -676,6 +708,7 @@ export default function Chat() {
                     tool_calls_live: streamingTools,
                   }}
                   isStreaming
+                  liveHtmlByPath={liveHtmlByPath}
                 />
               )}
             </div>

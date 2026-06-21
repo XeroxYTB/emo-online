@@ -2257,13 +2257,15 @@ def _reflect_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
 
 
 def _file_preview_sse(tool_name: str, args: dict, result: dict) -> Optional[dict]:
-    if tool_name not in ("read_file", "write_file") or not result.get("ok"):
+    if tool_name not in ("read_file", "write_file", "edit_file") or not result.get("ok"):
         return None
     path = result.get("path") or args.get("path") or ""
     if tool_name == "read_file":
         content = result.get("content") or ""
-    else:
+    elif tool_name == "write_file":
         content = args.get("content") or result.get("content") or ""
+    else:
+        content = result.get("content") or ""
     ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     is_image = ext in {"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"}
     preview_limit = 50000 if ext in {"html", "htm"} else 8000

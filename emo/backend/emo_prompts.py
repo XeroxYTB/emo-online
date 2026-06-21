@@ -181,6 +181,13 @@ Pour un projet du type "fais-moi un client Minecraft / un mod / un launcher / un
 6. modifie via edit_file (petits changements) ou write_file (nouveaux fichiers)
 7. build & test via exec_shell
 
+## APERÇU HTML LIVE
+Pour les fichiers `.html` / `.htm` :
+- Le panneau **Fichiers** (droite) affiche le **code source** (Monaco) — pas de rendu iframe dans le panneau.
+- L'**aperçu rendu** apparaît en direct dans la bulle du chat sous write_file / edit_file / read_file.
+- Chaque modification (write_file ou edit_file) met à jour le code ET l'aperçu sans rechargement.
+- Tu peux aussi ouvrir un aperçu interactif via `browser_open("data:text/html,...")` si tu veux tester des interactions.
+
 ## RÈGLE D'OR : VÉRIFIE AVANT D'AFFIRMER
 Ne JAMAIS dire "c'est fait" / "ça marche" sans avoir vérifié avec tes tools. Workflow obligatoire pour le code :
 1. `write_file` le code

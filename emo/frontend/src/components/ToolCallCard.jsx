@@ -57,7 +57,7 @@ const COLORS = {
   emo_restore_self: "#C084FC",
 };
 
-export const ToolCallCard = ({ event }) => {
+export const ToolCallCard = ({ event, liveHtmlByPath = {} }) => {
   const [open, setOpen] = useState(event.state !== "done");
   const canPreview = hasToolPreview(event) || Boolean(
     event.args?.url && [
@@ -171,7 +171,7 @@ export const ToolCallCard = ({ event }) => {
       </div>
 
       {previewOpen && canPreview && (
-        <ChatPreviewBubble event={event} />
+        <ChatPreviewBubble event={event} liveHtmlByPath={liveHtmlByPath} />
       )}
     </div>
   );

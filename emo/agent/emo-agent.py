@@ -225,7 +225,7 @@ async def tool_edit_file(args: dict) -> dict:
             updated = content.replace(old, new, 1)
             replaced = 1
         p.write_text(updated)
-        return {"ok": True, "path": str(p.resolve()), "replacements": replaced}
+        return {"ok": True, "path": str(p.resolve()), "replacements": replaced, "content": updated}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

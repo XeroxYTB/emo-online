@@ -139,6 +139,14 @@ function normalizeToolEvent(t, i) {
       session_id: t.result?.session_id || "default",
     };
   }
+  if (!inlinePreview && tool === "edit_file" && args.path && t.result?.content) {
+    inlinePreview = {
+      type: "file",
+      path: args.path,
+      preview: String(t.result.content).slice(0, 50000),
+      language: (args.path.split(".").pop() || "").toLowerCase(),
+    };
+  }
   if (!inlinePreview && tool === "write_file" && args.path && args.content) {
     inlinePreview = {
       type: "file",
@@ -157,7 +165,7 @@ function normalizeToolEvent(t, i) {
   };
 }
 
-export const ChatMessage = ({ message, isStreaming }) => {
+export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {} }) => {
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -231,6 +239,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
               <ToolCallCard
                 key={t.id || i}
                 event={normalizeToolEvent(t, i)}
+                liveHtmlByPath={liveHtmlByPath}
               />
             ))}
           </div>
