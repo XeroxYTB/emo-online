@@ -41,15 +41,22 @@ class BrowserController:
         self._lock = asyncio.Lock()
 
     async def _ensure_browser(self) -> None:
-        if os.environ.get("EMO_BROWSER_ENABLED", "true").lower() in ("0", "false", "no"):
+        if os.environ.get("EMO_BROWSER_HARD_DISABLE", "").lower() in ("1", "true", "yes"):
             raise RuntimeError(
-                "Navigateur desactive sur ce serveur (mode leger). "
-                "Utilise web_search et web_fetch a la place."
+                "Navigateur desactive sur ce serveur (EMO_BROWSER_HARD_DISABLE)."
             )
         if not PLAYWRIGHT_AVAILABLE:
             raise RuntimeError(
                 "Playwright non installé sur le serveur. "
                 "browser_open indisponible — utilise web_fetch pour du HTML statique."
+            )
+        if (
+            not PLAYWRIGHT_AVAILABLE
+            and os.environ.get("EMO_BROWSER_ENABLED", "true").lower() in ("0", "false", "no")
+        ):
+            raise RuntimeError(
+                "Navigateur desactive sur ce serveur (mode leger). "
+                "Utilise web_search et web_fetch a la place."
             )
         if self._browser:
             return
