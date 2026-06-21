@@ -79,6 +79,7 @@ export default function Chat() {
   const chatAreaRef = useRef(null);
   const stickyBottomRef = useRef(true);
   const streamAbortRef = useRef(null);
+  const themeSyncedRef = useRef(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const isNearBottom = useCallback((el, threshold = 140) => {
@@ -119,10 +120,14 @@ export default function Chat() {
   }, [authState]);
 
   useEffect(() => {
-    if (authState !== "ok") return;
+    if (authState !== "ok" || themeSyncedRef.current) return;
     http.get("/profile").then((r) => {
       const p = r.data.preferences || {};
-      if (p.theme_mode) setThemeMode(p.theme_mode);
+      const localTheme = localStorage.getItem("emo_theme_mode");
+      if (p.theme_mode && !localTheme) setThemeMode(p.theme_mode);
+      themeSyncedRef.current = true;
+    }).catch(() => {
+      themeSyncedRef.current = true;
     });
   }, [authState]);
 
@@ -213,14 +218,30 @@ export default function Chat() {
 
   // Auth check
   useEffect(() => {
-    if (user) return;
-    http.get("/auth/me")
+    if (user) {
+      setAuthState("ok");
+      return undefined;
+    }
+    let cancelled = false;
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) setAuthState("timeout");
+    }, 15000);
+    http.get("/auth/me", { timeout: 12000 })
       .then((res) => {
+        if (cancelled) return;
         setUser(res.data);
         setAgentOnline(!!res.data.agent_online);
         setAuthState("ok");
       })
-      .catch(() => { setAuthState("no"); navigate("/login", { replace: true }); });
+      .catch(() => {
+        if (!cancelled) setAuthState("no");
+        navigate("/login", { replace: true });
+      })
+      .finally(() => clearTimeout(timeoutId));
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [user, navigate]);
 
   // Poll agent status every 4s
@@ -610,6 +631,36 @@ export default function Chat() {
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
           <p className="text-sm text-secondary-em">Chargement…</p>
           <div className="dot-loading"><span /><span /><span /></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === "timeout") {
+    return (
+      <div className="login-page h-screen w-full flex flex-col">
+        <AppTopBar />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
+          <p className="text-sm text-secondary-em">Connexion lente — le serveur HF démarre peut‑être.</p>
+          <button
+            type="button"
+            onClick={async () => {
+              setAuthState("checking");
+              try {
+                await wakeBackend({ maxWaitMs: 30000 });
+                const res = await http.get("/auth/me", { timeout: 15000 });
+                setUser(res.data);
+                setAgentOnline(!!res.data.agent_online);
+                setAuthState("ok");
+              } catch {
+                navigate("/login", { replace: true });
+              }
+            }}
+            className="px-4 py-2 rounded-xl text-sm font-medium"
+            style={{ background: "var(--emo-accent)", color: "var(--emo-on-accent)" }}
+          >
+            Réessayer
+          </button>
         </div>
       </div>
     );

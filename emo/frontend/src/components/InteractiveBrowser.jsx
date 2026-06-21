@@ -203,7 +203,7 @@ export default function InteractiveBrowser({
         SCROLL_THROTTLE_MS,
       );
     },
-    [navigating, flushScrollAccum],
+    [navigating],
   );
 
   useEffect(() => {

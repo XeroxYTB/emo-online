@@ -4,12 +4,15 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-:root, html.theme-dark {
+:root {
   --emo-radius-sm: 0.5rem;
   --emo-radius-md: 0.75rem;
   --emo-radius-lg: 1rem;
   --emo-radius-xl: 1.25rem;
   --emo-radius-2xl: 1.5rem;
+}
+
+:root, html.theme-dark {
   --emo-bg: #09090b;
   --emo-surface: #18181b;
   --emo-surface-raised: #27272a;

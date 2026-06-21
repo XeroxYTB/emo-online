@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import SquarePreviewFrame from "./SquarePreviewFrame";
 import SearchResultPreview from "./SearchResultPreview";
 import InteractiveBrowser from "./InteractiveBrowser";
+import ErrorBoundary from "./ErrorBoundary";
 import LiveHtmlPreview from "./LiveHtmlPreview";
 import { resolveToolPreview } from "../lib/resolveToolPreview";
 import { normalizeFilePath } from "../lib/filePreview";
@@ -98,20 +99,22 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
         )}
 
         {data.kind === "interactive" && (
-          <InteractiveBrowser
-            autoOpen
-            compact={false}
-            embedded
-            frame={{
-              url: data.url,
-              title: data.title,
-              preview: data.previewText,
-              screenshot_base64: data.screenshot_base64,
-              elements: data.elements,
-              session_id: data.session_id,
-            }}
-            sessionId={data.session_id}
-          />
+          <ErrorBoundary label="Navigateur interactif">
+            <InteractiveBrowser
+              autoOpen
+              compact={false}
+              embedded
+              frame={{
+                url: data.url,
+                title: data.title,
+                preview: data.previewText,
+                screenshot_base64: data.screenshot_base64,
+                elements: data.elements,
+                session_id: data.session_id,
+              }}
+              sessionId={data.session_id}
+            />
+          </ErrorBoundary>
         )}
 
         {data.kind === "html" && (

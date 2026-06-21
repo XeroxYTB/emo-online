@@ -5,8 +5,7 @@ import { Globe, Search } from "lucide-react";
 import SearchResultPreview from "./SearchResultPreview";
 
 import InteractiveBrowser from "./InteractiveBrowser";
-
-
+import ErrorBoundary from "./ErrorBoundary";
 
 export default function BrowserPanel({ frames = [], reflectNotes = [], onFrameUpdate }) {
 
@@ -216,31 +215,35 @@ function PagePreview({ frame, onFrameUpdate }) {
 
   return (
 
-    <InteractiveBrowser
+    <ErrorBoundary label="Navigateur interactif">
 
-      frame={{
+      <InteractiveBrowser
 
-        url: frame.url,
+        frame={{
 
-        title: frame.title,
+          url: frame.url,
 
-        preview: frame.preview,
+          title: frame.title,
 
-        screenshot_base64: frame.screenshot_base64,
+          preview: frame.preview,
 
-        elements: frame.elements,
+          screenshot_base64: frame.screenshot_base64,
 
-        session_id: frame.session_id || "default",
+          elements: frame.elements,
 
-        action: frame.action || "control",
+          session_id: frame.session_id || "default",
 
-      }}
+          action: frame.action || "control",
 
-      sessionId={frame.session_id || "default"}
+        }}
 
-      onFrameUpdate={onFrameUpdate}
+        sessionId={frame.session_id || "default"}
 
-    />
+        onFrameUpdate={onFrameUpdate}
+
+      />
+
+    </ErrorBoundary>
 
   );
 
