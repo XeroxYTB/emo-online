@@ -1,16 +1,16 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ExternalLink, Loader2, MousePointer2, RefreshCw, ArrowDown, ArrowUp } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ExternalLink, Loader2, RefreshCw, ArrowDown, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
 import {
-  browserClick,
+  browserClickAt,
   browserOpen,
   browserScroll,
   browserSnapshot,
-  browserType,
 } from "../lib/browserSession";
+import { mapImageClickToViewport } from "../lib/browserClickCoords";
 import { formatApiError } from "../lib/api";
 
-/** Navigateur Playwright interactif — screenshot + clics sur éléments numérotés. */
+/** Navigateur Playwright — clique directement sur la capture d'écran. */
 export default function InteractiveBrowser({
   frame,
   sessionId: sessionIdProp,
@@ -19,15 +19,17 @@ export default function InteractiveBrowser({
   autoOpen = true,
 }) {
   const sessionId = sessionIdProp || frame?.session_id || "default";
+  const imgRef = useRef(null);
   const [local, setLocal] = useState(frame || null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [urlInput, setUrlInput] = useState(frame?.url || "");
-  const [typeRef, setTypeRef] = useState(null);
-  const [typeText, setTypeText] = useState("");
-  const autoOpenedRef = React.useRef(false);
+  const [clickMark, setClickMark] = useState(null);
+  const autoOpenedRef = useRef(false);
 
   const pageUrl = local?.url || frame?.url || "";
+  const viewportW = local?.viewport_width || frame?.viewport_width || 1280;
+  const viewportH = local?.viewport_height || frame?.viewport_height || 900;
 
   useEffect(() => {
     if (frame) {
@@ -84,7 +86,24 @@ export default function InteractiveBrowser({
     ? `data:image/jpeg;base64,${local.screenshot_base64}`
     : null;
 
-  const elements = local?.elements || [];
+  const handleScreenshotClick = (e) => {
+    if (loading || !imgRef.current) return;
+    const coords = mapImageClickToViewport(
+      imgRef.current,
+      e.clientX,
+      e.clientY,
+      viewportW,
+      viewportH,
+    );
+    if (!coords) return;
+    const rect = imgRef.current.getBoundingClientRect();
+    setClickMark({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+    setTimeout(() => setClickMark(null), 600);
+    run(() => browserClickAt(coords.x, coords.y, sessionId));
+  };
 
   if (!pageUrl && !screenshotSrc) return null;
 
@@ -133,22 +152,46 @@ export default function InteractiveBrowser({
       )}
 
       {screenshotSrc ? (
-        <div
-          className="relative rounded-xl overflow-hidden em-border"
-          style={{ background: "var(--emo-preview-bg)" }}
-        >
-          <img
-            src={screenshotSrc}
-            alt={local?.title || "Page web"}
-            className="w-full h-auto block"
-            style={{ maxHeight: compact ? 280 : 520, objectFit: "contain", objectPosition: "top" }}
-          />
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-              <Loader2 size={28} className="animate-spin text-white" />
-            </div>
-          )}
-        </div>
+        <>
+          <p className="text-[10px] text-muted-em">Clique directement sur la page</p>
+          <div
+            className="relative rounded-xl overflow-hidden em-border"
+            style={{ background: "var(--emo-preview-bg)" }}
+          >
+            <img
+              ref={imgRef}
+              src={screenshotSrc}
+              alt={local?.title || "Page web"}
+              onClick={handleScreenshotClick}
+              className="w-full h-auto block select-none"
+              style={{
+                maxHeight: compact ? 280 : 520,
+                objectFit: "contain",
+                objectPosition: "top",
+                cursor: loading ? "wait" : "crosshair",
+              }}
+              draggable={false}
+            />
+            {clickMark && (
+              <span
+                className="absolute pointer-events-none rounded-full"
+                style={{
+                  left: clickMark.x - 8,
+                  top: clickMark.y - 8,
+                  width: 16,
+                  height: 16,
+                  border: "2px solid var(--mode-color)",
+                  background: "rgba(139,92,246,0.35)",
+                }}
+              />
+            )}
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <Loader2 size={28} className="animate-spin text-white" />
+              </div>
+            )}
+          </div>
+        </>
       ) : (
         <div
           className="relative rounded-xl overflow-hidden em-border flex flex-col items-center justify-center gap-2"
@@ -203,75 +246,6 @@ export default function InteractiveBrowser({
           <ArrowDown size={10} /> Bas
         </button>
       </div>
-
-      {elements.length > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-em mb-1.5">
-            <MousePointer2 size={11} />
-            Clique pour interagir ({elements.length})
-          </div>
-          <div
-            className={`grid gap-1 max-h-${compact ? "28" : "40"} overflow-y-auto scrollbar-thin`}
-            style={{ maxHeight: compact ? 112 : 160 }}
-          >
-            {elements.slice(0, compact ? 12 : 24).map((el) => (
-              <button
-                key={el.ref}
-                type="button"
-                disabled={loading}
-                onClick={() => {
-                  if (el.tag === "input" || el.tag === "textarea") {
-                    setTypeRef(el.ref);
-                    setTypeText(el.text?.startsWith("[") ? "" : el.text || "");
-                  } else {
-                    run(() => browserClick(el.ref, sessionId));
-                  }
-                }}
-                className="text-left text-[10px] px-2 py-1.5 rounded-lg transition em-hover-subtle truncate"
-                style={{
-                  background: typeRef === el.ref ? "var(--emo-tab-active-bg)" : "var(--emo-subtle-bg)",
-                  border: "1px solid var(--emo-border)",
-                }}
-              >
-                <span style={{ color: "var(--emo-link)" }}>[{el.ref}]</span>{" "}
-                <span className="opacity-50">{el.tag}</span> {el.text}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {typeRef != null && (
-        <div className="flex gap-1.5">
-          <input
-            value={typeText}
-            onChange={(e) => setTypeText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && typeText.trim()) {
-                run(() =>
-                  browserType(typeRef, typeText, sessionId, { clear: true, pressEnter: false }),
-                ).then(() => setTypeRef(null));
-              }
-            }}
-            placeholder={`Texte pour [${typeRef}]…`}
-            className="flex-1 px-2 py-1 rounded-lg text-[11px] em-input"
-            disabled={loading}
-          />
-          <button
-            type="button"
-            disabled={loading || !typeText.trim()}
-            onClick={() =>
-              run(() =>
-                browserType(typeRef, typeText, sessionId, { clear: true, pressEnter: true }),
-              ).then(() => setTypeRef(null))
-            }
-            className="px-2 py-1 rounded-lg text-[10px] font-medium flex-shrink-0"
-            style={{ background: "var(--mode-color)", color: "var(--emo-on-mode)" }}
-          >
-            Envoyer
-          </button>
-        </div>
-      )}
     </div>
   );
 }

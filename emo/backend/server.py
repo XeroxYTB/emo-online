@@ -1790,6 +1790,8 @@ class BrowserClickBody(BaseModel):
     session_id: str = "default"
     ref: Optional[int] = None
     selector: Optional[str] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
 
 
 class BrowserTypeBody(BaseModel):
@@ -1854,7 +1856,8 @@ async def user_browser_click(body: BrowserClickBody, user: User = Depends(get_cu
     if not _browser_available():
         raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
     result = await do_browser_click(
-        user.user_id, body.session_id or "default", ref=body.ref, selector=body.selector,
+        user.user_id, body.session_id or "default",
+        ref=body.ref, selector=body.selector, x=body.x, y=body.y,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Clic échoué"))
@@ -1957,6 +1960,8 @@ async def execute_tool(
             user_id, sid,
             ref=args.get("ref"),
             selector=args.get("selector"),
+            x=args.get("x"),
+            y=args.get("y"),
         )
     if tool_name == "browser_type":
         return await do_browser_type(
@@ -2974,7 +2979,7 @@ async def ping():
         "ok": True,
         "google": google_auth.is_configured(),
         "service": "emo-online",
-        "build": "2026-06-21a",
+        "build": "2026-06-21b",
     }
 
 

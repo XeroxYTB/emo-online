@@ -50,14 +50,6 @@ class BrowserController:
                 "Playwright non installé sur le serveur. "
                 "browser_open indisponible — utilise web_fetch pour du HTML statique."
             )
-        if (
-            not PLAYWRIGHT_AVAILABLE
-            and os.environ.get("EMO_BROWSER_ENABLED", "true").lower() in ("0", "false", "no")
-        ):
-            raise RuntimeError(
-                "Navigateur desactive sur ce serveur (mode leger). "
-                "Utilise web_search et web_fetch a la place."
-            )
         if self._browser:
             return
         async with self._lock:
@@ -174,6 +166,7 @@ class BrowserController:
             pass
 
         screenshot_b64 = None
+        vp = page.viewport_size or {"width": 1280, "height": 900}
         try:
             raw = await page.screenshot(type="jpeg", quality=55, full_page=False)
             if len(raw) < 400_000:
@@ -189,7 +182,9 @@ class BrowserController:
             "text": text,
             "elements": elements[:MAX_ELEMENTS],
             "screenshot_base64": screenshot_b64,
-            "hint": "browser_click(ref=N) · browser_type(ref=N, text=...) · browser_snapshot()",
+            "viewport_width": int(vp.get("width") or 1280),
+            "viewport_height": int(vp.get("height") or 900),
+            "hint": "browser_click(ref=N|x,y) · browser_type(ref=N, text=...) · browser_snapshot()",
         }
 
     async def open(self, user_id: str, url: str, session_id: str = "default") -> dict[str, Any]:
@@ -227,6 +222,8 @@ class BrowserController:
         session_id: str = "default",
         ref: Optional[int] = None,
         selector: Optional[str] = None,
+        x: Optional[float] = None,
+        y: Optional[float] = None,
     ) -> dict[str, Any]:
         try:
             sess = await self._get_session(user_id, session_id, create=False)
@@ -234,13 +231,15 @@ class BrowserController:
             return {"ok": False, "error": str(e)}
         page = sess.page
         try:
-            if ref is not None:
+            if x is not None and y is not None:
+                await page.mouse.click(float(x), float(y))
+            elif ref is not None:
                 loc = page.locator(f'[data-emo-ref="{int(ref)}"]')
                 await loc.first.click(timeout=12000)
             elif selector:
                 await page.click(selector, timeout=12000)
             else:
-                return {"ok": False, "error": "Indique ref (depuis snapshot) ou selector CSS."}
+                return {"ok": False, "error": "Indique x,y ou ref ou selector CSS."}
             await asyncio.sleep(0.5)
         except Exception as e:
             return {"ok": False, "error": f"Clic échoué: {e}"}
@@ -248,6 +247,9 @@ class BrowserController:
         snap["action"] = "click"
         snap["clicked_ref"] = ref
         snap["clicked_selector"] = selector
+        if x is not None and y is not None:
+            snap["clicked_x"] = float(x)
+            snap["clicked_y"] = float(y)
         return snap
 
     async def type_text(
@@ -348,8 +350,12 @@ async def browser_click(
     session_id: str = "default",
     ref: Optional[int] = None,
     selector: Optional[str] = None,
+    x: Optional[float] = None,
+    y: Optional[float] = None,
 ) -> dict:
-    return await browser_controller.click(user_id, session_id, ref=ref, selector=selector)
+    return await browser_controller.click(
+        user_id, session_id, ref=ref, selector=selector, x=x, y=y,
+    )
 
 
 async def browser_type(

@@ -10,6 +10,8 @@ function frameFromResult(data) {
     elements: data.elements || [],
     session_id: data.session_id || "default",
     action: data.action || "control",
+    viewport_width: data.viewport_width || 1280,
+    viewport_height: data.viewport_height || 900,
   };
 }
 
@@ -25,6 +27,11 @@ export async function browserSnapshot(sessionId = "default") {
 
 export async function browserClick(ref, sessionId = "default") {
   const r = await http.post("/browser/click", { ref, session_id: sessionId });
+  return frameFromResult(r.data);
+}
+
+export async function browserClickAt(x, y, sessionId = "default") {
+  const r = await http.post("/browser/click", { x, y, session_id: sessionId });
   return frameFromResult(r.data);
 }
 
