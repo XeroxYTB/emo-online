@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check } from "lucide-react";
+import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { hasToolPreview } from "../lib/resolveToolPreview";
 import { getFileContentFromToolEvent, isCopyableFileToolEvent } from "../lib/filePreview";
 import ChatPreviewBubble from "./ChatPreviewBubble";
+import ImageGeneratingPlaceholder from "./ImageGeneratingPlaceholder";
 
 const ICONS = {
   exec_shell: Terminal,
@@ -32,6 +33,7 @@ const ICONS = {
   emo_edit_self: Sparkles,
   emo_list_self_saves: History,
   emo_restore_self: History,
+  generate_image: ImageIcon,
 };
 
 const COLORS = {
@@ -57,6 +59,7 @@ const COLORS = {
   emo_edit_self: "#E879F9",
   emo_list_self_saves: "#C084FC",
   emo_restore_self: "#C084FC",
+  generate_image: "#E879F9",
 };
 
 export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false }) => {
@@ -75,6 +78,8 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   const color = COLORS[event.tool] || "var(--mode-color)";
   const isError = event.state === "error" || (event.result && event.result.ok === false);
   const isExecuting = event.state === "executing";
+  const isImageGen = event.tool === "generate_image";
+  const showImageGenLoading = isImageGen && isExecuting;
   const fileContent = showCopyCode && isCopyableFileToolEvent(event)
     ? getFileContentFromToolEvent(event, liveHtmlByPath)
     : "";
@@ -93,10 +98,12 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   };
 
   useEffect(() => {
-    if (event.state === "done" && canPreview) {
+    if (isImageGen && isExecuting) {
+      setPreviewOpen(true);
+    } else if (event.state === "done" && canPreview) {
       setPreviewOpen(true);
     }
-  }, [event.state, canPreview, event.inlinePreview, event.result]);
+  }, [event.state, canPreview, event.inlinePreview, event.result, isImageGen, isExecuting]);
 
   const summary = (() => {
     if (isExecuting) return "En cours…";
@@ -202,7 +209,11 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
         )}
       </div>
 
-      {previewOpen && canPreview && (
+      {previewOpen && showImageGenLoading && (
+        <ImageGeneratingPlaceholder prompt={event.args?.prompt} />
+      )}
+
+      {previewOpen && canPreview && !showImageGenLoading && (
         <ChatPreviewBubble
           event={event}
           liveHtmlByPath={liveHtmlByPath}
@@ -236,6 +247,7 @@ function formatArgs(tool, args) {
   if (tool === "emo_edit_self") return `${args.section || ""} (${(args.content || "").length} car.)`;
   if (tool === "emo_read_self") return args.section || "tout";
   if (tool === "emo_restore_self") return (args.version_id || "").slice(0, 8);
+  if (tool === "generate_image") return (args.prompt || "").slice(0, 80);
   return JSON.stringify(args);
 }
 

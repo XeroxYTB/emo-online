@@ -10,10 +10,12 @@ import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
 function PreviewImage({ src, alt, fallbackSrc, className, style }) {
   const [current, setCurrent] = useState(src);
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     setCurrent(src);
     setFailed(false);
+    setLoaded(false);
   }, [src]);
 
   if (!current || failed) {
@@ -26,19 +28,25 @@ function PreviewImage({ src, alt, fallbackSrc, className, style }) {
   }
 
   return (
-    <img
-      src={current}
-      alt={alt || "Aperçu"}
-      className={className}
-      style={style}
-      onError={() => {
-        if (fallbackSrc && current !== fallbackSrc) {
-          setCurrent(fallbackSrc);
-          return;
-        }
-        setFailed(true);
-      }}
-    />
+    <>
+      {!loaded && (
+        <div className="emo-image-gen-placeholder absolute inset-0" aria-hidden />
+      )}
+      <img
+        src={current}
+        alt={alt || "Aperçu"}
+        className={`${className || ""} ${loaded ? "emo-image-reveal" : "opacity-0"}`}
+        style={style}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          if (fallbackSrc && current !== fallbackSrc) {
+            setCurrent(fallbackSrc);
+            return;
+          }
+          setFailed(true);
+        }}
+      />
+    </>
   );
 }
 

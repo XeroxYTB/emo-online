@@ -197,6 +197,20 @@ function normalizeToolEvent(t, i) {
       language: (args.path.split(".").pop() || "").toLowerCase(),
     };
   }
+  if (!inlinePreview && tool === "generate_image") {
+    const res = t.result;
+    if (res?.ok !== false) {
+      const mime = res?.mime || "image/png";
+      const b64 = res?.image_base64;
+      if (b64 && !String(b64).startsWith("[")) {
+        inlinePreview = {
+          type: "image",
+          src: `data:${mime};base64,${b64}`,
+          title: args.prompt || res.prompt || "Image générée",
+        };
+      }
+    }
+  }
   return {
     id: t.id || `hist-${i}`,
     tool,

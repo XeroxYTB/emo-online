@@ -108,6 +108,10 @@ export function resolveToolPreview(event) {
     }
   }
 
+  if (tool === "generate_image" && result?.has_image) {
+    return null;
+  }
+
   if (tool === "web_search" && (result.results || []).length) {
     return {
       kind: "search",
