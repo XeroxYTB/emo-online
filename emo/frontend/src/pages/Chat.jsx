@@ -172,9 +172,35 @@ export default function Chat() {
     return () => window.removeEventListener("keydown", onKey);
   }, [rightPanelMobileOpen]);
 
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setProfileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [profileOpen]);
+
+  const openProfile = () => {
+    setSidebarOpenMobile(false);
+    setRightPanelMobileOpen(false);
+    setProfileOpen(true);
+  };
+
+  const openSidebarMobile = () => {
+    setProfileOpen(false);
+    setRightPanelMobileOpen(false);
+    setSidebarOpenMobile(true);
+  };
+
   const toggleRightPanel = () => {
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
-      setRightPanelMobileOpen((o) => !o);
+      setRightPanelMobileOpen((open) => {
+        if (open) return false;
+        setSidebarOpenMobile(false);
+        setProfileOpen(false);
+        return true;
+      });
     } else {
       setRightOpen((o) => !o);
     }
@@ -258,6 +284,18 @@ export default function Chat() {
       pollPayment(sid);
       window.history.replaceState({}, document.title, "/chat");
     }
+  }, [authState]);
+
+  useEffect(() => {
+    if (authState !== "ok") return;
+    http.get("/feedback/eligible")
+      .then((r) => {
+        if (r.data?.eligible) {
+          setFeedbackOpen(true);
+          http.post("/feedback/shown").catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, [authState]);
 
   const pollPayment = async (sessionId, attempt = 0) => {
@@ -573,7 +611,27 @@ export default function Chat() {
                   }
                 } else if (BROWSER_PREVIEW_TOOLS.includes(tool)) {
                   const bp = buildBrowserPreview(tool, args, evt.result);
-                  if (bp) turnTools[i].inlinePreview = bp;
+                  if (bp) {
+                    turnTools[i].inlinePreview = bp;
+                    setBrowserFrames((prev) => {
+                      const sid = bp.session_id || "default";
+                      const url = bp.url || "";
+                      const idx = prev.findIndex(
+                        (f) => f.session_id === sid || (url && f.url === url),
+                      );
+                      const id =
+                        idx >= 0
+                          ? prev[idx].id
+                          : `bf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                      const nextFrame = { id, action: "control", ...bp };
+                      if (idx >= 0) {
+                        const updated = [...prev];
+                        updated[idx] = { ...updated[idx], ...nextFrame };
+                        return updated;
+                      }
+                      return [nextFrame, ...prev].slice(0, 24);
+                    });
+                  }
                 }
               }
             }
@@ -764,7 +822,7 @@ export default function Chat() {
         onLogout={handleLogout}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenProfile={openProfile}
       />
 
       <main className="emo-chat-main">
@@ -772,7 +830,7 @@ export default function Chat() {
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               data-testid="mobile-menu-btn"
-              onClick={() => setSidebarOpenMobile(true)}
+              onClick={openSidebarMobile}
               className="md:hidden emo-icon-btn"
               aria-label="Ouvrir le menu"
             >
@@ -966,7 +1024,7 @@ export default function Chat() {
               onLogout={handleLogout}
               collapsed={false}
               onToggleCollapsed={() => setSidebarOpenMobile(false)}
-              onOpenProfile={() => { setProfileOpen(true); setSidebarOpenMobile(false); }}
+              onOpenProfile={() => { openProfile(); setSidebarOpenMobile(false); }}
               mobile
             />
           </div>
@@ -994,6 +1052,8 @@ export default function Chat() {
         debugEvents={debugEvents}
         onClearDebugEvents={() => setDebugEvents([])}
       />
+
+      <FeedbackPrompt open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }

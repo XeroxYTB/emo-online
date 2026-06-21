@@ -1,6 +1,7 @@
 """Émo — Hugo's personal AI backend with local agent control + long-term memory."""
 import ssl_fix  # noqa: F401 — certificats SSL Windows avant httpx/anthropic
 
+import hashlib
 import os
 import json
 import uuid
@@ -656,10 +657,14 @@ def _friendly_llm_error(exc: Exception) -> str:
             return "Modèle indisponible."
         if code == 400:
             lower = _http_response_snippet(exc.response, 500).lower()
+            if "decommissioned" in lower or "model_decommissioned" in lower:
+                return "Modèle vision retiré par Groq — bascule vers un modèle plus récent…"
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
                 return "Quota gratuit atteint — essai d'un autre modèle…"
         if code in (400, 402, 403):
             lower = _http_response_snippet(exc.response, 500).lower()
+            if "decommissioned" in lower or "model_decommissioned" in lower:
+                return "Modèle vision retiré — essai d'un autre modèle…"
             if any(k in lower for k in ("credit balance", "too low", "insufficient", "billing", "quota")):
                 return "Quota gratuit atteint — essai d'un autre modèle…"
         snippet = _http_response_snippet(exc.response)
@@ -724,6 +729,22 @@ def _block_provider_models(blocked: set[tuple[str, str]], provider: str, candida
 
 def _today_key() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _feedback_month_key() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _feedback_eligible(user_id: str, month: str) -> bool:
+    digest = hashlib.sha256(f"{user_id}:{month}".encode()).hexdigest()
+    return int(digest[:8], 16) % 100 < 50
+
+
+async def _feedback_doc(user_id: str, month: str) -> Optional[dict]:
+    return await db.feedback_sessions.find_one(
+        {"user_id": user_id, "month": month},
+        {"_id": 0, "response": 1, "shown_at": 1, "created_at": 1},
+    )
 
 
 async def _get_or_init_license(user_id: str, email: str = None) -> dict:
@@ -1044,6 +1065,125 @@ async def admin_list_product_keys(user: User = Depends(get_current_user)):
     cursor = db.product_keys.find({}, {"_id": 0, "key_hash": 0}).sort("created_at", -1).limit(100)
     items = await cursor.to_list(100)
     return {"keys": items}
+
+
+class FeedbackBody(BaseModel):
+    response: str
+
+
+@api.get("/feedback/eligible")
+async def feedback_eligible(user: User = Depends(get_current_user)):
+    month = _feedback_month_key()
+    in_cohort = _feedback_eligible(user.user_id, month)
+    doc = await _feedback_doc(user.user_id, month)
+    already_submitted = bool(doc and (doc.get("response") or "").strip())
+    already_shown = bool(doc and doc.get("shown_at"))
+    return {
+        "eligible": in_cohort and not already_shown and not already_submitted,
+        "already_submitted": already_submitted,
+        "month": month,
+    }
+
+
+@api.post("/feedback/shown")
+async def feedback_mark_shown(user: User = Depends(get_current_user)):
+    month = _feedback_month_key()
+    if not _feedback_eligible(user.user_id, month):
+        return {"ok": True}
+    now = datetime.now(timezone.utc).isoformat()
+    await db.feedback_sessions.update_one(
+        {"user_id": user.user_id, "month": month},
+        {
+            "$setOnInsert": {"created_at": now},
+            "$set": {"shown_at": now, "month": month, "user_id": user.user_id},
+        },
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.post("/feedback/skip")
+async def feedback_skip(user: User = Depends(get_current_user)):
+    month = _feedback_month_key()
+    now = datetime.now(timezone.utc).isoformat()
+    await db.feedback_sessions.update_one(
+        {"user_id": user.user_id, "month": month},
+        {
+            "$setOnInsert": {"created_at": now},
+            "$set": {"shown_at": now, "month": month, "user_id": user.user_id},
+        },
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.post("/feedback")
+async def feedback_submit(body: FeedbackBody, user: User = Depends(get_current_user)):
+    month = _feedback_month_key()
+    text = (body.response or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Réponse vide")
+    if len(text) > 5000:
+        raise HTTPException(status_code=400, detail="Réponse trop longue (5000 car. max)")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.feedback_sessions.update_one(
+        {"user_id": user.user_id, "month": month},
+        {
+            "$set": {
+                "response": text,
+                "created_at": now,
+                "shown_at": now,
+                "month": month,
+                "user_id": user.user_id,
+            },
+        },
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.get("/admin/feedback-sessions")
+async def admin_feedback_sessions(user: User = Depends(get_current_user)):
+    if user.email.lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin requis")
+    cursor = db.feedback_sessions.find(
+        {},
+        {"_id": 0, "month": 1, "response": 1, "shown_at": 1, "created_at": 1},
+    )
+    docs = await cursor.to_list(5000)
+    by_month: dict[str, dict] = {}
+    for doc in docs:
+        month = doc.get("month") or "unknown"
+        bucket = by_month.setdefault(
+            month,
+            {
+                "month": month,
+                "total_shown": 0,
+                "total_responses": 0,
+                "sample_responses": [],
+                "latest_at": None,
+            },
+        )
+        if doc.get("shown_at"):
+            bucket["total_shown"] += 1
+        resp = (doc.get("response") or "").strip()
+        if resp:
+            bucket["total_responses"] += 1
+            if len(bucket["sample_responses"]) < 3:
+                bucket["sample_responses"].append(resp)
+        ts = doc.get("created_at") or doc.get("shown_at")
+        if ts and (not bucket["latest_at"] or ts > bucket["latest_at"]):
+            bucket["latest_at"] = ts
+    sessions = sorted(by_month.values(), key=lambda row: row["month"], reverse=True)
+    for row in sessions:
+        n = row["total_responses"]
+        if n == 0:
+            row["summary"] = "Aucune réponse ce mois."
+        elif n == 1:
+            row["summary"] = "1 retour utilisateur."
+        else:
+            row["summary"] = f"{n} retours utilisateurs."
+    return {"sessions": sessions}
 
 
 class CheckoutBody(BaseModel):
@@ -1996,9 +2136,12 @@ async def execute_tool(
     if tool_name == "calculate":
         return do_calculate(args.get("expression", ""))
     if tool_name == "generate_image":
+        seed_raw = args.get("seed")
+        seed = int(seed_raw) if seed_raw is not None and str(seed_raw).strip().isdigit() else None
         return await do_generate_image(
             str(args.get("prompt", "")),
             str(args.get("size") or "1024x1024"),
+            seed=seed,
         )
 
     sid = str(args.get("session_id") or "default")
@@ -2219,8 +2362,10 @@ def _prioritize_vision_providers(candidates: list[tuple[str, str, str]]) -> list
     def score(c: tuple[str, str, str]) -> tuple:
         provider, model, _ = c
         base = rank.get(provider, 9)
-        if provider == "groq" and "11b" in model:
+        if provider == "groq" and "scout" in model:
             base -= 0.2
+        elif provider == "groq" and model.startswith("qwen/"):
+            base += 0.1
         if "flash-lite" in model:
             base += 0.3
         return (base, model)
@@ -2581,6 +2726,11 @@ async def chat_stream(
         # Vision : Groq + Gemini uniquement — ignore le modèle épinglé et les APIs payantes.
         candidates = _prioritize_vision_providers(await resolve_free_vision_candidates())
         use_tools = False
+        logger.info(
+            "Vision request: %d image(s), candidates=%s",
+            len(chat_images),
+            [(c[0], c[1]) for c in candidates],
+        )
     else:
         use_tools = True
         candidates = _prioritize_tool_providers(candidates, use_tools=use_tools)
@@ -2626,13 +2776,16 @@ async def chat_stream(
                 })
                 if gen_result.get("ok") and gen_result.get("image_base64"):
                     mime = gen_result.get("mime") or "image/png"
+                    final_prompt = str(gen_result.get("final_prompt") or gen_result.get("prompt") or "")
                     yield _sse({
                         "type": "image",
                         "id": tc_id,
                         "src": f"data:{mime};base64,{gen_result['image_base64']}",
-                        "title": body.content.strip()[:80],
+                        "title": (gen_result.get("subject") or body.content.strip())[:80],
                     })
                     clean = "Voici l'image générée."
+                    if final_prompt:
+                        clean += f"\n\nPrompt envoyé : {final_prompt[:600]}"
                     mood = "enthousiaste"
                 else:
                     err = gen_result.get("error") or "Génération impossible."
@@ -3144,6 +3297,8 @@ def _shrink_for_llm(result: dict) -> dict:
         out["screenshot_base64"] = "[jpeg screenshot — visible in UI; use elements refs to interact]"
     if out.get("image_base64"):
         out["image_base64"] = "[generated image — visible in chat UI]"
+    if out.get("final_prompt") and isinstance(out["final_prompt"], str):
+        out["final_prompt"] = out["final_prompt"][:600]
     for key in ("stdout", "stderr", "content", "text"):
         if key in out and isinstance(out[key], str) and len(out[key]) > 8000:
             out[key] = out[key][:8000] + "\n…[truncated]"

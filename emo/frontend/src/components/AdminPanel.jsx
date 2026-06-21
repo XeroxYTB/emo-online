@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { http, BACKEND_URL } from "../lib/api";
-import { KeyRound, RefreshCw, Save, Sparkles, Brain, Bug, Package, Download, ShieldCheck, CreditCard } from "lucide-react";
+import { KeyRound, RefreshCw, Save, Sparkles, Brain, Bug, Package, Download, ShieldCheck, CreditCard, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import EmoIdentityPanel from "./EmoIdentityPanel";
 import MemoryPanel from "./MemoryPanel";
 import DebugWindow from "./DebugWindow";
+import FeedbackSessionsPanel from "./FeedbackSessionsPanel";
 
 const KEY_META = [
   { id: "groq", label: "Groq", hint: "Llama / Gemma gratuit" },
@@ -93,6 +94,7 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
   const tabs = [
     { id: "keys", label: "Clés IA", icon: KeyRound },
     { id: "stripe", label: "Stripe", icon: CreditCard },
+    { id: "feedback", label: "Retours utilisateurs", icon: MessageSquare },
     { id: "emo", label: "Émo", icon: Sparkles },
     { id: "memory", label: "Mémoire", icon: Brain },
     { id: "system", label: "Système", icon: ShieldCheck },
@@ -196,6 +198,8 @@ export default function AdminPanel({ debugEvents, onClearDebugEvents }) {
           </button>
         </div>
       )}
+
+      {tab === "feedback" && <FeedbackSessionsPanel />}
 
       {tab === "emo" && <EmoIdentityPanel />}
       {tab === "memory" && <MemoryPanel />}
