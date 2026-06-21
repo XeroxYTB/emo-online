@@ -490,9 +490,12 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 
 .emo-chat-composer-wrap {
   flex-shrink: 0;
+  position: relative;
+  z-index: var(--emo-z-sticky);
   padding: var(--emo-space-3) var(--emo-space-4) var(--emo-space-5);
   background: linear-gradient(to top, var(--emo-bg) 70%, transparent);
   border-top: 1px solid var(--emo-border);
+  overflow: visible;
 }
 
 .emo-chat-composer-inner {
@@ -535,7 +538,6 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
   border: 1px solid var(--emo-border);
   border-radius: var(--emo-radius-2xl);
   box-shadow: var(--emo-shadow-md);
-  overflow: hidden;
   transition: border-color var(--emo-transition), box-shadow var(--emo-transition);
 }
 
@@ -550,13 +552,18 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 }
 
 .emo-composer-toolbar {
+  position: relative;
+  z-index: 2;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  justify-content: flex-start;
   gap: var(--emo-space-2);
   padding: var(--emo-space-2) var(--emo-space-3);
   border-bottom: 1px solid var(--emo-border);
   background: var(--emo-bg-subtle);
+  border-top-left-radius: calc(var(--emo-radius-2xl) - 1px);
+  border-top-right-radius: calc(var(--emo-radius-2xl) - 1px);
+  overflow: visible;
 }
 
 .emo-composer-body {
@@ -586,6 +593,8 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
   justify-content: space-between;
   gap: var(--emo-space-2);
   padding: var(--emo-space-2) var(--emo-space-3) var(--emo-space-3);
+  border-bottom-left-radius: calc(var(--emo-radius-2xl) - 1px);
+  border-bottom-right-radius: calc(var(--emo-radius-2xl) - 1px);
 }
 
 .emo-attachment-strip {
@@ -1230,7 +1239,7 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 /* ─── Dropdown menus (composer) ─────────────────────────────── */
 .emo-dropdown {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 4px);
   left: 0;
   min-width: 11rem;
   max-height: 16rem;
@@ -1241,6 +1250,11 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
   border-radius: var(--emo-radius-lg);
   box-shadow: var(--emo-shadow-lg);
   z-index: var(--emo-z-dropdown);
+}
+
+.emo-dropdown--align-end {
+  left: auto;
+  right: 0;
 }
 
 .emo-dropdown-item {
@@ -1496,6 +1510,33 @@ textarea, input { font-family: inherit; }
   flex-wrap: wrap;
   min-width: 0;
   width: 100%;
+  overflow: visible;
+}
+
+.emo-composer-segment {
+  flex: 0 0 auto;
+}
+
+.emo-composer-picker {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.emo-composer-picker-btn {
+  max-width: 100%;
+  min-height: 2rem;
+}
+
+.emo-composer-picker-label {
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emo-composer-picker-label-model {
+  max-width: 9rem;
 }
 
 /* Squeezed desktop: sidebar + chat + right panel */
@@ -1514,7 +1555,18 @@ textarea, input { font-family: inherit; }
   }
 
   .emo-app-shell[data-right-panel-open="true"] .emo-composer-toolbar-inner {
+    flex-wrap: nowrap;
     gap: var(--emo-space-1);
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+
+  .emo-app-shell[data-right-panel-open="true"] .emo-composer-segment,
+  .emo-app-shell[data-right-panel-open="true"] .emo-composer-picker {
+    flex-shrink: 0;
   }
 
   .emo-app-shell[data-right-panel-open="true"] .emo-segment-btn {
@@ -1577,11 +1629,12 @@ textarea, input { font-family: inherit; }
   .emo-chat-composer-wrap {
     position: sticky;
     bottom: 0;
-    z-index: 10;
+    z-index: var(--emo-z-sticky);
     padding: var(--emo-space-2) var(--emo-space-3);
     padding-bottom: calc(var(--emo-space-3) + var(--emo-safe-bottom));
     background: var(--emo-bg);
     border-top: 1px solid var(--emo-border);
+    overflow: visible;
   }
 
   .emo-chat-composer-inner {
@@ -1597,7 +1650,51 @@ textarea, input { font-family: inherit; }
   }
 
   .emo-composer-toolbar-inner {
-    gap: var(--emo-space-1);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "segment segment"
+      "mode model";
+    gap: var(--emo-space-2);
+    align-items: stretch;
+  }
+
+  .emo-composer-segment {
+    grid-area: segment;
+    justify-self: start;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .emo-composer-picker-mode {
+    grid-area: mode;
+    justify-self: start;
+    min-width: 0;
+  }
+
+  .emo-composer-picker-model {
+    grid-area: model;
+    justify-self: end;
+    min-width: 0;
+  }
+
+  .emo-composer-picker-btn {
+    min-height: var(--emo-touch-min);
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .emo-composer-picker-model .emo-composer-picker-btn {
+    justify-content: flex-end;
+  }
+
+  .emo-composer-picker-label {
+    display: inline;
+    max-width: min(9rem, 36vw);
+  }
+
+  .emo-composer-picker-label-model {
+    max-width: min(11rem, 42vw);
   }
 
   .emo-segment-btn {
@@ -1638,6 +1735,17 @@ textarea, input { font-family: inherit; }
 
   .emo-dropdown {
     max-width: min(18rem, calc(100vw - 2rem));
+    z-index: var(--emo-z-dropdown);
+  }
+
+  .emo-composer-picker-mode .emo-dropdown {
+    left: 0;
+    right: auto;
+  }
+
+  .emo-composer-picker-model .emo-dropdown {
+    left: auto;
+    right: 0;
   }
 
   .emo-sidebar-mobile .emo-sidebar-nav-item,

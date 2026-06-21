@@ -16,8 +16,7 @@ export const ChatComposer = ({
 }) => {
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [openPicker, setOpenPicker] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef(null);
   const pickerRef = useRef(null);
@@ -44,14 +43,16 @@ export const ChatComposer = ({
   }, [value]);
 
   useEffect(() => {
-    if (!pickerOpen && !modelPickerOpen) return;
+    if (!openPicker) return;
     const onClick = (e) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target)) setPickerOpen(false);
-      if (modelPickerRef.current && !modelPickerRef.current.contains(e.target)) setModelPickerOpen(false);
+      const ref = openPicker === "mode" ? pickerRef : modelPickerRef;
+      if (ref.current && !ref.current.contains(e.target)) setOpenPicker(null);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [pickerOpen, modelPickerOpen]);
+  }, [openPicker]);
+
+  const togglePicker = (id) => setOpenPicker((prev) => (prev === id ? null : id));
 
   const addFiles = async (files) => {
     const incoming = await filesToAttachments(files);
@@ -94,7 +95,7 @@ export const ChatComposer = ({
         {/* Top toolbar: mode + model + chat/agent toggle */}
         <div className="emo-composer-toolbar">
           <div className="emo-composer-toolbar-inner">
-            <div className="emo-segment" role="group" aria-label="Mode conversation">
+            <div className="emo-segment emo-composer-segment" role="group" aria-label="Mode conversation">
               <button
                 type="button"
                 data-testid="agent-mode-toggle"
@@ -119,20 +120,22 @@ export const ChatComposer = ({
               </button>
             </div>
 
-            <div className="relative" ref={pickerRef}>
+            <div className="emo-composer-picker emo-composer-picker-mode" ref={pickerRef}>
               <button
                 type="button"
                 data-testid="mode-picker-trigger"
-                onClick={() => setPickerOpen((o) => !o)}
-                className="emo-btn-ghost flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+                onClick={() => togglePicker("mode")}
+                className="emo-btn-ghost emo-composer-picker-btn flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
                 title={currentMode.label}
+                aria-expanded={openPicker === "mode"}
+                aria-haspopup="listbox"
               >
                 <CurrentIcon size={12} style={{ color: "var(--mode-color)" }} />
-                <span className="hidden sm:inline">{currentMode.label}</span>
-                <ChevronDown size={11} className={`transition-transform ${pickerOpen ? "rotate-180" : ""}`} />
+                <span className="emo-composer-picker-label">{currentMode.label}</span>
+                <ChevronDown size={11} className={`transition-transform ${openPicker === "mode" ? "rotate-180" : ""}`} />
               </button>
-              {pickerOpen && (
-                <div data-testid="mode-picker-menu" className="emo-dropdown">
+              {openPicker === "mode" && (
+                <div data-testid="mode-picker-menu" className="emo-dropdown" role="listbox">
                   {MODES.map((m) => {
                     const Icon = m.Icon;
                     const active = m.id === mode;
@@ -142,7 +145,7 @@ export const ChatComposer = ({
                         data-testid={`mode-picker-${m.id}`}
                         onClick={() => {
                           onChangeMode?.(m.id);
-                          setPickerOpen(false);
+                          setOpenPicker(null);
                         }}
                         className="emo-dropdown-item"
                         data-active={active ? "true" : "false"}
@@ -156,20 +159,22 @@ export const ChatComposer = ({
               )}
             </div>
 
-            <div className="relative" ref={modelPickerRef}>
+            <div className="emo-composer-picker emo-composer-picker-model" ref={modelPickerRef}>
               <button
                 type="button"
                 data-testid="model-picker-trigger"
-                onClick={() => setModelPickerOpen((o) => !o)}
-                className="emo-btn-ghost flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+                onClick={() => togglePicker("model")}
+                className="emo-btn-ghost emo-composer-picker-btn flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
                 title={currentModel.label || "Modèle"}
+                aria-expanded={openPicker === "model"}
+                aria-haspopup="listbox"
               >
                 <Cpu size={12} />
-                <span className="hidden sm:inline max-w-[120px] truncate">{modelShort}</span>
-                <ChevronDown size={11} className={`transition-transform ${modelPickerOpen ? "rotate-180" : ""}`} />
+                <span className="emo-composer-picker-label emo-composer-picker-label-model">{modelShort}</span>
+                <ChevronDown size={11} className={`transition-transform ${openPicker === "model" ? "rotate-180" : ""}`} />
               </button>
-              {modelPickerOpen && (
-                <div data-testid="model-picker-menu" className="emo-dropdown w-64">
+              {openPicker === "model" && (
+                <div data-testid="model-picker-menu" className="emo-dropdown emo-dropdown--align-end w-64" role="listbox">
                   {sortedModels.map((m) => {
                     const active = m.id === (modelPreference || "auto");
                     return (
@@ -178,7 +183,7 @@ export const ChatComposer = ({
                         data-testid={`model-picker-${m.id.replace(/[:/]/g, "-")}`}
                         onClick={() => {
                           onChangeModelPreference?.(m.id);
-                          setModelPickerOpen(false);
+                          setOpenPicker(null);
                         }}
                         className="emo-dropdown-item"
                         data-active={active ? "true" : "false"}
