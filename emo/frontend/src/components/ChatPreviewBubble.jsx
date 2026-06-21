@@ -43,7 +43,7 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
       style={{
         background: "var(--emo-surface)",
         border: "1px solid var(--emo-border)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
       }}
     >
       <div
@@ -81,7 +81,7 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
         )}
       </div>
 
-      <div className={isBrowser ? "p-1.5" : "p-2"}>
+      <div className={isBrowser ? "p-2" : "p-3"}>
         {data.kind === "search" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {(data.results || []).map((r, i) => (
@@ -101,6 +101,7 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
           <InteractiveBrowser
             autoOpen
             compact={false}
+            embedded
             frame={{
               url: data.url,
               title: data.title,

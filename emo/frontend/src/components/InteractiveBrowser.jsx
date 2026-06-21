@@ -63,6 +63,7 @@ export default function InteractiveBrowser({
   onFrameUpdate,
   compact = false,
   autoOpen = true,
+  embedded = false,
 }) {
   const sessionId = sessionIdProp || frame?.session_id || "default";
   const imgRef = useRef(null);
@@ -281,28 +282,37 @@ export default function InteractiveBrowser({
   const busy = navigating;
 
   const toolbarBtn =
-    "p-1 rounded-md em-hover-subtle flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none transition-opacity";
+    "p-1.5 rounded-xl em-hover-subtle flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none transition-all";
 
   if (!pageUrl && !screenshotSrc) return null;
 
+  const outerRadius = embedded ? "var(--emo-radius-lg)" : "var(--emo-radius-xl)";
+
   return (
     <div
-      className="rounded-xl overflow-hidden"
+      className="overflow-hidden"
       data-testid="interactive-browser"
       style={{
         background: "var(--emo-surface)",
-        border: "1px solid var(--emo-border)",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+        border: embedded ? "none" : "1px solid var(--emo-border)",
+        borderRadius: outerRadius,
+        boxShadow: embedded ? "none" : "0 4px 24px rgba(0,0,0,0.06)",
       }}
     >
-      {/* Toolbar */}
+      {/* Chrome toolbar */}
       <div
-        className="flex items-center gap-1 px-2 py-1.5"
+        className="flex items-center gap-1.5 px-2.5 py-2"
         style={{
           borderBottom: "1px solid var(--emo-border)",
           background: "var(--emo-subtle-bg, var(--emo-surface))",
         }}
       >
+        <div className="hidden sm:flex items-center gap-1 flex-shrink-0 px-0.5" aria-hidden>
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#f87171" }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#fbbf24" }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#34d399" }} />
+        </div>
+
         <button
           type="button"
           title="Actualiser"
@@ -311,23 +321,24 @@ export default function InteractiveBrowser({
           className={toolbarBtn}
         >
           {refreshing ? (
-            <Loader2 size={13} className="animate-spin" style={{ color: "var(--mode-color)" }} />
+            <Loader2 size={14} className="animate-spin" style={{ color: "var(--emo-accent)" }} />
           ) : (
-            <RefreshCw size={13} style={{ color: "var(--emo-text-muted)" }} />
+            <RefreshCw size={14} style={{ color: "var(--emo-text-muted)" }} />
           )}
         </button>
 
         <div
-          className="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full"
+          className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5"
           style={{
-            background: "var(--emo-surface)",
+            background: "var(--emo-input-bg)",
             border: "1px solid var(--emo-border)",
+            borderRadius: "var(--emo-radius-xl)",
           }}
         >
           {secure ? (
-            <Lock size={10} className="flex-shrink-0" style={{ color: "var(--emo-text-muted)" }} />
+            <Lock size={11} className="flex-shrink-0" style={{ color: "var(--emo-success-text)" }} />
           ) : (
-            <Globe size={10} className="flex-shrink-0" style={{ color: "var(--emo-text-muted)" }} />
+            <Globe size={11} className="flex-shrink-0" style={{ color: "var(--emo-text-muted)" }} />
           )}
           <input
             ref={urlInputRef}
@@ -343,7 +354,7 @@ export default function InteractiveBrowser({
             onFocus={() => setKeyboardFocused(false)}
             placeholder="https://…"
             title={local?.title || pageUrl}
-            className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[10px] font-code truncate"
+            className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[11px] font-code truncate"
             style={{ color: "var(--emo-text)" }}
             disabled={busy}
           />
@@ -357,11 +368,11 @@ export default function InteractiveBrowser({
             className={toolbarBtn}
             title="Ouvrir dans le navigateur"
           >
-            <ExternalLink size={13} style={{ color: "var(--emo-link)" }} />
+            <ExternalLink size={14} style={{ color: "var(--emo-link)" }} />
           </a>
         )}
 
-        <div className="w-px h-4 flex-shrink-0" style={{ background: "var(--emo-border)" }} />
+        <div className="w-px h-5 flex-shrink-0 mx-0.5" style={{ background: "var(--emo-border)" }} />
 
         <button
           type="button"
@@ -370,7 +381,7 @@ export default function InteractiveBrowser({
           onClick={() => runScroll("up", 480)}
           className={toolbarBtn}
         >
-          <ArrowUp size={13} style={{ color: "var(--emo-text-muted)" }} />
+          <ArrowUp size={14} style={{ color: "var(--emo-text-muted)" }} />
         </button>
         <button
           type="button"
@@ -379,7 +390,7 @@ export default function InteractiveBrowser({
           onClick={() => runScroll("down", 480)}
           className={toolbarBtn}
         >
-          <ArrowDown size={13} style={{ color: "var(--emo-text-muted)" }} />
+          <ArrowDown size={14} style={{ color: "var(--emo-text-muted)" }} />
         </button>
       </div>
 
@@ -395,22 +406,23 @@ export default function InteractiveBrowser({
           style={{
             background: "var(--emo-preview-bg)",
             boxShadow: keyboardFocused
-              ? "inset 0 0 0 2px var(--mode-color), inset 0 2px 8px rgba(0,0,0,0.12)"
-              : "inset 0 2px 8px rgba(0,0,0,0.08)",
+              ? "inset 0 0 0 2px var(--emo-accent), inset 0 2px 12px rgba(0,0,0,0.08)"
+              : "inset 0 2px 12px rgba(0,0,0,0.06)",
           }}
           data-testid="browser-keyboard-capture"
           data-keyboard-focused={keyboardFocused ? "true" : "false"}
         >
           {keyboardFocused && (
             <div
-              className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium pointer-events-none"
+              className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium pointer-events-none"
               style={{
-                background: "rgba(139,92,246,0.88)",
-                color: "var(--emo-on-mode)",
+                background: "var(--emo-accent)",
+                color: "var(--emo-on-accent)",
+                boxShadow: "0 4px 12px var(--emo-glow)",
               }}
             >
-              <Keyboard size={10} />
-              Clavier
+              <Keyboard size={11} />
+              Clavier actif
             </div>
           )}
           <img
@@ -431,39 +443,43 @@ export default function InteractiveBrowser({
             <span
               className="absolute pointer-events-none rounded-full"
               style={{
-                left: clickMark.x - 8,
-                top: clickMark.y - 8,
-                width: 16,
-                height: 16,
-                border: "2px solid var(--mode-color)",
-                background: "rgba(139,92,246,0.35)",
+                left: clickMark.x - 9,
+                top: clickMark.y - 9,
+                width: 18,
+                height: 18,
+                border: "2px solid var(--emo-accent)",
+                background: "var(--emo-accent-soft)",
               }}
             />
           )}
           {refreshing && (
             <div
-              className="absolute top-2 left-2 w-1.5 h-1.5 rounded-full pointer-events-none animate-pulse"
-              style={{ background: "var(--mode-color)" }}
+              className="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-0.5 rounded-full pointer-events-none text-[9px]"
+              style={{ background: "var(--emo-surface)", border: "1px solid var(--emo-border)", color: "var(--emo-text-muted)" }}
               aria-hidden
-            />
+            >
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--emo-accent)" }} />
+              MàJ
+            </div>
           )}
         </div>
       ) : (
         <div
-          className="relative flex flex-col items-center justify-center gap-2"
+          className="relative flex flex-col items-center justify-center gap-3 px-4"
           style={{
             background: "var(--emo-preview-bg)",
             minHeight: compact ? 200 : 320,
-            boxShadow: "inset 0 2px 8px rgba(0,0,0,0.08)",
+            boxShadow: "inset 0 2px 12px rgba(0,0,0,0.06)",
           }}
         >
           {navigating ? (
             <>
-              <Loader2 size={32} className="animate-spin" style={{ color: "var(--mode-color)" }} />
-              <p className="text-xs" style={{ color: "var(--emo-text-muted)" }}>Chargement du navigateur…</p>
+              <Loader2 size={36} className="animate-spin" style={{ color: "var(--emo-accent)" }} />
+              <p className="text-xs text-center" style={{ color: "var(--emo-text-muted)" }}>Chargement du navigateur…</p>
             </>
           ) : (
             <>
+              <Globe size={28} style={{ color: "var(--emo-text-muted)", opacity: 0.5 }} />
               <p className="text-xs px-4 text-center" style={{ color: "var(--emo-text-muted)" }}>
                 {loadError || "Appuie sur Entrée dans la barre d'URL pour ouvrir la page."}
               </p>
@@ -474,8 +490,8 @@ export default function InteractiveBrowser({
                     autoOpenedRef.current = false;
                     runNavigate(() => browserOpen(pageUrl, sessionId));
                   }}
-                  className="text-[11px] px-3 py-1.5 rounded-lg font-medium"
-                  style={{ background: "var(--mode-color)", color: "var(--emo-on-mode)" }}
+                  className="text-[11px] px-4 py-2 rounded-xl font-medium transition-opacity hover:opacity-90"
+                  style={{ background: "var(--emo-accent)", color: "var(--emo-on-accent)" }}
                 >
                   Réessayer
                 </button>
@@ -487,16 +503,20 @@ export default function InteractiveBrowser({
 
       {/* Status strip */}
       <div
-        className="flex items-center justify-between gap-2 px-2.5 py-1"
+        className="flex items-center justify-between gap-2 px-3 py-1.5"
         style={{
           borderTop: "1px solid var(--emo-border)",
+          background: "var(--emo-subtle-bg, var(--emo-surface))",
           color: "var(--emo-text-muted)",
-          fontSize: "9px",
+          fontSize: "10px",
         }}
       >
-        <span>Clic · Molette · Clavier</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-1 h-1 rounded-full" style={{ background: busy ? "#fbbf24" : "var(--emo-status-online)" }} />
+          Clic · Molette · Clavier
+        </span>
         {local?.title && (
-          <span className="truncate max-w-[55%] opacity-70" title={local.title}>
+          <span className="truncate max-w-[55%] opacity-80 font-medium" title={local.title}>
             {local.title}
           </span>
         )}

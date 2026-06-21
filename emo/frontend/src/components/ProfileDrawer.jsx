@@ -12,12 +12,20 @@ const THEME_OPTIONS = [
   { id: "system", label: "Système", Icon: Monitor },
 ];
 
-export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesChange, agentOnline, debugEvents, onClearDebugEvents }) {
+export default function ProfileDrawer({
+  open,
+  onClose,
+  onLogout,
+  themeMode,
+  onThemeModeChange,
+  agentOnline,
+  debugEvents,
+  onClearDebugEvents,
+}) {
   const [profile, setProfile] = useState(null);
   const [section, setSection] = useState("profile");
   const [name, setName] = useState("");
   const [addon, setAddon] = useState("");
-  const [themeMode, setThemeMode] = useState("dark");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState("");
 
@@ -28,7 +36,6 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
       setProfile(r.data);
       setName(r.data.user.name || "");
       setAddon(r.data.preferences.custom_prompt_addon || "");
-      setThemeMode(r.data.preferences.theme_mode || "dark");
     });
   }, [open]);
 
@@ -38,7 +45,6 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
       await http.patch("/profile", {
         name, custom_prompt_addon: addon, theme_mode: themeMode,
       });
-      onPreferencesChange?.({ theme_mode: themeMode });
       toast.success("Profil enregistré");
     } catch (e) {
       toast.error("Erreur");
@@ -81,21 +87,19 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
       />
       <aside
         data-testid="profile-drawer"
-        className="fixed top-0 right-0 bottom-0 z-50 w-[480px] max-w-[95vw] glass-panel overflow-y-auto scrollbar-thin"
+        className="fixed top-0 right-0 bottom-0 z-50 w-[480px] max-w-[95vw] glass-panel overflow-y-auto scrollbar-thin emo-drawer"
         style={{
           background: "var(--emo-drawer-bg)",
           borderLeft: "1px solid var(--emo-border)",
-          borderRadius: 0,
           boxShadow: "var(--emo-drawer-shadow)",
-          animation: "slideInRight 0.25s ease",
         }}
       >
-        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between glass-panel" style={{ borderBottom: "1px solid var(--emo-border)", borderRadius: 0 }}>
+        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between glass-panel em-border-b">
           <div className="flex items-center gap-3">
             <UserIcon size={16} style={{ color: "var(--mode-color)" }} />
             <h2 className="font-heading text-lg" style={{ color: "var(--emo-text)" }}>Paramètres</h2>
           </div>
-          <button data-testid="profile-close-btn" onClick={onClose} className="p-1.5 rounded em-hover">
+          <button data-testid="profile-close-btn" onClick={onClose} className="p-2 rounded-xl em-hover">
             <X size={16} />
           </button>
         </div>
@@ -167,7 +171,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg em-input text-sm focus:border-purple-500/40"
+                    className="w-full px-3 py-2 rounded-xl em-input text-sm focus:border-purple-500/40"
                   />
                 </Field>
               </Section>
@@ -198,11 +202,8 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                       <button
                         key={opt.id}
                         data-testid={`theme-${opt.id}-btn`}
-                        onClick={() => {
-                          setThemeMode(opt.id);
-                          onPreferencesChange?.({ theme_mode: opt.id });
-                        }}
-                        className="flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl text-xs font-medium transition emo-theme-btn"
+                        onClick={() => onThemeModeChange?.(opt.id)}
+                        className="flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-2xl text-xs font-medium transition emo-theme-btn"
                         data-active={active ? "true" : "false"}
                       >
                         <Icon size={16} />
@@ -221,7 +222,7 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                   onChange={(e) => setAddon(e.target.value)}
                   rows={5}
                   placeholder="Instructions perso (priorité absolue sur le comportement par défaut). Clique Enregistrer."
-                  className="w-full px-3 py-2.5 rounded-xl em-input text-sm focus:border-purple-500/40 resize-none font-code text-[13px]"
+                  className="w-full px-3 py-2.5 rounded-2xl em-input text-sm focus:border-purple-500/40 resize-none font-code text-[13px]"
                   maxLength={4000}
                 />
               </Section>
@@ -238,14 +239,18 @@ export default function ProfileDrawer({ open, onClose, onLogout, onPreferencesCh
                 data-testid="profile-save-btn"
                 onClick={save}
                 disabled={saving}
-                className="w-full py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ background: "var(--mode-color)", color: "var(--emo-on-mode)", boxShadow: "0 0 16px var(--mode-glow)" }}
+                className="w-full py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+                style={{
+                  background: "var(--emo-accent)",
+                  color: "var(--emo-on-accent)",
+                  boxShadow: "0 4px 20px var(--emo-glow)",
+                }}
               >
                 <Save size={13} /> {saving ? "Sauvegarde…" : "Enregistrer"}
               </button>
 
               {/* Danger zone */}
-              <details className="border border-red-500/20 rounded-xl">
+              <details className="border border-red-500/20 rounded-2xl overflow-hidden">
                 <summary className="cursor-pointer px-4 py-2.5 text-xs rounded-xl" style={{ color: "var(--emo-error-text)" }}>
                   <AlertTriangle size={11} className="inline mr-1.5" /> Zone dangereuse
                 </summary>

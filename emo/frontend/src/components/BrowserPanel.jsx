@@ -74,7 +74,7 @@ export default function BrowserPanel({ frames = [], reflectNotes = [], onFrameUp
 
           {reflectNotes.slice(0, 5).map((n) => (
 
-            <div key={n.id} className="text-[10px] rounded-lg px-2 py-1.5 emo-btn-soft">
+            <div key={n.id} className="text-[10px] rounded-xl px-2.5 py-1.5 emo-btn-soft">
 
               <span className="font-medium" style={{ color: "var(--emo-thought-text)" }}>💭 </span>
 
@@ -118,7 +118,7 @@ export default function BrowserPanel({ frames = [], reflectNotes = [], onFrameUp
 
               onClick={() => setActiveId(f.id)}
 
-              className="w-full text-left px-2 py-1.5 rounded-lg text-[11px] truncate transition"
+              className="w-full text-left px-2.5 py-2 rounded-xl text-[11px] truncate transition"
 
               style={{
 

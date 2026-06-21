@@ -72,7 +72,7 @@ const CodeBlock = ({ inner, lang, showCopyCode }) => {
           </button>
         )}
         <pre
-          className="font-code text-xs overflow-x-auto rounded-xl p-4 my-2"
+          className="font-code text-xs overflow-x-auto rounded-2xl p-4 my-2"
           style={{
             background: "var(--emo-code-bg)",
             border: "1px solid var(--emo-border)",
@@ -214,7 +214,7 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
     return (
       <div data-testid="chat-message-user" className="flex justify-end animate-in fade-in slide-in-from-bottom-2 duration-300">
         <div
-          className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm"
+          className="max-w-[80%] px-4 py-3.5 rounded-2xl rounded-tr-md text-sm"
           style={{
             background: "var(--emo-user-msg-bg)",
             border: "1px solid var(--emo-user-msg-border)",

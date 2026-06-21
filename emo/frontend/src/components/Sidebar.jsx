@@ -28,7 +28,7 @@ export const Sidebar = ({
     return (
       <aside
         data-testid="sidebar-collapsed"
-        className={`w-14 flex-shrink-0 h-full ${mobile ? "flex" : "hidden md:flex"} flex-col items-center py-4 glass-panel`}
+        className={`w-14 flex-shrink-0 h-full emo-panel-flat ${mobile ? "flex" : "hidden md:flex"} flex-col items-center py-4 glass-panel`}
         style={{ borderRight: "1px solid var(--emo-border)", borderRadius: 0 }}
       >
         <button
@@ -73,7 +73,7 @@ export const Sidebar = ({
   return (
     <aside
       data-testid="sidebar-container"
-      className={`w-72 flex-shrink-0 h-full ${mobile ? "flex" : "hidden md:flex"} flex-col glass-panel`}
+      className={`w-72 flex-shrink-0 h-full emo-panel-flat ${mobile ? "flex" : "hidden md:flex"} flex-col glass-panel`}
       style={{ borderRight: "1px solid var(--emo-border)", borderRadius: 0 }}
     >
       <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: "var(--emo-border)" }}>
@@ -94,7 +94,7 @@ export const Sidebar = ({
         <button
           data-testid="new-conversation-btn"
           onClick={onNew}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors em-hover-subtle"
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors em-hover-subtle"
           style={{ borderColor: "var(--emo-border)" }}
         >
           <Plus size={16} className="text-muted-em" />

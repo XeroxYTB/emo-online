@@ -37,7 +37,7 @@ export default function RightPanel({
   return (
     <aside
       data-testid="right-panel"
-      className="hidden md:flex w-[min(460px,38vw)] min-w-[360px] flex-shrink-0 h-full flex-col glass-panel"
+      className="hidden md:flex w-[min(460px,38vw)] min-w-[360px] flex-shrink-0 h-full flex-col glass-panel emo-panel-flat"
       style={{ borderLeft: "1px solid var(--emo-border)", borderRadius: 0 }}
     >
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 em-border-b">
@@ -50,7 +50,7 @@ export default function RightPanel({
                 key={t.id}
                 data-testid={`right-tab-${t.id}`}
                 onClick={() => selectTab(t.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition"
                 style={{
                   color: active ? "var(--emo-text)" : "var(--emo-text-muted)",
                   background: active ? "var(--emo-tab-active-bg)" : "transparent",
@@ -112,7 +112,7 @@ const ActivityTab = ({ tools, agentOnline, browserFrames, reflectNotes, onBrowse
     {tools.length > 0 && (
       <div className="flex-shrink-0 max-h-28 overflow-y-auto scrollbar-thin em-border-t p-2 space-y-1">
         {tools.slice(-8).map((t) => (
-          <div key={t.id} className="text-xs px-2 py-1 rounded-lg" style={{ background: "var(--emo-subtle-bg)" }}>
+          <div key={t.id} className="text-xs px-2.5 py-1.5 rounded-xl" style={{ background: "var(--emo-subtle-bg)" }}>
             <span className="font-code text-[11px]" style={{ color: "var(--mode-color)" }}>{t.tool}</span>
             <span className="text-muted-em ml-2">
               {t.state === "executing" ? "…" : t.state === "error" ? "erreur" : "ok"}

@@ -98,7 +98,7 @@ export default function Login() {
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         <div
           data-testid="login-card"
-          className="login-card w-full max-w-sm rounded-xl p-8"
+          className="login-card w-full max-w-sm rounded-2xl p-8"
           style={{ background: "var(--emo-surface)", border: "1px solid var(--emo-border)", animation: "fadeIn 0.4s ease" }}
         >
           <div className="mb-6 flex flex-col items-center text-center">
@@ -110,7 +110,7 @@ export default function Login() {
 
           {apiDown && (
             <p
-              className="mb-4 text-xs rounded-lg px-3 py-2 emo-alert-warning"
+              className="mb-4 text-xs rounded-xl px-3 py-2 emo-alert-warning"
             >
               API en pause (HF). Attendez 1–2 min puis réessayez.
             </p>
@@ -139,7 +139,7 @@ export default function Login() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="login-input w-full px-3 py-2.5 rounded-lg text-sm"
+                className="login-input w-full px-3 py-2.5 rounded-xl text-sm"
               />
             )}
             <input
@@ -149,7 +149,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="login-input w-full px-3 py-2.5 rounded-lg text-sm"
+              className="login-input w-full px-3 py-2.5 rounded-xl text-sm"
             />
             <input
               data-testid="password-input"
@@ -159,13 +159,13 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="login-input w-full px-3 py-2.5 rounded-lg text-sm"
+              className="login-input w-full px-3 py-2.5 rounded-xl text-sm"
             />
             <button
               data-testid="password-submit-btn"
               type="submit"
               disabled={loading || googleBusy}
-              className="login-submit w-full py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="login-submit w-full py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

@@ -2,7 +2,7 @@ import React from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ROUTER_BASENAME } from "@/lib/paths";
-import { Toaster } from "sonner";
+import ThemedToaster from "@/components/ThemedToaster";
 import Login from "@/pages/Login";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import Chat from "@/pages/Chat";
@@ -10,17 +10,7 @@ import Chat from "@/pages/Chat";
 function App() {
   return (
     <div className="App">
-      <Toaster
-        theme="dark"
-        position="top-right"
-        toastOptions={{
-          style: {
-            background: "var(--emo-surface)",
-            border: "1px solid var(--emo-border)",
-            color: "var(--emo-text)",
-          },
-        }}
-      />
+      <ThemedToaster />
       <BrowserRouter basename={ROUTER_BASENAME}>
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />
