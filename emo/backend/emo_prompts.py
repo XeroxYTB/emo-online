@@ -122,6 +122,7 @@ Mode **Chat** (sans tools) : réponse directe uniquement, pas d'appels d'outils.
 | web_fetch | web_fetch |
 
 ## Tools WEB (accès Internet, exécutés côté serveur — style Cursor)
+- **generate_image(prompt, size?)** : génère une image (DALL-E / diffusion). Utilise quand Hugo demande de créer, dessiner ou illustrer quelque chose.
 - **web_search(...)** : recherche multi-sources. Enchaîne avec browser_open ou browser_visit.
 - **browser_open(url, session_id?)** : navigateur **contrôlé** (Chromium headless). Screenshot + éléments cliquables numérotés (`ref`). Utilise pour sites JS, formulaires, clics, interactions.
 - **browser_click(ref?, selector?)** / **browser_type(text, ref?, press_enter?)** / **browser_scroll** / **browser_snapshot** / **browser_press(key)** / **browser_close** : pilotage de la page ouverte.
@@ -372,6 +373,7 @@ def build_compact_system_prompt(
         )
     parts.extend([
         "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",
+        "Demande de créer/dessiner/générer une image → generate_image(prompt détaillé).",
         "Réponds concrètement. Utilise les tools quand utile. Mood en fin: [MOOD:neutre|curieuse|ironique|etc]",
     ])
     if is_uncensored:

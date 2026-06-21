@@ -23,6 +23,7 @@ _CODE = re.compile(
     re.I,
 )
 _PRINT = re.compile(r"\b(imprim|print|impression|pdf|canon|hp\s|spooler)\b", re.I)
+_IMAGE_GEN = re.compile(r"\b(dessin|dessine|génère|genere|generate|crée.?une.?image|creer.?une.?image|image|illustration|dall.?e|flux)\b", re.I)
 _REFLECT = re.compile(r"\b(réfléch|reflect|modifie.?toi|identité|personnalité|mémoire)\b", re.I)
 _FILE = re.compile(
     r"\b(fichier|file|crée|créer|cree|create|écris|ecris|write|enregistre|sauvegarde|save|"
@@ -34,7 +35,7 @@ _FILE = re.compile(
 WEB_CORE = {
     "web_search", "web_fetch", "browser_visit", "browser_open", "browser_snapshot",
     "browser_click", "browser_type", "browser_scroll", "browser_press", "browser_close",
-    "github_search", "stackoverflow_search", "get_datetime", "calculate",
+    "github_search", "stackoverflow_search", "get_datetime", "calculate", "generate_image",
 }
 LOCAL_CORE = {
     "read_file", "write_file", "edit_file", "list_dir", "grep", "find_files",
@@ -108,6 +109,9 @@ def select_tools_for_message(
     if _BROWSER.search(text) or _WEB.search(text):
         picked |= WEB_CORE & available
 
+    if _IMAGE_GEN.search(text):
+        picked |= {"generate_image"} & available
+
     if agent_online and (
         _CODE.search(text) or _FILE.search(text) or _PRINT.search(text) or not _WEB.search(text)
     ):
@@ -130,7 +134,7 @@ def select_tools_for_message(
     # Priorité: browser > web > local > self
     priority = [
         "browser_open", "browser_click", "browser_type", "browser_snapshot",
-        "web_search", "web_fetch", "browser_visit",
+        "web_search", "web_fetch", "browser_visit", "generate_image",
         "read_file", "edit_file", "write_file", "exec_shell", "print_file", "grep", "find_files",
         "emo_reflect", "emo_edit_self",
     ]

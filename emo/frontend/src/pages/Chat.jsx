@@ -395,7 +395,7 @@ export default function Chat() {
     "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
   ];
 
-  const handleSend = async (text, images = []) => {
+  const handleSend = async (text, images = [], imageMediaTypes = []) => {
     if (streaming) return;
     if (!text.trim() && !images.length) return;
     let convId = activeId;
@@ -427,7 +427,9 @@ export default function Chat() {
 
     try {
       await streamChat({
-        conversation_id: convId, content: text, images, mode,
+        conversation_id: convId, content: text, images,
+        image_media_types: imageMediaTypes.length ? imageMediaTypes : undefined,
+        mode,
         model_preference: modelPreference || "auto",
         use_agent_tools: useAgentTools,
         signal: abortController.signal,
@@ -637,14 +639,14 @@ export default function Chat() {
         {/* Header */}
         <header
           data-testid="chat-header"
-          className="flex-shrink-0 px-3 md:px-5 h-14 flex items-center justify-between gap-2 border-b"
+          className="flex-shrink-0 px-3 md:px-5 h-14 flex items-center justify-between gap-2 border-b emo-panel-flat"
           style={{ borderColor: "var(--emo-border)", background: "var(--emo-surface)" }}
         >
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               data-testid="mobile-menu-btn"
               onClick={() => setSidebarOpenMobile(true)}
-              className="md:hidden p-1.5 rounded-md em-hover-subtle text-muted-em"
+              className="md:hidden p-2 rounded-xl em-hover-subtle text-muted-em"
               aria-label="Ouvrir le menu"
             >
               <Menu size={18} />
@@ -666,7 +668,7 @@ export default function Chat() {
             <button
               data-testid="header-profile-btn"
               onClick={() => setProfileOpen(true)}
-              className="p-2 rounded-lg em-hover text-muted-em transition"
+              className="p-2 rounded-xl em-hover text-muted-em transition"
               title="Paramètres"
             >
               <UserIcon size={15} />
@@ -674,7 +676,7 @@ export default function Chat() {
             <button
               data-testid="toggle-right-panel"
               onClick={() => setRightOpen(!rightOpen)}
-              className="hidden md:inline-flex p-2 rounded-lg em-hover text-muted-em"
+              className="hidden md:inline-flex p-2 rounded-xl em-hover text-muted-em"
               title="Panneau latéral"
             >
               {rightOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
@@ -696,7 +698,7 @@ export default function Chat() {
               </div>
             )}
 
-            <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-4 space-y-6">
+            <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-6 space-y-7">
               {messages.map((m) => (
                 <ChatMessage
                   key={m.message_id}
@@ -743,10 +745,10 @@ export default function Chat() {
 
         {/* Composer — dans le flux flex, plus en absolute */}
         <div
-          className="flex-shrink-0 z-10 px-3 md:px-4 pb-3 md:pb-4 pt-2"
+          className="flex-shrink-0 z-10 px-3 md:px-4 pb-4 md:pb-5 pt-3"
           style={{
             borderTop: "1px solid var(--emo-border)",
-            background: "linear-gradient(to top, var(--emo-bg) 70%, transparent)",
+            background: "linear-gradient(to top, var(--emo-bg) 80%, transparent)",
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -827,12 +829,11 @@ export default function Chat() {
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
         onLogout={handleLogout}
+        themeMode={themeMode}
+        onThemeModeChange={setThemeMode}
         agentOnline={agentOnline}
         debugEvents={debugEvents}
         onClearDebugEvents={() => setDebugEvents([])}
-        onPreferencesChange={(prefs) => {
-          if (prefs?.theme_mode) setThemeMode(prefs.theme_mode);
-        }}
       />
     </div>
   );

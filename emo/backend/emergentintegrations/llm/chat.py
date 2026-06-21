@@ -23,6 +23,18 @@ class UserMessage:
     text: str
     images: list[str] = field(default_factory=list)
     image_media_type: str = "image/jpeg"
+    image_media_types: list[str] = field(default_factory=list)
+
+
+def _media_types_for(images: list[str], media_type: str, media_types: list[str]) -> list[str]:
+    if not images:
+        return []
+    if media_types and len(media_types) >= len(images):
+        return media_types[: len(images)]
+    if media_types:
+        fallback = media_types[0]
+        return [media_types[i] if i < len(media_types) else fallback for i in range(len(images))]
+    return [media_type] * len(images)
 
 
 @dataclass
@@ -90,33 +102,50 @@ def _normalize_messages(initial_messages: list[dict], system_message: str) -> tu
             entry: dict[str, Any] = {"role": role, "content": content}
             if role == "user" and msg.get("images"):
                 entry["images"] = msg["images"]
+                if msg.get("image_media_types"):
+                    entry["image_media_types"] = msg["image_media_types"]
+                elif msg.get("image_media_type"):
+                    entry["image_media_type"] = msg["image_media_type"]
             messages.append(entry)
     return system, messages
 
 
-def _build_user_content(text: str, images: list[str], media_type: str = "image/jpeg") -> Any:
+def _build_user_content(
+    text: str,
+    images: list[str],
+    media_type: str = "image/jpeg",
+    media_types: list[str] | None = None,
+) -> Any:
     if not images:
         return text
+    mimes = _media_types_for(images, media_type, media_types or [])
     blocks: list[dict] = []
-    for img in images[:4]:
+    for idx, img in enumerate(images[:4]):
         b64 = img.split(",", 1)[-1] if img.startswith("data:") else img
+        mime = mimes[idx] if idx < len(mimes) else media_type
         blocks.append({
             "type": "image",
-            "source": {"type": "base64", "media_type": media_type, "data": b64},
+            "source": {"type": "base64", "media_type": mime, "data": b64},
         })
     blocks.append({"type": "text", "text": text or "Analyse cette image."})
     return blocks
 
 
-def _openai_user_content(text: str, images: list[str], media_type: str = "image/jpeg") -> Any:
+def _openai_user_content(
+    text: str,
+    images: list[str],
+    media_type: str = "image/jpeg",
+    media_types: list[str] | None = None,
+) -> Any:
     if not images:
         return text
+    mimes = _media_types_for(images, media_type, media_types or [])
     parts: list[dict] = [{"type": "text", "text": text or "Analyse cette image."}]
-    for img in images[:4]:
+    for idx, img in enumerate(images[:4]):
         b64 = img.split(",", 1)[-1] if img.startswith("data:") else img
-        mime = media_type
+        mime = mimes[idx] if idx < len(mimes) else media_type
         if img.startswith("data:"):
-            mime = img.split(";")[0].split(":")[1] if ";" in img else media_type
+            mime = img.split(";")[0].split(":")[1] if ";" in img else mime
         parts.append({
             "type": "image_url",
             "image_url": {"url": f"data:{mime};base64,{b64}"},
@@ -124,13 +153,19 @@ def _openai_user_content(text: str, images: list[str], media_type: str = "image/
     return parts
 
 
-def _gemini_user_parts(text: str, images: list[str], media_type: str = "image/jpeg") -> list[dict]:
+def _gemini_user_parts(
+    text: str,
+    images: list[str],
+    media_type: str = "image/jpeg",
+    media_types: list[str] | None = None,
+) -> list[dict]:
+    mimes = _media_types_for(images, media_type, media_types or [])
     parts: list[dict] = [{"text": text or "Analyse cette image."}]
-    for img in images[:4]:
+    for idx, img in enumerate(images[:4]):
         b64 = img.split(",", 1)[-1] if img.startswith("data:") else img
-        mime = media_type
+        mime = mimes[idx] if idx < len(mimes) else media_type
         if img.startswith("data:"):
-            mime = img.split(";")[0].split(":")[1] if ";" in img else media_type
+            mime = img.split(";")[0].split(":")[1] if ";" in img else mime
         parts.append({"inline_data": {"mime_type": mime, "data": b64}})
     return parts
 
@@ -190,12 +225,15 @@ class LlmChat:
         if user_message is not None:
             imgs = user_message.images or []
             if imgs:
-                self._messages.append({
+                entry: dict[str, Any] = {
                     "role": "user",
                     "content": user_message.text,
                     "images": imgs,
                     "image_media_type": user_message.image_media_type,
-                })
+                }
+                if user_message.image_media_types:
+                    entry["image_media_types"] = user_message.image_media_types
+                self._messages.append(entry)
             else:
                 self._messages.append({"role": "user", "content": user_message.text})
 
@@ -238,6 +276,7 @@ class LlmChat:
                         str(content or ""),
                         m.get("images") or [],
                         m.get("image_media_type") or "image/jpeg",
+                        m.get("image_media_types"),
                     ),
                 })
             elif role in ("user", "assistant"):
@@ -341,6 +380,7 @@ class LlmChat:
                             str(content),
                             imgs,
                             m.get("image_media_type") or "image/jpeg",
+                            m.get("image_media_types"),
                         ),
                     })
                 else:
@@ -442,6 +482,7 @@ class LlmChat:
                         str(content) if content is not None else "",
                         imgs,
                         m.get("image_media_type") or "image/jpeg",
+                        m.get("image_media_types"),
                     )
                     contents.append({"role": "user", "parts": parts})
                 else:

@@ -70,6 +70,7 @@ from llm_config import (
     stripe_link_for_tier,
 )
 import google_auth
+from image_tools import generate_image as do_generate_image, GENERATE_IMAGE_TOOL
 from llm_health import refresh_probe_cache, mark_provider_ok, mark_provider_failed
 
 
@@ -289,6 +290,7 @@ class SendMessageBody(BaseModel):
     model_preference: Optional[str] = "auto"
     use_agent_tools: Optional[bool] = True
     images: Optional[List[str]] = None  # base64 JPEG/PNG sans préfixe data:
+    image_media_types: Optional[List[str]] = None  # mime par image (image/jpeg, image/png, …)
 
 
 class MemoryBody(BaseModel):
@@ -1987,6 +1989,11 @@ async def execute_tool(
         return await do_stackoverflow_search(args.get("query", ""), int(args.get("limit", 8) or 8))
     if tool_name == "calculate":
         return do_calculate(args.get("expression", ""))
+    if tool_name == "generate_image":
+        return await do_generate_image(
+            str(args.get("prompt", "")),
+            str(args.get("size") or "1024x1024"),
+        )
 
     sid = str(args.get("session_id") or "default")
     if tool_name == "browser_open":
@@ -2136,20 +2143,33 @@ _TOOL_CAPABLE_PROVIDERS = frozenset({
 _VISION_CAPABLE = frozenset({
     ("anthropic", "claude-sonnet-4-20250514"),
     ("anthropic", "claude-3-5-sonnet-20241022"),
+    ("anthropic", "claude-3-5-haiku-20241022"),
     ("openai", "gpt-4o"),
     ("openai", "gpt-4o-mini"),
     ("gemini", "gemini-2.0-flash"),
     ("gemini", "gemini-2.0-flash-lite"),
+    ("groq", "llama-3.2-90b-vision-preview"),
+    ("groq", "llama-3.2-11b-vision-preview"),
     ("openrouter", "openai/gpt-4o"),
     ("openrouter", "openai/gpt-4o-mini"),
 })
 
 
-def _prioritize_vision_providers(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
-    """Préfère les modèles multimodaux quand des images sont jointes."""
-    vision = [c for c in candidates if (c[0], c[1]) in _VISION_CAPABLE or c[0] in ("anthropic", "openai", "gemini", "openrouter")]
-    rest = [c for c in candidates if c not in vision]
-    return vision + rest
+def _is_vision_capable(provider: str, model: str) -> bool:
+    if (provider, model) in _VISION_CAPABLE:
+        return True
+    if provider in ("anthropic", "openai", "gemini"):
+        return True
+    if provider == "groq" and "vision" in model.lower():
+        return True
+    if provider == "openrouter":
+        return True
+    return False
+
+
+def _filter_vision_candidates(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Ne garde que les modèles multimodaux quand des images sont jointes."""
+    return [c for c in candidates if _is_vision_capable(c[0], c[1])]
 
 
 def _prioritize_tool_providers(
@@ -2333,7 +2353,17 @@ def _compact_llm_payload(
     )
     non_system = [m for m in initial_messages if m.get("role") != "system"]
     keep = 4 if provider == "groq" else 8
-    compact_msgs = [{"role": "system", "content": compact_sys}] + non_system[-keep:]
+    compact_msgs = [{"role": "system", "content": compact_sys}]
+    for m in non_system[-keep:]:
+        entry: dict = {"role": m.get("role"), "content": m.get("content", "")}
+        if m.get("role") == "user":
+            if m.get("images"):
+                entry["images"] = m["images"]
+            if m.get("image_media_types"):
+                entry["image_media_types"] = m["image_media_types"]
+            elif m.get("image_media_type"):
+                entry["image_media_type"] = m["image_media_type"]
+        compact_msgs.append(entry)
     max_tools = 14 if provider == "groq" else 18
     compact_tools = select_tools_for_message(
         user_message, tools,
@@ -2394,6 +2424,8 @@ async def chat_stream(
     }
     if body.images:
         user_msg_doc["images"] = [img for img in body.images if img][:4]
+    if body.image_media_types:
+        user_msg_doc["image_media_types"] = [t for t in body.image_media_types if t][:4]
     await db.messages.insert_one(user_msg_doc)
 
     # Count daily message (only if free tier)
@@ -2450,6 +2482,10 @@ async def chat_stream(
         msg_entry: dict = {"role": role, "content": content}
         if role == "user" and m.get("images"):
             msg_entry["images"] = m["images"]
+            if m.get("image_media_types"):
+                msg_entry["image_media_types"] = m["image_media_types"]
+            elif m.get("image_media_type"):
+                msg_entry["image_media_type"] = m["image_media_type"]
         initial_messages.append(msg_entry)
 
     tier = get_user_tier(lic, is_admin=user.email.lower() in ADMIN_EMAILS)
@@ -2465,10 +2501,15 @@ async def chat_stream(
         except Exception:
             return False
 
-    use_tools = True
-    candidates = _prioritize_tool_providers(candidates, use_tools=use_tools)
-    if body.images:
-        candidates = _prioritize_vision_providers(candidates)
+    has_images = bool(body.images and any(img for img in body.images if img))
+    if has_images:
+        candidates = _filter_vision_candidates(candidates)
+        use_tools = False
+    else:
+        use_tools = True
+        candidates = _prioritize_tool_providers(candidates, use_tools=use_tools)
+
+    chat_web_tools = WEB_TOOLS + [GENERATE_IMAGE_TOOL]
 
     async def event_gen():
         last_error: Optional[Exception] = None
@@ -2476,6 +2517,17 @@ async def chat_stream(
         cancelled = False
         try:
             yield _sse({"type": "ping"})
+
+            if has_images and not candidates:
+                yield _sse({
+                    "type": "error",
+                    "content": (
+                        "Analyse d'image impossible — aucun modèle vision disponible. "
+                        "Configure une clé API Gemini, OpenAI, Anthropic ou Groq vision "
+                        "(llama-3.2-*-vision-preview) dans backend/.env."
+                    ),
+                })
+                return
 
             # « ouvres ytb » → browser_open interactif (Playwright) si dispo
             open_url = resolve_open_site_url(body.content) if use_tools else None
@@ -2580,9 +2632,9 @@ async def chat_stream(
                 if (provider, model) in blocked:
                     continue
                 if use_agent_mode and (tier_allows_local_agent(tier) or agent_online_raw):
-                    tool_set = EMO_TOOLS + WEB_TOOLS + BROWSER_CONTROL_TOOLS
+                    tool_set = EMO_TOOLS + chat_web_tools + BROWSER_CONTROL_TOOLS
                 else:
-                    tool_set = WEB_TOOLS + BROWSER_CONTROL_TOOLS
+                    tool_set = chat_web_tools + BROWSER_CONTROL_TOOLS
                 if is_owner and use_agent_mode:
                     tool_set = tool_set + EMO_SELF_TOOLS
                 if not use_agent_mode and not resolve_open_site_url(body.content):
@@ -2630,6 +2682,7 @@ async def chat_stream(
                 user_message_for_iter: Optional[UserMessage] = UserMessage(
                     text=body.content,
                     images=[img for img in (body.images or []) if img][:4],
+                    image_media_types=[t for t in (body.image_media_types or []) if t][:4],
                 )
                 started = False
                 try:
@@ -2697,6 +2750,15 @@ async def chat_stream(
                             browser_evt = _browser_sse_payload(tc.name, result)
                             if browser_evt:
                                 yield _sse(browser_evt)
+                            if tc.name == "generate_image" and result.get("ok") and result.get("image_base64"):
+                                mime = result.get("mime") or "image/png"
+                                prompt = str((tc.arguments or {}).get("prompt") or result.get("prompt") or "")
+                                yield _sse({
+                                    "type": "image",
+                                    "id": tc.id,
+                                    "src": f"data:{mime};base64,{result['image_base64']}",
+                                    "title": prompt[:80],
+                                })
                             reflect_evt = _reflect_sse_payload(tc.name, result)
                             if reflect_evt:
                                 yield _sse(reflect_evt)
@@ -2809,6 +2871,10 @@ def _shrink_for_ui(result: dict) -> dict:
         if len(out["screenshot_base64"]) > 400:
             out["has_screenshot"] = True
             out["screenshot_base64"] = "[screenshot:in_panel]"
+    if out.get("image_base64") and isinstance(out["image_base64"], str):
+        if len(out["image_base64"]) > 400:
+            out["has_image"] = True
+            out["image_base64"] = "[image:in_chat]"
     return out
 
 
@@ -2817,6 +2883,8 @@ def _shrink_for_llm(result: dict) -> dict:
     out = dict(result or {})
     if out.get("screenshot_base64"):
         out["screenshot_base64"] = "[jpeg screenshot — visible in UI; use elements refs to interact]"
+    if out.get("image_base64"):
+        out["image_base64"] = "[generated image — visible in chat UI]"
     for key in ("stdout", "stderr", "content", "text"):
         if key in out and isinstance(out[key], str) and len(out[key]) > 8000:
             out[key] = out[key][:8000] + "\n…[truncated]"

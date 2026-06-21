@@ -62,7 +62,7 @@ export const ChatComposer = ({
   const submit = () => {
     const v = value.trim();
     if ((!v && !attachments.length) || disabled) return;
-    onSend(v, attachments.map((a) => a.base64));
+    onSend(v, attachments.map((a) => a.base64), attachments.map((a) => a.mediaType));
     setValue("");
     setAttachments([]);
   };
@@ -78,7 +78,7 @@ export const ChatComposer = ({
     <div className={`mode-${mode} w-full`}>
       <div
         data-testid="chat-composer"
-        className={`rounded-xl p-2 flex flex-col gap-1 transition-colors ${dragOver ? "ring-2 ring-[var(--mode-color)]" : ""}`}
+        className={`rounded-2xl p-2.5 flex flex-col gap-1.5 transition-colors ${dragOver ? "ring-2 ring-[var(--mode-color)]" : ""}`}
         style={{
           background: "var(--emo-surface)",
           border: "1px solid var(--emo-border)",
@@ -101,7 +101,7 @@ export const ChatComposer = ({
                 <img
                   src={a.preview}
                   alt={a.name || "Image"}
-                  className="h-14 w-14 object-cover rounded-lg em-border"
+                  className="h-14 w-14 object-cover rounded-xl em-border"
                 />
                 <button
                   type="button"
@@ -165,7 +165,7 @@ export const ChatComposer = ({
             data-testid="composer-image-btn"
             onClick={() => fileInputRef.current?.click()}
             disabled={attachments.length >= MAX_IMAGES || (disabled && !streaming)}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition border em-hover-subtle disabled:opacity-40"
+            className="flex items-center gap-1 px-2 py-1 rounded-xl text-xs transition border em-hover-subtle disabled:opacity-40"
             style={{ borderColor: "var(--emo-border)", color: "var(--emo-text-secondary)" }}
             title="Joindre une image"
           >
@@ -176,7 +176,7 @@ export const ChatComposer = ({
               type="button"
               data-testid="mode-picker-trigger"
               onClick={() => setPickerOpen((o) => !o)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition border"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition border"
               style={{
                 background: "var(--emo-surface-raised)",
                 borderColor: "var(--emo-border)",
@@ -191,7 +191,7 @@ export const ChatComposer = ({
             {pickerOpen && (
               <div
                 data-testid="mode-picker-menu"
-                className="absolute bottom-full left-0 mb-2 w-44 rounded-lg py-1 z-30 border"
+                className="absolute bottom-full left-0 mb-2 w-44 rounded-xl py-1 z-30 border"
                 style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
               >
                 {MODES.map((m) => {
@@ -220,7 +220,7 @@ export const ChatComposer = ({
               type="button"
               data-testid="model-picker-trigger"
               onClick={() => setModelPickerOpen((o) => !o)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition border"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition border"
               style={{
                 background: "var(--emo-surface-raised)",
                 borderColor: "var(--emo-border)",
@@ -235,7 +235,7 @@ export const ChatComposer = ({
             {modelPickerOpen && (
               <div
                 data-testid="model-picker-menu"
-                className="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto rounded-lg py-1 z-30 border scrollbar-thin"
+                className="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto rounded-xl py-1 z-30 border scrollbar-thin"
                 style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
               >
                 {sortedModels.map((m) => {
@@ -269,7 +269,7 @@ export const ChatComposer = ({
             type="button"
             data-testid="agent-mode-toggle"
             onClick={() => onChangeUseAgentTools?.(!useAgentTools)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition border"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition border"
             style={{
               background: useAgentTools ? "var(--emo-surface-raised)" : "transparent",
               borderColor: useAgentTools ? "var(--emo-accent)" : "var(--emo-border)",
@@ -286,7 +286,7 @@ export const ChatComposer = ({
               type="button"
               data-testid="stop-stream-btn"
               onClick={() => onCancel?.()}
-              className="h-9 px-3 flex-shrink-0 flex items-center justify-center gap-1.5 rounded-lg transition-colors text-xs font-medium border"
+              className="h-9 px-3 flex-shrink-0 flex items-center justify-center gap-1.5 rounded-xl transition-colors text-xs font-medium border"
               style={{
                 background: "transparent",
                 borderColor: "var(--emo-border)",
@@ -302,7 +302,7 @@ export const ChatComposer = ({
               data-testid="send-message-btn"
               onClick={submit}
               disabled={disabled || (!value.trim() && !attachments.length)}
-              className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+              className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-xl transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
                 background: "var(--emo-accent)",
                 color: "var(--emo-on-accent)",
