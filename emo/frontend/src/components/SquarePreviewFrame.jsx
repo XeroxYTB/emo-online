@@ -1,18 +1,88 @@
 import React, { useEffect, useState } from "react";
 import { AspectRatio } from "./ui/aspect-ratio";
-import { Globe, FileText, Image as ImageIcon } from "lucide-react";
+import { Globe, FileText, Image as ImageIcon, Copy, Check, Download } from "lucide-react";
+import { toast } from "sonner";
 import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
+import { copyImageFromSrc, downloadImageFromSrc } from "../lib/imageExport";
 
 /**
  * Cadre carré réutilisable pour aperçus site / fichier.
  * kind: "iframe" | "image" | "text" | "empty"
  */
-function PreviewImage({ src, alt, fallbackSrc, className, style }) {
+function ImagePreviewActions({ src }) {
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const handleCopy = async (e) => {
+    e.stopPropagation();
+    if (busy || !src) return;
+    setBusy(true);
+    try {
+      await copyImageFromSrc(src);
+      setCopied(true);
+      toast.success("Image copiée");
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Copie impossible");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSave = async (e) => {
+    e.stopPropagation();
+    if (busy || !src) return;
+    setBusy(true);
+    try {
+      await downloadImageFromSrc(src);
+      toast.success("Image enregistrée");
+    } catch {
+      toast.error("Enregistrement impossible");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="emo-image-preview-actions" data-testid="image-preview-actions">
+      <button
+        type="button"
+        className="emo-icon-btn emo-image-action-btn"
+        title="Copier l'image"
+        aria-label="Copier"
+        disabled={busy}
+        data-testid="image-copy-btn"
+        onClick={handleCopy}
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+      </button>
+      <button
+        type="button"
+        className="emo-icon-btn emo-image-action-btn"
+        title="Enregistrer l'image"
+        aria-label="Enregistrer"
+        disabled={busy}
+        data-testid="image-save-btn"
+        onClick={handleSave}
+      >
+        <Download size={14} />
+      </button>
+    </div>
+  );
+}
+
+function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = false }) {
   const [current, setCurrent] = useState(src);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (!src || src.includes("[image:") || src.endsWith("base64,")) {
+      setCurrent(src);
+      setFailed(true);
+      setLoaded(false);
+      return;
+    }
     setCurrent(src);
     setFailed(false);
     setLoaded(false);
@@ -37,6 +107,7 @@ function PreviewImage({ src, alt, fallbackSrc, className, style }) {
         alt={alt || "Aperçu"}
         className={`${className || ""} ${loaded ? "emo-image-reveal" : "opacity-0"}`}
         style={style}
+        crossOrigin={showActions && current?.startsWith("http") ? "anonymous" : undefined}
         onLoad={() => setLoaded(true)}
         onError={() => {
           if (fallbackSrc && current !== fallbackSrc) {
@@ -46,6 +117,9 @@ function PreviewImage({ src, alt, fallbackSrc, className, style }) {
           setFailed(true);
         }}
       />
+      {showActions && loaded && current && (
+        <ImagePreviewActions src={current} />
+      )}
     </>
   );
 }
@@ -61,6 +135,7 @@ export default function SquarePreviewFrame({
   emptyLabel = "Aperçu",
   className = "",
   testId = "square-preview",
+  showImageActions = false,
 }) {
   return (
     <div className={`w-full max-w-[340px] mx-auto ${className}`} data-testid={testId}>
@@ -81,13 +156,16 @@ export default function SquarePreviewFrame({
                 referrerPolicy="no-referrer-when-downgrade"
               />
             ) : kind === "image" && src ? (
-              <PreviewImage
-                src={src}
-                fallbackSrc={imageFallback}
-                alt={title || "Aperçu"}
-                className="absolute inset-0 w-full h-full object-contain p-2"
-                style={{ background: "var(--emo-preview-bg)" }}
-              />
+              <div className={`absolute inset-0 ${showImageActions ? "emo-image-preview-wrap" : ""}`}>
+                <PreviewImage
+                  src={src}
+                  fallbackSrc={imageFallback}
+                  alt={title || "Aperçu"}
+                  className="absolute inset-0 w-full h-full object-contain p-2"
+                  style={{ background: "var(--emo-preview-bg)" }}
+                  showActions={showImageActions}
+                />
+              </div>
             ) : kind === "text" && text ? (
               <pre
                 className="absolute inset-0 m-0 p-3 text-[10px] leading-relaxed font-code overflow-hidden whitespace-pre-wrap"

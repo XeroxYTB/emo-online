@@ -5,6 +5,7 @@ import EmoEyes from "./EmoEyes";
 import ToolCallCard from "./ToolCallCard";
 import LiveHtmlPreview from "./LiveHtmlPreview";
 import { cleanDisplayText } from "../lib/messageClean";
+import { buildImagePreviewSrc } from "../lib/resolveToolPreview";
 
 const MOOD_LABELS = {
   neutre: "Neutre",
@@ -200,13 +201,12 @@ function normalizeToolEvent(t, i) {
   if (!inlinePreview && tool === "generate_image") {
     const res = t.result;
     if (res?.ok !== false) {
-      const mime = res?.mime || "image/png";
-      const b64 = res?.image_base64;
-      if (b64 && !String(b64).startsWith("[")) {
+      const src = buildImagePreviewSrc(res);
+      if (src) {
         inlinePreview = {
           type: "image",
-          src: `data:${mime};base64,${b64}`,
-          title: args.prompt || res.prompt || "Image générée",
+          src,
+          title: args.prompt || res.prompt || res.subject || "Image générée",
         };
       }
     }

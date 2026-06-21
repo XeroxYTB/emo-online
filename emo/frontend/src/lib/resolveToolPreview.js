@@ -13,6 +13,17 @@ function hasValidScreenshot(data) {
   return b64.length > 500;
 }
 
+/** Build a displayable image src from SSE / tool result fields. */
+export function buildImagePreviewSrc({ src, image_base64, image_url, mime = "image/png" } = {}) {
+  if (image_url && typeof image_url === "string") return image_url;
+  if (src && typeof src === "string" && !src.includes("[image:")) return src;
+  const b64 = image_base64;
+  if (b64 && typeof b64 === "string" && !b64.startsWith("[") && b64.length > 100) {
+    return `data:${mime || "image/png"};base64,${b64}`;
+  }
+  return null;
+}
+
 /** Détecte si un événement tool peut afficher un aperçu visuel. */
 export function hasToolPreview(event) {
   return Boolean(resolveToolPreview(event));
@@ -96,7 +107,15 @@ export function resolveToolPreview(event) {
     return null;
   }
 
-  if (tool === "generate_image" && result?.ok && result?.image_base64) {
+  if (tool === "generate_image" && result?.ok) {
+    const remoteSrc = result.image_url || result.url;
+    if (remoteSrc && /^https?:\/\//i.test(remoteSrc)) {
+      return {
+        kind: "image",
+        src: remoteSrc,
+        title: args.prompt || result.prompt || "Image générée",
+      };
+    }
     const mime = result.mime || "image/png";
     const b64 = result.image_base64;
     if (b64 && !String(b64).startsWith("[")) {

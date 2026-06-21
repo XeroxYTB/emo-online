@@ -14,6 +14,7 @@ import ProfileDrawer from "../components/ProfileDrawer";
 import FeedbackPrompt from "../components/FeedbackPrompt";
 import { cleanDisplayText } from "../lib/messageClean";
 import { isHtmlPath, normalizeFilePath } from "../lib/filePreview";
+import { buildImagePreviewSrc } from "../lib/resolveToolPreview";
 import { useVisualViewportKeyboard } from "../lib/useVisualViewportKeyboard";
 
 const MODE_LABELS = { tech: "Tech", creatif: "Créatif", brutal: "Brutal" };
@@ -504,6 +505,23 @@ export default function Chat() {
           break;
         }
       }
+    } else if (preview.type === "image") {
+      let matched = false;
+      if (preview.toolId) {
+        const match = updated.findIndex((t) => t.id === preview.toolId);
+        if (match >= 0) {
+          idx = match;
+          matched = true;
+        }
+      }
+      if (!matched) {
+        for (let i = updated.length - 1; i >= 0; i -= 1) {
+          if (updated[i].tool === "generate_image") {
+            idx = i;
+            break;
+          }
+        }
+      }
     }
     updated[idx] = { ...updated[idx], inlinePreview: preview };
     return updated;
@@ -633,16 +651,12 @@ export default function Chat() {
                     results: (evt.result.results || []).slice(0, 8),
                   };
                 } else if (tool === "generate_image" && evt.result?.ok !== false) {
-                  const mime = evt.result?.mime || "image/png";
-                  const b64 = evt.result?.image_base64;
-                  const src = b64 && !String(b64).startsWith("[")
-                    ? `data:${mime};base64,${b64}`
-                    : null;
+                  const src = buildImagePreviewSrc(evt.result);
                   if (src) {
                     turnTools[i].inlinePreview = {
                       type: "image",
                       src,
-                      title: args.prompt || "Image générée",
+                      title: args.prompt || evt.result.prompt || evt.result.subject || "Image générée",
                     };
                   }
                 } else if (BROWSER_PREVIEW_TOOLS.includes(tool)) {
@@ -701,19 +715,35 @@ export default function Chat() {
             const note = { id: `rn_${Date.now()}`, ...evt };
             setReflectNotes((prev) => [note, ...prev].slice(0, 12));
           } else if (evt.type === "image") {
-            turnTools.push({
-              id: evt.id || `img_${Date.now()}`,
-              tool: "generate_image",
-              state: "done",
-              args: { prompt: evt.title || "" },
-              result: { ok: true },
-              inlinePreview: {
-                type: "image",
-                src: evt.src,
-                title: evt.title || "Image générée",
-              },
-            });
+            const src = buildImagePreviewSrc(evt);
+            if (!src) return;
+            const preview = {
+              type: "image",
+              src,
+              title: evt.title || "Image générée",
+              toolId: evt.id,
+            };
+            const i = evt.id ? turnTools.findIndex((t) => t.id === evt.id) : -1;
+            if (i >= 0) {
+              turnTools[i].inlinePreview = preview;
+              if (turnTools[i].state !== "error") turnTools[i].state = "done";
+            } else {
+              const updated = attachInlinePreview(turnTools, preview);
+              turnTools.splice(0, turnTools.length, ...updated);
+            }
             setStreamingTools([...turnTools]);
+            setAllTools((prev) => {
+              const updated = [...prev];
+              const idx = evt.id ? updated.findIndex((t) => t.id === evt.id) : -1;
+              if (idx >= 0) {
+                updated[idx] = {
+                  ...updated[idx],
+                  inlinePreview: preview,
+                  state: updated[idx].state === "error" ? "error" : "done",
+                };
+              }
+              return updated;
+            });
           } else if (evt.type === "file_preview") {
             const preview = { type: "file", ...evt };
             if (turnTools.length) {

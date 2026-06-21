@@ -135,6 +135,7 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
             subtitle={data.path}
             testId="bubble-image-preview"
             className="max-w-none"
+            showImageActions={event?.tool === "generate_image"}
           />
         )}
 

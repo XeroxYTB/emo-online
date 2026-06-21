@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import { hasToolPreview } from "../lib/resolveToolPreview";
+import { hasToolPreview, buildImagePreviewSrc } from "../lib/resolveToolPreview";
 import { getFileContentFromToolEvent, isCopyableFileToolEvent } from "../lib/filePreview";
 import ChatPreviewBubble from "./ChatPreviewBubble";
 import ImageGeneratingPlaceholder from "./ImageGeneratingPlaceholder";
@@ -65,7 +65,11 @@ const COLORS = {
 export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false }) => {
   const [open, setOpen] = useState(event.state !== "done");
   const [copied, setCopied] = useState(false);
-  const canPreview = hasToolPreview(event) || Boolean(
+  const isImageGen = event.tool === "generate_image";
+  const imagePreviewSrc = event.inlinePreview?.type === "image"
+    ? buildImagePreviewSrc(event.inlinePreview)
+    : buildImagePreviewSrc(event.result);
+  const canPreview = hasToolPreview(event) || Boolean(isImageGen && imagePreviewSrc) || Boolean(
     event.args?.url && [
       "browser_visit", "browser_open", "web_fetch",
       "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
@@ -78,8 +82,8 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   const color = COLORS[event.tool] || "var(--mode-color)";
   const isError = event.state === "error" || (event.result && event.result.ok === false);
   const isExecuting = event.state === "executing";
-  const isImageGen = event.tool === "generate_image";
-  const showImageGenLoading = isImageGen && isExecuting;
+  const waitingForImage = isImageGen && event.result?.has_image && !imagePreviewSrc;
+  const showImageGenLoading = isImageGen && (isExecuting || waitingForImage);
   const fileContent = showCopyCode && isCopyableFileToolEvent(event)
     ? getFileContentFromToolEvent(event, liveHtmlByPath)
     : "";
