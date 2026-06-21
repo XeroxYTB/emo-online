@@ -22,6 +22,7 @@ export default function RightPanel({
   browserFrames = [],
   reflectNotes = [],
   onBrowserFrameUpdate,
+  mobileSheet = false,
 }) {
   const [tab, setTab] = useState(activeTab || "activity");
 
@@ -37,8 +38,15 @@ export default function RightPanel({
   return (
     <aside
       data-testid="right-panel"
-      className="hidden md:flex w-[min(460px,38vw)] min-w-[360px] flex-shrink-0 h-full flex-col emo-panel-flat"
-      style={{ borderLeft: "1px solid var(--emo-border)", background: "var(--emo-surface)" }}
+      className={
+        mobileSheet
+          ? "flex w-full min-w-0 flex-1 flex-col emo-panel-flat emo-right-panel-sheet overflow-hidden"
+          : "hidden md:flex w-[min(460px,38vw)] min-w-[360px] flex-shrink-0 h-full flex-col emo-panel-flat"
+      }
+      style={{
+        borderLeft: mobileSheet ? "none" : "1px solid var(--emo-border)",
+        background: "var(--emo-surface)",
+      }}
     >
       <div className="emo-panel-tabs flex-shrink-0">
         <div className="flex items-center gap-1 flex-1">

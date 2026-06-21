@@ -103,7 +103,7 @@ export default function ProfileDrawer({
       />
       <aside
         data-testid="profile-drawer"
-        className="fixed top-0 right-0 bottom-0 z-50 w-[min(560px,95vw)] flex flex-col emo-drawer overflow-hidden"
+        className="fixed z-50 flex flex-col emo-drawer emo-profile-drawer overflow-hidden"
         style={{
           background: "var(--emo-drawer-bg)",
           borderLeft: "1px solid var(--emo-border)",
@@ -143,7 +143,7 @@ export default function ProfileDrawer({
             </nav>
 
             {/* Mobile nav pills */}
-            <div className="sm:hidden flex-shrink-0 flex gap-1.5 overflow-x-auto px-4 py-3 border-b scrollbar-thin" style={{ borderColor: "var(--emo-border)" }}>
+            <div className="sm:hidden flex-shrink-0 emo-settings-nav-mobile scrollbar-thin">
               {navItems.map(({ id, label, Icon }) => (
                 <button
                   key={id}
@@ -152,8 +152,8 @@ export default function ProfileDrawer({
                   className="emo-segment-btn flex-shrink-0"
                   data-active={section === id ? "true" : "false"}
                 >
-                  <Icon size={12} />
-                  {label}
+                  <Icon size={14} />
+                  <span className="whitespace-nowrap">{label}</span>
                 </button>
               ))}
             </div>

@@ -366,6 +366,29 @@ export default function InteractiveBrowser({
             <ArrowDown size={14} />
           </button>
         </div>
+
+        <div className="emo-browser-mobile-actions sm:hidden">
+          <button
+            type="button"
+            title="Défiler vers le haut"
+            disabled={busy}
+            onClick={() => runScroll("up", 480)}
+            className="emo-icon-btn"
+            aria-label="Défiler vers le haut"
+          >
+            <ArrowUp size={14} />
+          </button>
+          <button
+            type="button"
+            title="Défiler vers le bas"
+            disabled={busy}
+            onClick={() => runScroll("down", 480)}
+            className="emo-icon-btn"
+            aria-label="Défiler vers le bas"
+          >
+            <ArrowDown size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Viewport */}
@@ -378,6 +401,7 @@ export default function InteractiveBrowser({
           onClick={() => containerRef.current?.focus()}
           className="emo-browser-viewport"
           data-focused={keyboardFocused ? "true" : "false"}
+          data-compact={compact ? "true" : "false"}
           data-testid="browser-keyboard-capture"
           data-keyboard-focused={keyboardFocused ? "true" : "false"}
         >
@@ -399,9 +423,8 @@ export default function InteractiveBrowser({
             src={screenshotSrc}
             alt={local?.title || urlLabel(pageUrl) || "Page web"}
             onClick={handleScreenshotClick}
-            className="w-full h-auto block select-none"
+            className="w-full h-auto block select-none emo-browser-screenshot"
             style={{
-              maxHeight: compact ? 280 : 520,
               objectFit: "contain",
               objectPosition: "top",
               cursor: busy ? "wait" : "crosshair",

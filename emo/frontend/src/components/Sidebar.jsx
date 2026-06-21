@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, MessageSquare, Trash2, Pencil, LogOut, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Pencil, LogOut, ChevronLeft, ChevronRight, Settings, X } from "lucide-react";
 import EmoLogo from "./EmoLogo";
 import {
   DropdownMenu,
@@ -71,7 +71,7 @@ export const Sidebar = ({
   return (
     <aside
       data-testid="sidebar-container"
-      className={`emo-sidebar w-72 emo-panel-flat ${mobile ? "flex" : "hidden md:flex"}`}
+      className={`emo-sidebar w-72 emo-panel-flat ${mobile ? "flex emo-sidebar-mobile" : "hidden md:flex"}`}
     >
       <div className="px-4 py-3.5 flex items-center justify-between border-b" style={{ borderColor: "var(--emo-border)" }}>
         <EmoLogo size="sm" showSubtitle={false} />
@@ -79,9 +79,10 @@ export const Sidebar = ({
           data-testid="sidebar-collapse-btn"
           onClick={onToggleCollapsed}
           className="emo-icon-btn"
-          title="Replier"
+          title={mobile ? "Fermer" : "Replier"}
+          aria-label={mobile ? "Fermer le menu" : "Replier la barre latérale"}
         >
-          <ChevronLeft size={15} />
+          {mobile ? <X size={16} /> : <ChevronLeft size={15} />}
         </button>
       </div>
 
@@ -111,6 +112,7 @@ export const Sidebar = ({
                 onSelect={() => onSelect(c.conversation_id)}
                 onRename={onRename}
                 onDelete={onDelete}
+                mobile={mobile}
               />
             ))}
           </div>
@@ -156,7 +158,7 @@ export const Sidebar = ({
   );
 };
 
-const ConversationRow = ({ conv, active, onSelect, onRename, onDelete }) => {
+const ConversationRow = ({ conv, active, onSelect, onRename, onDelete, mobile = false }) => {
   return (
     <div
       data-testid={`conv-row-${conv.conversation_id}`}
@@ -170,7 +172,7 @@ const ConversationRow = ({ conv, active, onSelect, onRename, onDelete }) => {
     >
       <MessageSquare size={14} className="opacity-50 flex-shrink-0" />
       <span className="flex-1 truncate">{conv.title || "Sans titre"}</span>
-      <div className="hidden group-hover:flex items-center gap-0.5">
+      <div className={`${mobile ? "flex" : "hidden group-hover:flex"} items-center gap-0.5 flex-shrink-0`}>
         <button
           data-testid={`rename-${conv.conversation_id}`}
           onClick={(e) => {
@@ -178,7 +180,8 @@ const ConversationRow = ({ conv, active, onSelect, onRename, onDelete }) => {
             const t = window.prompt("Nouveau titre :", conv.title || "");
             if (t && t.trim()) onRename(conv.conversation_id, t.trim());
           }}
-          className="p-1 rounded-md em-hover-subtle text-muted-em"
+          className="emo-conv-action-btn em-hover-subtle text-muted-em"
+          aria-label="Renommer"
         >
           <Pencil size={12} />
         </button>
@@ -188,7 +191,8 @@ const ConversationRow = ({ conv, active, onSelect, onRename, onDelete }) => {
             e.stopPropagation();
             if (window.confirm("Supprimer cette conversation ?")) onDelete(conv.conversation_id);
           }}
-          className="p-1 rounded-md em-hover-subtle text-muted-em hover:!text-red-400"
+          className="emo-conv-action-btn em-hover-subtle text-muted-em hover:!text-red-400"
+          aria-label="Supprimer"
         >
           <Trash2 size={12} />
         </button>

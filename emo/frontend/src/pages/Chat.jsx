@@ -11,6 +11,7 @@ import { AppTopBar } from "../components/EmoLogo";
 import RightPanel from "../components/RightPanel";
 import Paywall from "../components/SubscriptionPlans";
 import ProfileDrawer from "../components/ProfileDrawer";
+import FeedbackPrompt from "../components/FeedbackPrompt";
 import { cleanDisplayText } from "../lib/messageClean";
 import { isHtmlPath, normalizeFilePath } from "../lib/filePreview";
 
@@ -88,7 +89,10 @@ export default function Chat() {
   }, []);
   const [reflectNotes, setReflectNotes] = useState([]);
   const [rightPanelTab, setRightPanelTab] = useState("activity");
-  const [rightOpen, setRightOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : true
+  );
+  const [rightPanelMobileOpen, setRightPanelMobileOpen] = useState(false);
   const [debugEvents, setDebugEvents] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     typeof window !== "undefined" && localStorage.getItem("emo_sidebar_collapsed") === "1"
@@ -96,6 +100,7 @@ export default function Chat() {
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [license, setLicense] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [themeMode, setThemeMode] = useState(
     typeof window !== "undefined" ? (localStorage.getItem("emo_theme_mode") || "dark") : "dark"
   );
@@ -142,6 +147,38 @@ export default function Chat() {
       localStorage.setItem("emo_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
     }
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const locked = sidebarOpenMobile || profileOpen || rightPanelMobileOpen;
+    document.body.classList.toggle("emo-scroll-locked", locked);
+    return () => document.body.classList.remove("emo-scroll-locked");
+  }, [sidebarOpenMobile, profileOpen, rightPanelMobileOpen]);
+
+  useEffect(() => {
+    if (!sidebarOpenMobile) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setSidebarOpenMobile(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sidebarOpenMobile]);
+
+  useEffect(() => {
+    if (!rightPanelMobileOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setRightPanelMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [rightPanelMobileOpen]);
+
+  const toggleRightPanel = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      setRightPanelMobileOpen((o) => !o);
+    } else {
+      setRightOpen((o) => !o);
+    }
+  };
 
   useEffect(() => {
     if (authState !== "ok") return;
@@ -608,6 +645,9 @@ export default function Chat() {
                 language: evt.language,
               });
               setRightPanelTab("files");
+              if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+                setRightPanelMobileOpen(true);
+              }
             }
           } else if (evt.type === "done") {
             const finalContent = cleanStreamText(buffer).trim();
@@ -742,7 +782,7 @@ export default function Chat() {
               <p className="font-heading text-sm font-semibold truncate leading-tight">
                 {activeConv?.title || "Nouvelle conversation"}
               </p>
-              <p className="text-[11px] text-muted-em truncate">
+              <p className="emo-chat-header-subtitle text-[11px] text-muted-em truncate">
                 Mode {MODE_LABELS[mode] || mode}
                 {useAgentTools ? " · Agent" : " · Chat"}
               </p>
@@ -753,7 +793,7 @@ export default function Chat() {
             {license && license.active && license.tier === "free" && !license.is_admin && (
               <span
                 data-testid="trial-pill"
-                className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full font-medium"
+                className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full font-medium"
                 style={{ background: "var(--emo-accent-soft)", color: "var(--mode-color)" }}
               >
                 <Clock size={10} />
@@ -761,20 +801,20 @@ export default function Chat() {
               </span>
             )}
             <button
+              data-testid="toggle-right-panel"
+              onClick={toggleRightPanel}
+              className="emo-icon-btn"
+              title={rightOpen || rightPanelMobileOpen ? "Masquer le panneau" : "Afficher le panneau"}
+            >
+              {(rightOpen || rightPanelMobileOpen) ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+            </button>
+            <button
               data-testid="header-profile-btn"
               onClick={() => setProfileOpen(true)}
               className="emo-icon-btn"
               title="Paramètres"
             >
               <UserIcon size={15} />
-            </button>
-            <button
-              data-testid="toggle-right-panel"
-              onClick={() => setRightOpen(!rightOpen)}
-              className="hidden md:inline-flex emo-icon-btn"
-              title={rightOpen ? "Masquer le panneau" : "Afficher le panneau"}
-            >
-              {rightOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </button>
           </div>
         </header>
@@ -881,15 +921,40 @@ export default function Chat() {
         </div>
       )}
 
+      {rightPanelMobileOpen && (
+        <>
+          <div
+            data-testid="mobile-right-panel-overlay"
+            onClick={() => setRightPanelMobileOpen(false)}
+            className="md:hidden emo-drawer-overlay"
+          />
+          <div className="md:hidden emo-bottom-sheet" role="dialog" aria-label="Panneau activité">
+            <div className="emo-bottom-sheet-handle" aria-hidden />
+            <RightPanel
+              tools={allTools}
+              agentOnline={agentOnline}
+              onRefreshStatus={refreshAgentStatus}
+              filePreview={filePreview}
+              activeTab={rightPanelTab}
+              onTabChange={setRightPanelTab}
+              browserFrames={browserFrames}
+              reflectNotes={reflectNotes}
+              onBrowserFrameUpdate={handleBrowserFrameUpdate}
+              mobileSheet
+              onClose={() => setRightPanelMobileOpen(false)}
+            />
+          </div>
+        </>
+      )}
+
       {sidebarOpenMobile && (
         <>
           <div
             data-testid="mobile-sidebar-overlay"
             onClick={() => setSidebarOpenMobile(false)}
-            className="md:hidden fixed inset-0 z-40"
-            style={{ background: "var(--emo-overlay)", backdropFilter: "blur(6px)" }}
+            className="md:hidden emo-drawer-overlay emo-sidebar-drawer-overlay"
           />
-          <div className="md:hidden fixed left-0 top-0 bottom-0 z-50 w-72 max-w-[85vw] shadow-2xl">
+          <div className="md:hidden emo-sidebar-drawer">
             <Sidebar
               conversations={conversations}
               activeId={activeId}

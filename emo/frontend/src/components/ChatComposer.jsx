@@ -93,7 +93,7 @@ export const ChatComposer = ({
       >
         {/* Top toolbar: mode + model + chat/agent toggle */}
         <div className="emo-composer-toolbar">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="emo-composer-toolbar-inner">
             <div className="emo-segment" role="group" aria-label="Mode conversation">
               <button
                 type="button"
@@ -198,8 +198,6 @@ export const ChatComposer = ({
             </div>
           </div>
         </div>
-
-        {/* Image attachments strip */}
         {attachments.length > 0 && (
           <div className="emo-attachment-strip" data-testid="composer-attachments">
             {attachments.map((a) => (
