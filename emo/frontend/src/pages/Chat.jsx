@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { http, streamChat, clearSessionToken, wakeBackend } from "../lib/api";
+import { http, streamChat, clearSessionToken, wakeBackend, getSessionToken } from "../lib/api";
 import { toast } from "sonner";
 import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDown, Wifi, RefreshCw, Loader2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
@@ -376,8 +376,8 @@ export default function Chat() {
     let cancelled = false;
     const timeoutId = setTimeout(() => {
       if (!cancelled) setAuthState("timeout");
-    }, 15000);
-    http.get("/auth/me", { timeout: 12000 })
+    }, getSessionToken() ? 12000 : 8000);
+    http.get("/auth/me", { timeout: 6000, _emoSkipRetry: true, _emoMaxRetries: 0 })
       .then((res) => {
         if (cancelled) return;
         setUser(res.data);
@@ -385,8 +385,11 @@ export default function Chat() {
         setAuthState("ok");
       })
       .catch(() => {
-        if (!cancelled) setAuthState("no");
-        navigate("/login", { replace: true });
+        if (!cancelled) {
+          clearSessionToken();
+          setAuthState("no");
+          navigate("/login", { replace: true });
+        }
       })
       .finally(() => clearTimeout(timeoutId));
     return () => {
@@ -851,7 +854,7 @@ export default function Chat() {
     setAuthState("checking");
     try {
       await wakeBackend({ maxWaitMs: 30000 });
-      const res = await http.get("/auth/me", { timeout: 15000 });
+      const res = await http.get("/auth/me", { timeout: 8000, _emoSkipRetry: true, _emoMaxRetries: 0 });
       setUser(res.data);
       setAgentOnline(!!res.data.agent_online);
       setAuthState("ok");

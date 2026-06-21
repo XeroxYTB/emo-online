@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, saveSessionToken, authRequest, formatApiError, wakeBackend } from "../lib/api";
+import { http, saveSessionToken, authRequest, formatApiError, wakeBackend, getSessionToken } from "../lib/api";
 import { AppTopBar, EmoLogo } from "../components/EmoLogo";
 import GoogleSignInButton, { getGoogleClientId } from "../components/GoogleSignInButton";
 import { toast } from "sonner";
@@ -41,11 +41,16 @@ export default function Login() {
     bootStarted.current = true;
 
     (async () => {
+      if (!getSessionToken()) {
+        const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
+        setApiDown(!warm?.ok);
+        return;
+      }
       try {
-        await http.get("/auth/me", { timeout: 8000 });
+        await http.get("/auth/me", { timeout: 8000, _emoSkipRetry: true, _emoMaxRetries: 0 });
         navigate("/chat", { replace: true });
       } catch (_) {
-        const warm = await wakeBackend({ maxWaitMs: 25000 }).catch(() => ({ ok: false }));
+        const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
         setApiDown(!warm?.ok);
       }
     })();

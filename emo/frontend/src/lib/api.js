@@ -161,7 +161,8 @@ http.interceptors.response.use(
     const status = err.response?.status;
     const retries = cfg._emoRetryCount || 0;
     const maxRetries = cfg._emoMaxRetries ?? 4;
-    const canRetry = retries < maxRetries && isRetriableStatus(status);
+    const skipRetry = cfg._emoSkipRetry === true;
+    const canRetry = !skipRetry && retries < maxRetries && isRetriableStatus(status);
     if (canRetry) {
       const bases = backendCandidates();
       const current = getActiveBase();
