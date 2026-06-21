@@ -72,6 +72,7 @@ export default function InteractiveBrowser({
   const scrollTimerRef = useRef(null);
   const scrollPendingRef = useRef(false);
   const keySnapshotTimerRef = useRef(null);
+  const flushScrollAccumRef = useRef(() => {});
   const actionGenRef = useRef(0);
   const [local, setLocal] = useState(frame || null);
   const [navigating, setNavigating] = useState(false);
@@ -167,11 +168,14 @@ export default function InteractiveBrowser({
       } finally {
         scrollPendingRef.current = false;
         if (Math.abs(scrollAccumRef.current) >= 8 && !scrollTimerRef.current) {
-          scrollTimerRef.current = setTimeout(flushScrollAccum, SCROLL_THROTTLE_MS);
+          scrollTimerRef.current = setTimeout(
+            () => flushScrollAccumRef.current(),
+            SCROLL_THROTTLE_MS,
+          );
         }
       }
     },
-    [sessionId, runRefresh, flushScrollAccum],
+    [sessionId, runRefresh],
   );
 
   const flushScrollAccum = useCallback(() => {
@@ -184,6 +188,8 @@ export default function InteractiveBrowser({
     runScroll(direction, amount);
   }, [runScroll]);
 
+  flushScrollAccumRef.current = flushScrollAccum;
+
   const handleWheel = useCallback(
     (e) => {
       e.preventDefault();
@@ -191,7 +197,10 @@ export default function InteractiveBrowser({
       if (navigating) return;
       scrollAccumRef.current += e.deltaY;
       if (scrollTimerRef.current) return;
-      scrollTimerRef.current = setTimeout(flushScrollAccum, SCROLL_THROTTLE_MS);
+      scrollTimerRef.current = setTimeout(
+        () => flushScrollAccumRef.current(),
+        SCROLL_THROTTLE_MS,
+      );
     },
     [navigating, flushScrollAccum],
   );
