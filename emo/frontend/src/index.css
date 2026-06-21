@@ -564,8 +564,8 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 .emo-attachment-chip-name {
   font-size: var(--emo-text-xs);
   color: var(--emo-text-secondary);
-  truncate: ellipsis;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100px;
 }

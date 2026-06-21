@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { http, streamChat, clearSessionToken, wakeBackend } from "../lib/api";
 import { toast } from "sonner";
-import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDown } from "lucide-react";
+import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDown, Wifi, RefreshCw, Loader2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ChatComposer from "../components/ChatComposer";
 import ChatMessage from "../components/ChatMessage";
@@ -20,11 +20,41 @@ function cleanStreamText(text) {
   return cleanDisplayText(text);
 }
 
+function StatusScreen({ icon: Icon, title, description, action, actionLabel, loading }) {
+  return (
+    <div className="login-page h-screen w-full flex flex-col">
+      <AppTopBar />
+      <div className="emo-status-screen flex-1">
+        <div className="emo-status-card">
+          <div className="emo-status-icon">
+            {loading ? <Loader2 size={22} className="animate-spin" /> : <Icon size={22} />}
+          </div>
+          <h2 className="font-heading text-base font-semibold mb-2" style={{ color: "var(--emo-text)" }}>
+            {title}
+          </h2>
+          <p className="text-sm text-secondary-em mb-5">{description}</p>
+          {action && (
+            <button
+              type="button"
+              onClick={action}
+              className="emo-btn-primary w-full py-2.5 text-sm flex items-center justify-center gap-2"
+            >
+              {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              {actionLabel}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Chat() {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(location.state?.user || null);
   const [authState, setAuthState] = useState(location.state?.user ? "ok" : "checking");
+  const [retryLoading, setRetryLoading] = useState(false);
 
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -32,7 +62,7 @@ export default function Chat() {
   const [mode, setMode] = useState("tech");
   const [streaming, setStreaming] = useState(false);
   const [streamingMsg, setStreamingMsg] = useState(null);
-  const [streamingTools, setStreamingTools] = useState([]); // tools in current streaming turn
+  const [streamingTools, setStreamingTools] = useState([]);
   const [agentOnline, setAgentOnline] = useState(false);
   const [allTools, setAllTools] = useState([]);
   const [filePreview, setFilePreview] = useState(null);
@@ -113,7 +143,6 @@ export default function Chat() {
     }
   }, [sidebarCollapsed]);
 
-  // Load preferences
   useEffect(() => {
     if (authState !== "ok") return;
     wakeBackend({ maxWaitMs: 8000 }).catch(() => {});
@@ -150,12 +179,11 @@ export default function Chat() {
     }
   }, [useAgentTools]);
 
-  // Apply theme (dark/light/system) to <html>
   useEffect(() => {
     const html = document.documentElement;
-    const apply = (mode) => {
-      let resolved = mode;
-      if (mode === "system") {
+    const apply = (modeVal) => {
+      let resolved = modeVal;
+      if (modeVal === "system") {
         resolved = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       }
       html.classList.remove("theme-dark", "theme-light");
@@ -178,7 +206,6 @@ export default function Chat() {
     setDebugEvents((prev) => [...prev, { ...evt, _t: t }].slice(-500));
   }, []);
 
-  // License polling
   useEffect(() => {
     if (authState !== "ok") return;
     const tick = async () => {
@@ -188,7 +215,6 @@ export default function Chat() {
       } catch { /* ignore */ }
     };
     tick();
-    // Check for stripe return
     const params = new URLSearchParams(window.location.search);
     const sid = params.get("stripe_session_id");
     if (sid) {
@@ -216,7 +242,6 @@ export default function Chat() {
     }
   };
 
-  // Auth check
   useEffect(() => {
     if (user) {
       setAuthState("ok");
@@ -244,7 +269,6 @@ export default function Chat() {
     };
   }, [user, navigate]);
 
-  // Poll agent status every 4s
   useEffect(() => {
     if (authState !== "ok") return;
     const tick = async () => {
@@ -263,7 +287,6 @@ export default function Chat() {
     setAgentOnline(r.data.online);
   }, []);
 
-  // Load conversations
   useEffect(() => {
     if (authState !== "ok") return;
     http.get("/conversations").then((r) => {
@@ -273,7 +296,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authState]);
 
-  // Load messages for active conv
   useEffect(() => {
     if (!activeId) { setMessages([]); return; }
     http.get(`/conversations/${activeId}/messages`).then((r) => setMessages(r.data));
@@ -282,7 +304,6 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  // Auto-scroll uniquement si l'utilisateur est déjà en bas (ne bloque pas la lecture)
   useEffect(() => {
     if (!stickyBottomRef.current) return;
     const el = chatAreaRef.current;
@@ -438,7 +459,7 @@ export default function Chat() {
     setStreamingTools([]);
 
     let buffer = "";
-    const turnTools = []; // local accumulator
+    const turnTools = [];
     const abortController = new AbortController();
     streamAbortRef.current = abortController;
     const streamTimeout = setTimeout(() => {
@@ -610,7 +631,7 @@ export default function Chat() {
               );
             }
           } else if (evt.type === "ping") {
-            // keepalive SSE — connexion toujours active
+            // keepalive
           } else if (evt.type === "error") {
             const errText = evt.content || "Erreur.";
             toast.error(errText);
@@ -647,54 +668,51 @@ export default function Chat() {
     }
   };
 
+  const handleAuthRetry = async () => {
+    setRetryLoading(true);
+    setAuthState("checking");
+    try {
+      await wakeBackend({ maxWaitMs: 30000 });
+      const res = await http.get("/auth/me", { timeout: 15000 });
+      setUser(res.data);
+      setAgentOnline(!!res.data.agent_online);
+      setAuthState("ok");
+    } catch {
+      navigate("/login", { replace: true });
+    } finally {
+      setRetryLoading(false);
+    }
+  };
+
   if (authState === "checking") {
     return (
-      <div className="login-page h-screen w-full flex flex-col">
-        <AppTopBar />
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <p className="text-sm text-secondary-em">Chargement…</p>
-          <div className="dot-loading"><span /><span /><span /></div>
-        </div>
-      </div>
+      <StatusScreen
+        icon={Loader2}
+        title="Connexion en cours"
+        description="Vérification de votre session…"
+        loading
+      />
     );
   }
 
   if (authState === "timeout") {
     return (
-      <div className="login-page h-screen w-full flex flex-col">
-        <AppTopBar />
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
-          <p className="text-sm text-secondary-em">Connexion lente — le serveur HF démarre peut‑être.</p>
-          <button
-            type="button"
-            onClick={async () => {
-              setAuthState("checking");
-              try {
-                await wakeBackend({ maxWaitMs: 30000 });
-                const res = await http.get("/auth/me", { timeout: 15000 });
-                setUser(res.data);
-                setAgentOnline(!!res.data.agent_online);
-                setAuthState("ok");
-              } catch {
-                navigate("/login", { replace: true });
-              }
-            }}
-            className="px-4 py-2 rounded-xl text-sm font-medium"
-            style={{ background: "var(--emo-accent)", color: "var(--emo-on-accent)" }}
-          >
-            Réessayer
-          </button>
-        </div>
-      </div>
+      <StatusScreen
+        icon={Wifi}
+        title="Connexion lente"
+        description="Le serveur démarre peut‑être. Patientez un instant puis réessayez."
+        action={handleAuthRetry}
+        actionLabel="Réessayer"
+        loading={retryLoading}
+      />
     );
   }
 
   const hasMessages = messages.length > 0 || streamingMsg;
+  const activeConv = conversations.find((c) => c.conversation_id === activeId);
 
   return (
-    <div
-      className={`mode-${mode} h-screen w-full flex overflow-hidden`}
-    >
+    <div className={`mode-${mode} emo-app-shell`}>
       <Sidebar
         conversations={conversations}
         activeId={activeId}
@@ -709,40 +727,43 @@ export default function Chat() {
         onOpenProfile={() => setProfileOpen(true)}
       />
 
-      <main className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden relative">
-        {/* Header */}
-        <header
-          data-testid="chat-header"
-          className="flex-shrink-0 px-3 md:px-5 h-14 flex items-center justify-between gap-2 border-b emo-panel-flat"
-          style={{ borderColor: "var(--emo-border)", background: "var(--emo-surface)" }}
-        >
+      <main className="emo-chat-main">
+        <header data-testid="chat-header" className="emo-chat-header">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               data-testid="mobile-menu-btn"
               onClick={() => setSidebarOpenMobile(true)}
-              className="md:hidden p-2 rounded-xl em-hover-subtle text-muted-em"
+              className="md:hidden emo-icon-btn"
               aria-label="Ouvrir le menu"
             >
-              <Menu size={18} />
+              <Menu size={17} />
             </button>
             <div className="min-w-0">
-              <p className="font-heading text-sm font-medium leading-none">{MODE_LABELS[mode] || "Chat"}</p>
+              <p className="font-heading text-sm font-semibold truncate leading-tight">
+                {activeConv?.title || "Nouvelle conversation"}
+              </p>
+              <p className="text-[11px] text-muted-em truncate">
+                Mode {MODE_LABELS[mode] || mode}
+                {useAgentTools ? " · Agent" : " · Chat"}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+
+          <div className="flex items-center gap-1 flex-shrink-0">
             {license && license.active && license.tier === "free" && !license.is_admin && (
               <span
                 data-testid="trial-pill"
-                className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(168,85,247,0.1)", color: "var(--mode-color)" }}
+                className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full font-medium"
+                style={{ background: "var(--emo-accent-soft)", color: "var(--mode-color)" }}
               >
-                <Clock size={10} /> {license.messages_left_today}/{license.messages_per_day}
+                <Clock size={10} />
+                {license.messages_left_today}/{license.messages_per_day}
               </span>
             )}
             <button
               data-testid="header-profile-btn"
               onClick={() => setProfileOpen(true)}
-              className="p-2 rounded-xl em-hover text-muted-em transition"
+              className="emo-icon-btn"
               title="Paramètres"
             >
               <UserIcon size={15} />
@@ -750,82 +771,83 @@ export default function Chat() {
             <button
               data-testid="toggle-right-panel"
               onClick={() => setRightOpen(!rightOpen)}
-              className="hidden md:inline-flex p-2 rounded-xl em-hover text-muted-em"
-              title="Panneau latéral"
+              className="hidden md:inline-flex emo-icon-btn"
+              title={rightOpen ? "Masquer le panneau" : "Afficher le panneau"}
             >
               {rightOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </button>
           </div>
         </header>
 
-        {/* Zone messages — flex au lieu de position absolute pour un scroll fiable */}
         <div className="flex-1 min-h-0 relative flex flex-col">
           <div
             ref={chatAreaRef}
             data-testid="chat-area"
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin chat-scroll-area"
-            style={{ background: "var(--emo-bg)" }}
+            className="emo-chat-scroll chat-scroll-area scrollbar-thin"
           >
             {!hasMessages && (
-              <div className="h-full min-h-[280px] flex flex-col items-center justify-center px-6">
-                <EmoEyes mode={mode} mood={null} size={130} />
+              <div className="h-full min-h-[320px] flex flex-col items-center justify-center px-6 gap-4">
+                <EmoEyes mode={mode} mood={null} size={120} />
+                <div className="text-center max-w-sm">
+                  <p className="font-heading text-base font-semibold mb-1" style={{ color: "var(--emo-text)" }}>
+                    Bonjour{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+                  </p>
+                  <p className="text-sm text-muted-em">
+                    Pose une question, joins une image, ou laisse l'agent explorer le web.
+                  </p>
+                </div>
               </div>
             )}
 
-            <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-6 space-y-7">
-              {messages.map((m) => (
-                <ChatMessage
-                  key={m.message_id}
-                  message={m}
-                  liveHtmlByPath={liveHtmlByPath}
-                  showCopyCode={!useAgentTools}
-                />
-              ))}
-              {(streamingMsg || streamingTools.length > 0) && (
-                <ChatMessage
-                  key="streaming"
-                  message={{
-                    role: "emo",
-                    content: streamingMsg?.content || "",
-                    mood: null, mode,
-                    tool_calls_live: streamingTools,
-                  }}
-                  isStreaming
-                  liveHtmlByPath={liveHtmlByPath}
-                  showCopyCode={!useAgentTools}
-                />
-              )}
-            </div>
+            {hasMessages && (
+              <div className="emo-chat-messages">
+                {messages.map((m) => (
+                  <ChatMessage
+                    key={m.message_id}
+                    message={m}
+                    liveHtmlByPath={liveHtmlByPath}
+                    showCopyCode={!useAgentTools}
+                  />
+                ))}
+                {(streamingMsg || streamingTools.length > 0) && (
+                  <ChatMessage
+                    key="streaming"
+                    message={{
+                      role: "emo",
+                      content: streamingMsg?.content || "",
+                      mood: null, mode,
+                      tool_calls_live: streamingTools,
+                    }}
+                    isStreaming
+                    liveHtmlByPath={liveHtmlByPath}
+                    showCopyCode={!useAgentTools}
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           {showScrollBtn && (
             <button
               type="button"
               onClick={() => scrollToBottom("smooth")}
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg transition hover:scale-105"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition hover:scale-105"
               style={{
                 background: "var(--emo-surface)",
                 border: "1px solid var(--emo-border)",
                 color: "var(--emo-text-secondary)",
-                boxShadow: "var(--emo-drawer-shadow)",
+                boxShadow: "var(--emo-shadow-lg)",
               }}
               aria-label="Revenir en bas"
             >
               <ArrowDown size={14} />
-              {streaming ? "En cours" : "Bas"}
+              {streaming ? "En cours…" : "Bas de page"}
             </button>
           )}
         </div>
 
-        {/* Composer — dans le flux flex, plus en absolute */}
-        <div
-          className="flex-shrink-0 z-10 px-3 md:px-4 pb-4 md:pb-5 pt-3"
-          style={{
-            borderTop: "1px solid var(--emo-border)",
-            background: "linear-gradient(to top, var(--emo-bg) 80%, transparent)",
-          }}
-        >
-          <div className="max-w-4xl mx-auto">
+        <div className="emo-chat-composer-wrap">
+          <div className="emo-chat-composer-inner">
             <ChatComposer
               mode={mode}
               onChangeMode={setMode}
@@ -843,7 +865,6 @@ export default function Chat() {
         </div>
       </main>
 
-      {/* Right panel: hidden on small screens (kept for desktop only) */}
       {rightOpen && (
         <div className="hidden md:block">
           <RightPanel
@@ -860,16 +881,15 @@ export default function Chat() {
         </div>
       )}
 
-      {/* Mobile sidebar drawer */}
       {sidebarOpenMobile && (
         <>
           <div
             data-testid="mobile-sidebar-overlay"
             onClick={() => setSidebarOpenMobile(false)}
             className="md:hidden fixed inset-0 z-40"
-            style={{ background: "var(--emo-overlay)", backdropFilter: "blur(4px)" }}
+            style={{ background: "var(--emo-overlay)", backdropFilter: "blur(6px)" }}
           />
-          <div className="md:hidden fixed left-0 top-0 bottom-0 z-50 w-72 max-w-[85vw]">
+          <div className="md:hidden fixed left-0 top-0 bottom-0 z-50 w-72 max-w-[85vw] shadow-2xl">
             <Sidebar
               conversations={conversations}
               activeId={activeId}
