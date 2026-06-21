@@ -67,7 +67,7 @@ from web_tools import (
 from llm_config import (
     SUBSCRIPTION_PLANS, get_user_tier, resolve_model, resolve_model_candidates, models_for_tier, plans_for_api,
     parse_client_reference, tier_allows_local_agent, TIER_RANK, PAID_TIERS,
-    stripe_link_for_tier, resolve_free_vision_candidates,
+    stripe_link_for_tier, resolve_free_vision_candidates, vision_keys_missing_message,
 )
 import google_auth
 from image_tools import generate_image as do_generate_image, GENERATE_IMAGE_TOOL
@@ -657,6 +657,10 @@ def _friendly_llm_error(exc: Exception) -> str:
         if code == 400:
             lower = _http_response_snippet(exc.response, 500).lower()
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
+                return "Quota gratuit atteint — essai d'un autre modèle…"
+        if code in (400, 402, 403):
+            lower = _http_response_snippet(exc.response, 500).lower()
+            if any(k in lower for k in ("credit balance", "too low", "insufficient", "billing", "quota")):
                 return "Quota gratuit atteint — essai d'un autre modèle…"
         snippet = _http_response_snippet(exc.response)
         return _sanitize_error_msg(f"Erreur API ({code})" if not snippet else f"Erreur API ({code})")
@@ -2169,17 +2173,43 @@ def _is_vision_capable(provider: str, model: str) -> bool:
     return False
 
 
+def _normalize_image_b64(img: str) -> str:
+    """Retire le préfixe data:…;base64, si présent."""
+    if not img:
+        return ""
+    s = img.strip()
+    if s.startswith("data:") and "," in s:
+        return s.split(",", 1)[1]
+    return s
+
+
+def _normalize_chat_images(
+    images: Optional[List[str]],
+    media_types: Optional[List[str]] = None,
+) -> tuple[list[str], list[str]]:
+    raw: list[str] = []
+    for img in images or []:
+        normalized = _normalize_image_b64(img)
+        if normalized:
+            raw.append(normalized)
+    imgs = raw[:4]
+    types = [t for t in (media_types or []) if t][:4]
+    if not types and imgs:
+        types = ["image/jpeg"] * len(imgs)
+    elif len(types) < len(imgs):
+        fallback = types[0] if types else "image/jpeg"
+        types = types + [fallback] * (len(imgs) - len(types))
+    return imgs, types[: len(imgs)]
+
+
 def _filter_vision_candidates(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
-    """Ne garde que les modèles vision gratuits (Groq Vision + Gemini)."""
+    """Ne garde que les modèles vision gratuits (Groq Vision + Gemini) — jamais OpenAI/Anthropic."""
     from llm_config import FREE_VISION_PROVIDERS
 
-    free = [
+    return [
         c for c in candidates
         if c[0] in FREE_VISION_PROVIDERS and _is_vision_capable(c[0], c[1])
     ]
-    if free:
-        return free
-    return [c for c in candidates if _is_vision_capable(c[0], c[1])]
 
 
 def _prioritize_vision_providers(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
@@ -2466,9 +2496,10 @@ async def chat_stream(
         "created_at": now,
     }
     if body.images:
-        user_msg_doc["images"] = [img for img in body.images if img][:4]
-    if body.image_media_types:
-        user_msg_doc["image_media_types"] = [t for t in body.image_media_types if t][:4]
+        norm_imgs, norm_types = _normalize_chat_images(body.images, body.image_media_types)
+        user_msg_doc["images"] = norm_imgs
+        if norm_types:
+            user_msg_doc["image_media_types"] = norm_types
     await db.messages.insert_one(user_msg_doc)
 
     # Count daily message (only if free tier)
@@ -2544,13 +2575,11 @@ async def chat_stream(
         except Exception:
             return False
 
-    has_images = bool(body.images and any(img for img in body.images if img))
+    chat_images, chat_image_types = _normalize_chat_images(body.images, body.image_media_types)
+    has_images = bool(chat_images)
     if has_images:
-        free_vision = await resolve_free_vision_candidates()
-        if free_vision:
-            candidates = _prioritize_vision_providers(free_vision)
-        else:
-            candidates = _prioritize_vision_providers(_filter_vision_candidates(candidates))
+        # Vision : Groq + Gemini uniquement — ignore le modèle épinglé et les APIs payantes.
+        candidates = _prioritize_vision_providers(await resolve_free_vision_candidates())
         use_tools = False
     else:
         use_tools = True
@@ -2566,13 +2595,7 @@ async def chat_stream(
             yield _sse({"type": "ping"})
 
             if has_images and not candidates:
-                yield _sse({
-                    "type": "error",
-                    "content": (
-                        "Analyse d'image indisponible — configure GROQ_API_KEY ou GEMINI_API_KEY "
-                        "(modèles vision gratuits) dans les secrets du serveur."
-                    ),
-                })
+                yield _sse({"type": "error", "content": vision_keys_missing_message()})
                 return
 
             # Demande explicite de génération d'image → generate_image direct (sans attendre le LLM)
@@ -2912,9 +2935,9 @@ async def chat_stream(
                 full_text_parts: list[str] = []
                 tool_call_log: list[dict] = list(pre_tool_log)
                 user_message_for_iter: Optional[UserMessage] = UserMessage(
-                    text=body.content,
-                    images=[img for img in (body.images or []) if img][:4],
-                    image_media_types=[t for t in (body.image_media_types or []) if t][:4],
+                    text=body.content or "Analyse cette image.",
+                    images=chat_images,
+                    image_media_types=chat_image_types,
                 )
                 started = False
                 try:
@@ -3059,6 +3082,7 @@ async def chat_stream(
                         remaining = [
                             c for c in candidates[cand_idx + 1:]
                             if (c[0], c[1]) not in blocked
+                            and (not has_images or c[0] in ("groq", "gemini"))
                         ]
                         if remaining:
                             next_label = remaining[0][2]
@@ -3077,6 +3101,9 @@ async def chat_stream(
                     "type": "error",
                     "content": _friendly_llm_error(last_error),
                 })
+                return
+            if has_images:
+                yield _sse({"type": "error", "content": vision_keys_missing_message()})
                 return
             yield _sse({
                 "type": "error",

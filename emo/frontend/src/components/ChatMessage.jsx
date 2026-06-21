@@ -18,18 +18,18 @@ const MOOD_LABELS = {
   pensive: "Pensive",
 };
 
-/** Render simple markdown-ish content: code blocks, inline code, images. */
 const RichContent = ({ text, images, showCopyCode = false }) => {
   if (images?.length) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
           {images.map((img, i) => (
             <img
               key={i}
               src={img.startsWith("data:") ? img : `data:image/jpeg;base64,${img}`}
               alt=""
-              className="max-h-48 rounded-lg em-border object-contain"
+              className="max-h-52 rounded-xl em-border object-contain"
+              style={{ boxShadow: "var(--emo-shadow-sm)" }}
             />
           ))}
         </div>
@@ -63,7 +63,7 @@ const CodeBlock = ({ inner, lang, showCopyCode }) => {
             type="button"
             data-testid="markdown-copy-code-btn"
             onClick={handleCopy}
-            className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] em-hover-subtle z-10"
+            className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] em-hover-subtle z-10"
             style={{ color: copied ? "var(--emo-success-text)" : "var(--emo-text-muted)" }}
             title="Copier tout le code"
           >
@@ -72,7 +72,7 @@ const CodeBlock = ({ inner, lang, showCopyCode }) => {
           </button>
         )}
         <pre
-          className="font-code text-xs overflow-x-auto rounded-2xl p-4 my-2"
+          className="font-code text-xs overflow-x-auto rounded-xl p-4 my-2"
           style={{
             background: "var(--emo-code-bg)",
             border: "1px solid var(--emo-border)",
@@ -80,7 +80,7 @@ const CodeBlock = ({ inner, lang, showCopyCode }) => {
           }}
         >
           {lang && (
-            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-em mb-2">{lang}</div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-em mb-2">{lang}</div>
           )}
           <code style={{ color: "var(--emo-code-text)" }}>{inner}</code>
         </pre>
@@ -117,7 +117,7 @@ const RichText = ({ text, showCopyCode = false }) => {
               src={resolved}
               alt={alt || ""}
               className="max-w-full rounded-xl em-border my-2"
-              style={{ maxHeight: 420, objectFit: "contain" }}
+              style={{ maxHeight: 420, objectFit: "contain", boxShadow: "var(--emo-shadow-sm)" }}
             />
           );
         }
@@ -129,7 +129,7 @@ const RichText = ({ text, showCopyCode = false }) => {
                 return (
                   <code
                     key={j}
-                    className="font-code text-[0.9em] px-1.5 py-0.5 rounded"
+                    className="font-code text-[0.88em] px-1.5 py-0.5 rounded-md"
                     style={{ background: "var(--emo-inline-code-bg)", color: "var(--emo-inline-code-text)" }}
                   >
                     {seg.slice(1, -1)}
@@ -212,15 +212,8 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
 
   if (isUser) {
     return (
-      <div data-testid="chat-message-user" className="flex justify-end animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div
-          className="max-w-[80%] px-4 py-3.5 rounded-2xl rounded-tr-md text-sm"
-          style={{
-            background: "var(--emo-user-msg-bg)",
-            border: "1px solid var(--emo-user-msg-border)",
-            color: "var(--emo-text)",
-          }}
-        >
+      <div data-testid="chat-message-user" className="flex justify-end emo-msg-animate">
+        <div className="emo-bubble-user">
           <RichContent text={cleanDisplayText(message.content)} images={message.images} showCopyCode={showCopyCode} />
         </div>
       </div>
@@ -231,20 +224,20 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
   return (
     <div
       data-testid="chat-message-emo"
-      className={`flex gap-4 max-w-[92%] mr-auto animate-in fade-in slide-in-from-bottom-2 duration-300 mode-${message.mode || "tech"}`}
+      className={`flex gap-3 max-w-full emo-msg-animate mode-${message.mode || "tech"}`}
     >
-      <div className="flex-shrink-0 mt-1">
-        <EmoEyes mode={message.mode || "tech"} mood={mood} thinking={isStreaming} size={56} />
+      <div className="flex-shrink-0 mt-0.5">
+        <EmoEyes mode={message.mode || "tech"} mood={mood} thinking={isStreaming} size={44} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="font-heading text-sm font-medium" style={{ color: "var(--mode-color)" }}>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="font-heading text-sm font-semibold" style={{ color: "var(--mode-color)" }}>
             Émo
           </span>
           {mood && mood !== "neutre" && (
             <span
               data-testid="mood-badge"
-              className="text-[10px] tracking-wide px-2 py-0.5 rounded-full"
+              className="text-[10px] px-2 py-0.5 rounded-full"
               style={{ background: "var(--emo-badge-bg)", color: "var(--emo-text-muted)" }}
             >
               {MOOD_LABELS[mood] || mood}
@@ -253,7 +246,7 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
           {message.verified === "true" && (
             <span
               data-testid="verified-badge"
-              className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full flex items-center gap-1 emo-alert-success"
+              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full emo-alert-success"
               title="Vérifié"
             >
               Vérifié
@@ -262,7 +255,7 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
           {message.verified === "partial" && (
             <span
               data-testid="partial-badge"
-              className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 rounded-full emo-alert-warning"
+              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full emo-alert-warning"
               title="Partiel"
             >
               Partiel
@@ -274,9 +267,10 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
             </span>
           )}
         </div>
+
         {((message.tool_calls_live && message.tool_calls_live.length > 0) ||
           (message.tool_calls && message.tool_calls.length > 0)) && (
-          <div className="mb-2">
+          <div className="mb-3 space-y-2">
             {(message.tool_calls_live || message.tool_calls).map((t, i) => (
               <ToolCallCard
                 key={t.id || i}
@@ -287,9 +281,12 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
             ))}
           </div>
         )}
-        <div className="text-[15px]" style={{ color: "var(--emo-text)" }}>
-          <RichContent text={cleanDisplayText(message.content)} images={message.images} showCopyCode={showCopyCode} />
-        </div>
+
+        {(message.content || message.images?.length) && (
+          <div className="emo-bubble-assistant" style={{ color: "var(--emo-text)" }}>
+            <RichContent text={cleanDisplayText(message.content)} images={message.images} showCopyCode={showCopyCode} />
+          </div>
+        )}
       </div>
     </div>
   );

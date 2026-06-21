@@ -78,11 +78,8 @@ export const ChatComposer = ({
     <div className={`mode-${mode} w-full`}>
       <div
         data-testid="chat-composer"
-        className={`rounded-2xl p-2.5 flex flex-col gap-1.5 transition-colors ${dragOver ? "ring-2 ring-[var(--mode-color)]" : ""}`}
-        style={{
-          background: "var(--emo-surface)",
-          border: "1px solid var(--emo-border)",
-        }}
+        className="emo-composer"
+        data-drag={dragOver ? "true" : "false"}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -94,59 +91,177 @@ export const ChatComposer = ({
           addFiles(e.dataTransfer?.files);
         }}
       >
+        {/* Top toolbar: mode + model + chat/agent toggle */}
+        <div className="emo-composer-toolbar">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="emo-segment" role="group" aria-label="Mode conversation">
+              <button
+                type="button"
+                data-testid="agent-mode-toggle"
+                className="emo-segment-btn"
+                data-active={!useAgentTools ? "true" : "false"}
+                onClick={() => onChangeUseAgentTools?.(false)}
+                title="Mode chat — sans agent local"
+              >
+                <MessageCircle size={13} />
+                <span className="hidden sm:inline">Chat</span>
+              </button>
+              <button
+                type="button"
+                className="emo-segment-btn"
+                data-active={useAgentTools ? "true" : "false"}
+                data-accent={useAgentTools ? "true" : "false"}
+                onClick={() => onChangeUseAgentTools?.(true)}
+                title="Mode agent — fichiers sur ton PC"
+              >
+                <Bot size={13} />
+                <span className="hidden sm:inline">Agent</span>
+              </button>
+            </div>
+
+            <div className="relative" ref={pickerRef}>
+              <button
+                type="button"
+                data-testid="mode-picker-trigger"
+                onClick={() => setPickerOpen((o) => !o)}
+                className="emo-btn-ghost flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+                title={currentMode.label}
+              >
+                <CurrentIcon size={12} style={{ color: "var(--mode-color)" }} />
+                <span className="hidden sm:inline">{currentMode.label}</span>
+                <ChevronDown size={11} className={`transition-transform ${pickerOpen ? "rotate-180" : ""}`} />
+              </button>
+              {pickerOpen && (
+                <div data-testid="mode-picker-menu" className="emo-dropdown">
+                  {MODES.map((m) => {
+                    const Icon = m.Icon;
+                    const active = m.id === mode;
+                    return (
+                      <button
+                        key={m.id}
+                        data-testid={`mode-picker-${m.id}`}
+                        onClick={() => {
+                          onChangeMode?.(m.id);
+                          setPickerOpen(false);
+                        }}
+                        className="emo-dropdown-item"
+                        data-active={active ? "true" : "false"}
+                      >
+                        <Icon size={13} style={{ color: active ? "var(--mode-color)" : "var(--emo-text-muted)" }} />
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="relative" ref={modelPickerRef}>
+              <button
+                type="button"
+                data-testid="model-picker-trigger"
+                onClick={() => setModelPickerOpen((o) => !o)}
+                className="emo-btn-ghost flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+                title={currentModel.label || "Modèle"}
+              >
+                <Cpu size={12} />
+                <span className="hidden sm:inline max-w-[120px] truncate">{modelShort}</span>
+                <ChevronDown size={11} className={`transition-transform ${modelPickerOpen ? "rotate-180" : ""}`} />
+              </button>
+              {modelPickerOpen && (
+                <div data-testid="model-picker-menu" className="emo-dropdown w-64">
+                  {sortedModels.map((m) => {
+                    const active = m.id === (modelPreference || "auto");
+                    return (
+                      <button
+                        key={m.id}
+                        data-testid={`model-picker-${m.id.replace(/[:/]/g, "-")}`}
+                        onClick={() => {
+                          onChangeModelPreference?.(m.id);
+                          setModelPickerOpen(false);
+                        }}
+                        className="emo-dropdown-item"
+                        data-active={active ? "true" : "false"}
+                      >
+                        <Cpu size={13} style={{ color: active ? "var(--emo-link)" : "var(--emo-text-muted)" }} />
+                        <span className="truncate flex-1">{m.label || m.id}</span>
+                        {m.uncensored && (
+                          <span className="text-[9px] px-1 py-0.5 rounded flex-shrink-0 emo-alert-warning">
+                            libre
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Image attachments strip */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-2 pt-1" data-testid="composer-attachments">
+          <div className="emo-attachment-strip" data-testid="composer-attachments">
             {attachments.map((a) => (
-              <div key={a.preview} className="relative group">
-                <img
-                  src={a.preview}
-                  alt={a.name || "Image"}
-                  className="h-14 w-14 object-cover rounded-xl em-border"
-                />
+              <div key={a.preview} className="emo-attachment-chip">
+                <img src={a.preview} alt={a.name || "Image"} />
+                {a.name && (
+                  <span className="emo-attachment-chip-name">{a.name}</span>
+                )}
                 <button
                   type="button"
                   onClick={() => setAttachments((prev) => prev.filter((x) => x.preview !== a.preview))}
-                  className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition"
+                  className="emo-attachment-remove"
                   aria-label="Retirer l'image"
                 >
-                  <X size={10} />
+                  <X size={11} />
                 </button>
               </div>
             ))}
           </div>
         )}
-        <textarea
-          ref={textareaRef}
-          data-testid="composer-textarea"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onPaste={(e) => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
-            const imageFiles = [];
-            for (const item of items) {
-              if (item.type.startsWith("image/")) {
-                const f = item.getAsFile();
-                if (f) imageFiles.push(f);
+
+        {/* Textarea */}
+        <div className="emo-composer-body">
+          <textarea
+            ref={textareaRef}
+            data-testid="composer-textarea"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              const imageFiles = [];
+              for (const item of items) {
+                if (item.type.startsWith("image/")) {
+                  const f = item.getAsFile();
+                  if (f) imageFiles.push(f);
+                }
               }
+              if (imageFiles.length) {
+                e.preventDefault();
+                addFiles(imageFiles);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={1}
+            placeholder={
+              streaming
+                ? "Réponse en cours…"
+                : attachments.length
+                  ? "Décris l'image ou pose une question…"
+                  : "Écris un message — glisse ou colle une image"
             }
-            if (imageFiles.length) {
-              e.preventDefault();
-              addFiles(imageFiles);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          rows={1}
-          placeholder={streaming ? "Réponse en cours…" : attachments.length ? "Décris l'image…" : "Message — colle ou glisse une image"}
-          disabled={disabled && !streaming}
-          className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none py-3 px-3 text-base placeholder:text-muted-em disabled:opacity-60"
-          style={{ maxHeight: 180, color: "var(--emo-text)" }}
-        />
+            disabled={disabled && !streaming}
+            className="emo-composer-textarea disabled:opacity-60"
+          />
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -158,159 +273,44 @@ export const ChatComposer = ({
             e.target.value = "";
           }}
         />
-        <div className="flex items-center justify-between gap-2 px-2 pb-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
+
+        {/* Footer: attach + send */}
+        <div className="emo-composer-footer">
           <button
             type="button"
             data-testid="composer-image-btn"
             onClick={() => fileInputRef.current?.click()}
             disabled={attachments.length >= MAX_IMAGES || (disabled && !streaming)}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl text-xs transition border em-hover-subtle disabled:opacity-40"
-            style={{ borderColor: "var(--emo-border)", color: "var(--emo-text-secondary)" }}
-            title="Joindre une image"
+            className="emo-icon-btn"
+            title={`Joindre une image (${attachments.length}/${MAX_IMAGES})`}
           >
-            <ImagePlus size={12} />
+            <ImagePlus size={15} />
           </button>
-          <div className="relative" ref={pickerRef}>
-            <button
-              type="button"
-              data-testid="mode-picker-trigger"
-              onClick={() => setPickerOpen((o) => !o)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition border"
-              style={{
-                background: "var(--emo-surface-raised)",
-                borderColor: "var(--emo-border)",
-                color: "var(--emo-text-secondary)",
-              }}
-              title={currentMode.label}
-            >
-              <CurrentIcon size={12} />
-              <span className="hidden sm:inline">{currentMode.label}</span>
-              <ChevronDown size={11} className={`transition-transform ${pickerOpen ? "rotate-180" : ""}`} />
-            </button>
-            {pickerOpen && (
-              <div
-                data-testid="mode-picker-menu"
-                className="absolute bottom-full left-0 mb-2 w-44 rounded-xl py-1 z-30 border"
-                style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
+
+          <div className="flex items-center gap-2">
+            {streaming ? (
+              <button
+                type="button"
+                data-testid="stop-stream-btn"
+                onClick={() => onCancel?.()}
+                className="emo-btn-ghost flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
+                title="Arrêter"
               >
-                {MODES.map((m) => {
-                  const Icon = m.Icon;
-                  const active = m.id === mode;
-                  return (
-                    <button
-                      key={m.id}
-                      data-testid={`mode-picker-${m.id}`}
-                      onClick={() => {
-                        onChangeMode?.(m.id);
-                        setPickerOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition ${active ? "em-active" : "em-hover-subtle"}`}
-                    >
-                      <Icon size={13} className="flex-shrink-0" style={{ color: active ? "var(--mode-color)" : "var(--emo-text-secondary)" }} />
-                      <span className="text-sm font-medium" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>{m.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                <Square size={13} fill="currentColor" />
+                <span className="hidden sm:inline">Arrêter</span>
+              </button>
+            ) : (
+              <button
+                data-testid="send-message-btn"
+                onClick={submit}
+                disabled={disabled || (!value.trim() && !attachments.length)}
+                className="emo-send-btn"
+                title="Envoyer"
+              >
+                <Send size={15} />
+              </button>
             )}
           </div>
-          <div className="relative" ref={modelPickerRef}>
-            <button
-              type="button"
-              data-testid="model-picker-trigger"
-              onClick={() => setModelPickerOpen((o) => !o)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition border"
-              style={{
-                background: "var(--emo-surface-raised)",
-                borderColor: "var(--emo-border)",
-                color: "var(--emo-text-secondary)",
-              }}
-              title={currentModel.label || "Modèle"}
-            >
-              <Cpu size={12} />
-              <span className="hidden sm:inline max-w-[120px] truncate">{modelShort}</span>
-              <ChevronDown size={11} className={`transition-transform ${modelPickerOpen ? "rotate-180" : ""}`} />
-            </button>
-            {modelPickerOpen && (
-              <div
-                data-testid="model-picker-menu"
-                className="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto rounded-xl py-1 z-30 border scrollbar-thin"
-                style={{ background: "var(--emo-surface)", borderColor: "var(--emo-border)" }}
-              >
-                {sortedModels.map((m) => {
-                  const active = m.id === (modelPreference || "auto");
-                  return (
-                    <button
-                      key={m.id}
-                      data-testid={`model-picker-${m.id.replace(/[:/]/g, "-")}`}
-                      onClick={() => {
-                        onChangeModelPreference?.(m.id);
-                        setModelPickerOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition ${active ? "em-active" : "em-hover-subtle"}`}
-                    >
-                      <Cpu size={13} className="flex-shrink-0" style={{ color: active ? "var(--emo-link)" : "var(--emo-text-secondary)" }} />
-                      <span className="text-sm font-medium truncate flex-1" style={{ color: active ? "var(--emo-text)" : "var(--emo-text-secondary)" }}>
-                        {m.label || m.id}
-                      </span>
-                      {m.uncensored && (
-                        <span className="text-[9px] px-1 py-0.5 rounded flex-shrink-0 emo-alert-warning">
-                          libre
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            data-testid="agent-mode-toggle"
-            onClick={() => onChangeUseAgentTools?.(!useAgentTools)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs transition border"
-            style={{
-              background: useAgentTools ? "var(--emo-surface-raised)" : "transparent",
-              borderColor: useAgentTools ? "var(--emo-accent)" : "var(--emo-border)",
-              color: useAgentTools ? "var(--emo-text)" : "var(--emo-text-muted)",
-            }}
-            title={useAgentTools ? "Mode agent — fichiers sur ton PC" : "Mode chat — sans agent local (web uniquement)"}
-          >
-            {useAgentTools ? <Bot size={12} /> : <MessageCircle size={12} />}
-            <span className="hidden sm:inline">{useAgentTools ? "Agent" : "Chat"}</span>
-          </button>
-          </div>
-          {streaming ? (
-            <button
-              type="button"
-              data-testid="stop-stream-btn"
-              onClick={() => onCancel?.()}
-              className="h-9 px-3 flex-shrink-0 flex items-center justify-center gap-1.5 rounded-xl transition-colors text-xs font-medium border"
-              style={{
-                background: "transparent",
-                borderColor: "var(--emo-border)",
-                color: "var(--emo-text-secondary)",
-              }}
-              title="Arrêter"
-            >
-              <Square size={14} fill="currentColor" />
-              <span className="hidden sm:inline">Arrêter</span>
-            </button>
-          ) : (
-            <button
-              data-testid="send-message-btn"
-              onClick={submit}
-              disabled={disabled || (!value.trim() && !attachments.length)}
-              className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-xl transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{
-                background: "var(--emo-accent)",
-                color: "var(--emo-on-accent)",
-              }}
-            >
-              <Send size={15} />
-            </button>
-          )}
         </div>
       </div>
     </div>

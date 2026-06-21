@@ -293,6 +293,25 @@ FREE_VISION_CATALOG: list[dict] = [
 
 FREE_VISION_PROVIDERS = frozenset({"groq", "gemini"})
 
+_VISION_KEY_HINTS = {
+    "groq": "GROQ_API_KEY (ou SALES_GROQ_API_KEY)",
+    "gemini": "GEMINI_API_KEY / GOOGLE_API_KEY (ou SALES_GEMINI_API_KEY)",
+}
+
+
+def vision_keys_missing_message() -> str:
+    """Message d'erreur clair quand aucun provider vision gratuit n'est configuré."""
+    missing = [hint for prov, hint in _VISION_KEY_HINTS.items() if not api_key_available(prov)]
+    if not missing:
+        return (
+            "Analyse d'image indisponible — les modèles vision gratuits (Groq, Gemini) "
+            "n'ont pas répondu. Réessayez dans une minute."
+        )
+    return (
+        "Analyse d'image indisponible — configure au moins une clé vision gratuite "
+        f"dans backend/.env : {' ou '.join(missing)}."
+    )
+
 
 async def resolve_free_vision_candidates() -> list[tuple[str, str, str]]:
     """Candidats vision gratuits uniquement — pas OpenAI/Anthropic payants."""

@@ -21,8 +21,28 @@ PROVIDER_KEYS = {
     "huggingface": ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
 }
 
+# Pool vente — même priorité que llm_config.get_api_key (EMO_USE_SALES_LLM_KEYS)
+SALES_PROVIDER_KEYS = {
+    "anthropic": ["SALES_ANTHROPIC_API_KEY"],
+    "openai": ["SALES_OPENAI_API_KEY"],
+    "deepseek": ["SALES_DEEPSEEK_API_KEY"],
+    "groq": ["SALES_GROQ_API_KEY"],
+    "gemini": ["SALES_GEMINI_API_KEY", "SALES_GOOGLE_API_KEY"],
+    "openrouter": ["SALES_OPENROUTER_API_KEY"],
+    "huggingface": ["SALES_HF_TOKEN", "SALES_HUGGINGFACE_API_KEY"],
+}
+
+
+def _use_sales_keys() -> bool:
+    return os.environ.get("EMO_USE_SALES_LLM_KEYS", "true").lower() in ("1", "true", "yes")
+
 
 def api_key_available(provider: str) -> bool:
+    """True si une clé est configurée (SALES_* prioritaire quand EMO_USE_SALES_LLM_KEYS=true)."""
+    if _use_sales_keys():
+        for env_key in SALES_PROVIDER_KEYS.get(provider, []):
+            if os.environ.get(env_key, "").strip():
+                return True
     for env_key in PROVIDER_KEYS.get(provider, []):
         if os.environ.get(env_key, "").strip():
             return True

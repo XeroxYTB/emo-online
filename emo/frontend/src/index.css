@@ -2,62 +2,95 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+/* ─── Design tokens ─────────────────────────────────────────── */
 :root {
+  --emo-radius-xs: 0.375rem;
   --emo-radius-sm: 0.5rem;
   --emo-radius-md: 0.75rem;
   --emo-radius-lg: 1rem;
   --emo-radius-xl: 1.25rem;
   --emo-radius-2xl: 1.5rem;
+  --emo-radius-3xl: 1.75rem;
+  --emo-radius-full: 9999px;
+
+  --emo-space-1: 0.25rem;
+  --emo-space-2: 0.5rem;
+  --emo-space-3: 0.75rem;
+  --emo-space-4: 1rem;
+  --emo-space-5: 1.25rem;
+  --emo-space-6: 1.5rem;
+  --emo-space-8: 2rem;
+  --emo-space-10: 2.5rem;
+  --emo-space-12: 3rem;
+
+  --emo-text-xs: 0.6875rem;
+  --emo-text-sm: 0.8125rem;
+  --emo-text-base: 0.9375rem;
+  --emo-text-lg: 1.0625rem;
+  --emo-text-xl: 1.25rem;
+
+  --emo-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --emo-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --emo-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --emo-shadow-float: 0 12px 40px rgba(0, 0, 0, 0.15);
+
+  --emo-transition: 0.15s ease;
+  --emo-transition-slow: 0.28s ease;
 }
 
 :root, html.theme-dark {
-  --emo-bg: #09090b;
+  --emo-bg: #0c0c0e;
+  --emo-bg-subtle: #111114;
   --emo-surface: #18181b;
-  --emo-surface-raised: #27272a;
-  --emo-text: #fafafa;
+  --emo-surface-raised: #222226;
+  --emo-surface-overlay: #27272b;
+  --emo-text: #f4f4f5;
   --emo-text-secondary: #a1a1aa;
   --emo-text-muted: #71717a;
-  --emo-border: rgba(255, 255, 255, 0.08);
+  --emo-border: rgba(255, 255, 255, 0.09);
+  --emo-border-strong: rgba(255, 255, 255, 0.14);
   --emo-accent: #8b5cf6;
   --emo-accent-hover: #a78bfa;
-  --emo-accent-soft: rgba(139, 92, 246, 0.15);
-  --emo-accent-border: rgba(139, 92, 246, 0.4);
+  --emo-accent-soft: rgba(139, 92, 246, 0.14);
+  --emo-accent-border: rgba(139, 92, 246, 0.38);
   --emo-logo-bg: #8b5cf6;
-  --emo-code-bg: #0f0f10;
-  --emo-input-bg: #27272a;
+  --emo-code-bg: #0f0f11;
+  --emo-input-bg: #1e1e22;
   --emo-glass-bg: #18181b;
   --emo-glass-border: rgba(255, 255, 255, 0.06);
-  --emo-glass-card-bg: #1c1c1f;
-  --emo-glow: rgba(139, 92, 246, 0.15);
+  --emo-glass-card-bg: #1c1c20;
+  --emo-glow: rgba(139, 92, 246, 0.18);
   --mode-color: #8b5cf6;
-  --mode-glow: rgba(139, 92, 246, 0.2);
-  --emo-hover: rgba(255, 255, 255, 0.08);
-  --emo-hover-subtle: rgba(255, 255, 255, 0.03);
-  --emo-active-bg: rgba(255, 255, 255, 0.05);
-  --emo-tab-active-bg: rgba(255, 255, 255, 0.06);
-  --emo-overlay: rgba(0, 0, 0, 0.5);
-  --emo-card-bg: rgba(0, 0, 0, 0.3);
-  --emo-pre-bg: rgba(0, 0, 0, 0.4);
+  --mode-glow: rgba(139, 92, 246, 0.22);
+  --emo-hover: rgba(255, 255, 255, 0.07);
+  --emo-hover-subtle: rgba(255, 255, 255, 0.04);
+  --emo-active-bg: rgba(255, 255, 255, 0.06);
+  --emo-tab-active-bg: rgba(255, 255, 255, 0.07);
+  --emo-overlay: rgba(0, 0, 0, 0.55);
+  --emo-card-bg: rgba(255, 255, 255, 0.03);
+  --emo-pre-bg: rgba(0, 0, 0, 0.35);
   --emo-code-text: #c4b5fd;
   --emo-inline-code-bg: rgba(168, 85, 247, 0.12);
   --emo-inline-code-text: #e9d5ff;
-  --emo-badge-bg: rgba(255, 255, 255, 0.04);
+  --emo-badge-bg: rgba(255, 255, 255, 0.05);
   --emo-link: #93c5fd;
   --emo-on-accent: #ffffff;
   --emo-on-mode: #0a0510;
-  --emo-editor-bg: #1e1e1e;
+  --emo-editor-bg: #1a1a1e;
   --emo-editor-text: #fafafa;
-  --emo-preview-bg: #07040a;
-  --emo-drawer-bg: rgba(7, 4, 10, 0.96);
-  --emo-drawer-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
-  --emo-code-inset: inset 0 0 24px rgba(0, 0, 0, 0.4);
+  --emo-preview-bg: #0a0a0c;
+  --emo-drawer-bg: #141416;
+  --emo-drawer-shadow: -24px 0 64px rgba(0, 0, 0, 0.45);
+  --emo-code-inset: inset 0 0 24px rgba(0, 0, 0, 0.35);
   --emo-subtle-bg: rgba(255, 255, 255, 0.03);
   --emo-thought-text: #e9d5ff;
-  --emo-paywall-overlay: rgba(7, 4, 10, 0.85);
-  --emo-user-msg-bg: rgba(147, 51, 234, 0.18);
-  --emo-user-msg-border: rgba(168, 85, 247, 0.22);
+  --emo-paywall-overlay: rgba(7, 4, 10, 0.88);
+  --emo-user-msg-bg: rgba(139, 92, 246, 0.16);
+  --emo-user-msg-border: rgba(139, 92, 246, 0.28);
+  --emo-assistant-msg-bg: #1e1e22;
+  --emo-assistant-msg-border: rgba(255, 255, 255, 0.08);
   --emo-warning-bg: rgba(245, 158, 11, 0.1);
   --emo-warning-border: rgba(245, 158, 11, 0.28);
   --emo-warning-text: #fde68a;
@@ -66,42 +99,48 @@
   --emo-admin-text: #fbbf24;
   --emo-admin-bg: rgba(245, 158, 11, 0.12);
   --emo-status-online: #34d399;
-  --emo-status-offline: #a1a1aa;
-  --emo-status-online-glow: rgba(52, 211, 153, 0.53);
+  --emo-status-offline: #71717a;
+  --emo-status-online-glow: rgba(52, 211, 153, 0.5);
   --emo-success-bg: rgba(52, 211, 153, 0.1);
   --emo-success-border: rgba(52, 211, 153, 0.28);
   --emo-error-bg: rgba(239, 68, 68, 0.12);
   --emo-error-border: rgba(239, 68, 68, 0.28);
+  --emo-chrome-bg: #141416;
+  --emo-segment-bg: rgba(255, 255, 255, 0.05);
+  --emo-segment-active: rgba(255, 255, 255, 0.1);
 }
 
 html.theme-light {
-  --emo-bg: #f4f4f5;
+  --emo-bg: #f8f8fa;
+  --emo-bg-subtle: #f0f0f3;
   --emo-surface: #ffffff;
-  --emo-surface-raised: #f4f4f5;
+  --emo-surface-raised: #f4f4f6;
+  --emo-surface-overlay: #ebebef;
   --emo-text: #18181b;
   --emo-text-secondary: #3f3f46;
   --emo-text-muted: #71717a;
-  --emo-border: rgba(0, 0, 0, 0.1);
+  --emo-border: rgba(0, 0, 0, 0.09);
+  --emo-border-strong: rgba(0, 0, 0, 0.14);
   --emo-accent: #7c3aed;
   --emo-accent-hover: #6d28d9;
   --emo-accent-soft: rgba(124, 58, 237, 0.1);
-  --emo-accent-border: rgba(124, 58, 237, 0.35);
+  --emo-accent-border: rgba(124, 58, 237, 0.32);
   --emo-logo-bg: #7c3aed;
-  --emo-code-bg: #f4f4f5;
+  --emo-code-bg: #f4f4f6;
   --emo-input-bg: #ffffff;
   --emo-glass-bg: #ffffff;
   --emo-glass-border: rgba(0, 0, 0, 0.08);
   --emo-glass-card-bg: #ffffff;
-  --emo-glow: rgba(124, 58, 237, 0.12);
+  --emo-glow: rgba(124, 58, 237, 0.14);
   --mode-color: #7c3aed;
-  --mode-glow: rgba(124, 58, 237, 0.15);
-  --emo-hover: rgba(0, 0, 0, 0.05);
-  --emo-hover-subtle: rgba(0, 0, 0, 0.03);
-  --emo-active-bg: rgba(0, 0, 0, 0.05);
+  --mode-glow: rgba(124, 58, 237, 0.16);
+  --emo-hover: rgba(0, 0, 0, 0.04);
+  --emo-hover-subtle: rgba(0, 0, 0, 0.025);
+  --emo-active-bg: rgba(124, 58, 237, 0.08);
   --emo-tab-active-bg: rgba(124, 58, 237, 0.08);
-  --emo-overlay: rgba(0, 0, 0, 0.35);
+  --emo-overlay: rgba(0, 0, 0, 0.32);
   --emo-card-bg: #ffffff;
-  --emo-pre-bg: #f4f4f5;
+  --emo-pre-bg: #f4f4f6;
   --emo-code-text: #5b21b6;
   --emo-inline-code-bg: rgba(124, 58, 237, 0.08);
   --emo-inline-code-text: #5b21b6;
@@ -111,15 +150,17 @@ html.theme-light {
   --emo-on-mode: #ffffff;
   --emo-editor-bg: #fafafa;
   --emo-editor-text: #18181b;
-  --emo-preview-bg: #ffffff;
+  --emo-preview-bg: #fafafa;
   --emo-drawer-bg: #ffffff;
-  --emo-drawer-shadow: -20px 0 60px rgba(0, 0, 0, 0.12);
-  --emo-code-inset: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-  --emo-subtle-bg: rgba(0, 0, 0, 0.03);
+  --emo-drawer-shadow: -24px 0 64px rgba(0, 0, 0, 0.1);
+  --emo-code-inset: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --emo-subtle-bg: rgba(0, 0, 0, 0.025);
   --emo-thought-text: #6d28d9;
-  --emo-paywall-overlay: rgba(0, 0, 0, 0.45);
+  --emo-paywall-overlay: rgba(0, 0, 0, 0.42);
   --emo-user-msg-bg: rgba(124, 58, 237, 0.1);
-  --emo-user-msg-border: rgba(124, 58, 237, 0.22);
+  --emo-user-msg-border: rgba(124, 58, 237, 0.2);
+  --emo-assistant-msg-bg: #ffffff;
+  --emo-assistant-msg-border: rgba(0, 0, 0, 0.08);
   --emo-warning-bg: #fffbeb;
   --emo-warning-border: #fcd34d;
   --emo-warning-text: #92400e;
@@ -129,11 +170,18 @@ html.theme-light {
   --emo-admin-bg: rgba(245, 158, 11, 0.12);
   --emo-status-online: #059669;
   --emo-status-offline: #71717a;
-  --emo-status-online-glow: rgba(5, 150, 105, 0.45);
+  --emo-status-online-glow: rgba(5, 150, 105, 0.4);
   --emo-success-bg: #ecfdf5;
   --emo-success-border: #6ee7b7;
   --emo-error-bg: #fef2f2;
   --emo-error-border: #fca5a5;
+  --emo-chrome-bg: #f4f4f6;
+  --emo-segment-bg: rgba(0, 0, 0, 0.04);
+  --emo-segment-active: #ffffff;
+  --emo-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --emo-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --emo-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --emo-shadow-float: 0 12px 40px rgba(0, 0, 0, 0.1);
 }
 
 * { box-sizing: border-box; }
@@ -144,13 +192,34 @@ body {
   background-color: var(--emo-bg);
   color: var(--emo-text);
   font-family: 'Inter', system-ui, sans-serif;
+  font-size: var(--emo-text-base);
   font-weight: 400;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
-.font-heading { font-family: 'Inter', system-ui, sans-serif; font-weight: 600; }
+.font-heading { font-family: 'Inter', system-ui, sans-serif; font-weight: 600; letter-spacing: -0.01em; }
 .font-code { font-family: 'JetBrains Mono', monospace; }
+
+/* ─── Shell & panels ────────────────────────────────────────── */
+.emo-app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--emo-bg);
+}
+
+.emo-panel {
+  background: var(--emo-surface);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-lg);
+}
+
+.emo-panel-flat {
+  border-radius: 0 !important;
+}
 
 .glass-panel {
   background: var(--emo-surface);
@@ -161,16 +230,12 @@ body {
 .glass-card {
   background: var(--emo-glass-card-bg);
   border: 1px solid var(--emo-border);
-  border-radius: var(--emo-radius-lg);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  border-radius: var(--emo-radius-xl);
+  transition: border-color var(--emo-transition), box-shadow var(--emo-transition);
 }
 
 .glass-card:hover {
-  border-color: rgba(139, 92, 246, 0.25);
-}
-
-html.theme-light .glass-card:hover {
-  border-color: rgba(124, 58, 237, 0.25);
+  border-color: var(--emo-accent-border);
 }
 
 .em-hover:hover { background-color: var(--emo-hover); }
@@ -179,6 +244,9 @@ html.theme-light .glass-card:hover {
 .em-border-b { border-bottom: 1px solid var(--emo-border); }
 .em-border-t { border-top: 1px solid var(--emo-border); }
 .em-border-r { border-right: 1px solid var(--emo-border); }
+.em-border { border: 1px solid var(--emo-border); }
+
+/* ─── Inputs ────────────────────────────────────────────────── */
 .em-input,
 textarea.em-input,
 input.em-input {
@@ -186,6 +254,7 @@ input.em-input {
   border: 1px solid var(--emo-border);
   color: var(--emo-text);
   border-radius: var(--emo-radius-md);
+  transition: border-color var(--emo-transition), box-shadow var(--emo-transition);
 }
 .em-input::placeholder,
 textarea.em-input::placeholder,
@@ -197,24 +266,29 @@ textarea.em-input:focus,
 input.em-input:focus {
   outline: none;
   border-color: var(--emo-accent);
+  box-shadow: 0 0 0 3px var(--emo-glow);
 }
 
+/* ─── Alerts & status ───────────────────────────────────────── */
 .emo-alert-warning {
   background: var(--emo-warning-bg);
   border: 1px solid var(--emo-warning-border);
   color: var(--emo-warning-text);
+  border-radius: var(--emo-radius-md);
 }
 
 .emo-alert-success {
   background: var(--emo-success-bg);
   border: 1px solid var(--emo-success-border);
   color: var(--emo-success-text);
+  border-radius: var(--emo-radius-md);
 }
 
 .emo-alert-error {
   background: var(--emo-error-bg);
   border: 1px solid var(--emo-error-border);
   color: var(--emo-error-text);
+  border-radius: var(--emo-radius-md);
 }
 
 .emo-status-dot-online {
@@ -226,25 +300,6 @@ input.em-input:focus {
   background: var(--emo-status-offline);
 }
 
-.emo-theme-btn {
-  background: var(--emo-surface-raised);
-  border: 1px solid var(--emo-border);
-  color: var(--emo-text-secondary);
-  border-radius: var(--emo-radius-lg);
-}
-
-.emo-theme-btn[data-active="true"] {
-  background: var(--emo-accent-soft);
-  border-color: var(--emo-accent-border);
-  color: var(--emo-accent);
-}
-
-.emo-btn-soft {
-  background: var(--emo-accent-soft);
-  border: 1px solid var(--emo-accent-border);
-  color: var(--emo-text);
-}
-
 .text-muted-em { color: var(--emo-text-muted); }
 .text-secondary-em { color: var(--emo-text-secondary); }
 
@@ -253,11 +308,670 @@ html.theme-light .text-red-300 { color: var(--emo-error-text) !important; }
 html.theme-light .bg-amber-500\/10 { background: var(--emo-warning-bg) !important; }
 html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border) !important; }
 
-.scrollbar-thin::-webkit-scrollbar { width: 5px; height: 5px; }
+/* ─── Theme selector ────────────────────────────────────────── */
+.emo-theme-btn {
+  background: var(--emo-surface-raised);
+  border: 1px solid var(--emo-border);
+  color: var(--emo-text-secondary);
+  border-radius: var(--emo-radius-lg);
+  transition: all var(--emo-transition);
+}
+
+.emo-theme-btn[data-active="true"] {
+  background: var(--emo-accent-soft);
+  border-color: var(--emo-accent-border);
+  color: var(--emo-accent);
+}
+
+.emo-btn-primary {
+  background: var(--emo-accent);
+  color: var(--emo-on-accent);
+  border: none;
+  border-radius: var(--emo-radius-md);
+  font-weight: 500;
+  transition: background var(--emo-transition), opacity var(--emo-transition);
+}
+.emo-btn-primary:hover:not(:disabled) {
+  background: var(--emo-accent-hover);
+}
+.emo-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.emo-btn-soft {
+  background: var(--emo-accent-soft);
+  border: 1px solid var(--emo-accent-border);
+  color: var(--emo-text);
+  border-radius: var(--emo-radius-md);
+}
+
+.emo-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--emo-border);
+  color: var(--emo-text-secondary);
+  border-radius: var(--emo-radius-md);
+  transition: background var(--emo-transition), border-color var(--emo-transition);
+}
+.emo-btn-ghost:hover {
+  background: var(--emo-hover-subtle);
+  border-color: var(--emo-border-strong);
+}
+
+/* ─── Segmented control ─────────────────────────────────────── */
+.emo-segment {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--emo-segment-bg);
+  border-radius: var(--emo-radius-lg);
+  border: 1px solid var(--emo-border);
+  gap: 2px;
+}
+
+.emo-segment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: calc(var(--emo-radius-lg) - 2px);
+  font-size: var(--emo-text-xs);
+  font-weight: 500;
+  color: var(--emo-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--emo-transition);
+  white-space: nowrap;
+}
+
+.emo-segment-btn[data-active="true"] {
+  background: var(--emo-segment-active);
+  color: var(--emo-text);
+  box-shadow: var(--emo-shadow-sm);
+}
+
+.emo-segment-btn[data-active="true"][data-accent="true"] {
+  color: var(--emo-accent);
+}
+
+/* ─── Chat layout ───────────────────────────────────────────── */
+.emo-chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--emo-bg);
+}
+
+.emo-chat-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--emo-space-3);
+  height: 3.25rem;
+  padding: 0 var(--emo-space-4);
+  border-bottom: 1px solid var(--emo-border);
+  background: var(--emo-surface);
+}
+
+.emo-chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.emo-chat-messages {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--emo-space-6) var(--emo-space-5) var(--emo-space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--emo-space-6);
+}
+
+.emo-chat-composer-wrap {
+  flex-shrink: 0;
+  padding: var(--emo-space-3) var(--emo-space-4) var(--emo-space-5);
+  background: linear-gradient(to top, var(--emo-bg) 70%, transparent);
+  border-top: 1px solid var(--emo-border);
+}
+
+.emo-chat-composer-inner {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+/* ─── Message bubbles ───────────────────────────────────────── */
+.emo-bubble-user {
+  max-width: 85%;
+  padding: var(--emo-space-3) var(--emo-space-4);
+  border-radius: var(--emo-radius-2xl);
+  border-bottom-right-radius: var(--emo-radius-sm);
+  background: var(--emo-user-msg-bg);
+  border: 1px solid var(--emo-user-msg-border);
+  color: var(--emo-text);
+  font-size: var(--emo-text-base);
+  line-height: 1.55;
+}
+
+.emo-bubble-assistant {
+  flex: 1;
+  min-width: 0;
+  padding: var(--emo-space-4);
+  border-radius: var(--emo-radius-2xl);
+  border-top-left-radius: var(--emo-radius-sm);
+  background: var(--emo-assistant-msg-bg);
+  border: 1px solid var(--emo-assistant-msg-border);
+  font-size: var(--emo-text-base);
+  line-height: 1.6;
+}
+
+.emo-bubble-assistant::before {
+  content: none;
+}
+
+/* ─── Composer ──────────────────────────────────────────────── */
+.emo-composer {
+  background: var(--emo-surface);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-2xl);
+  box-shadow: var(--emo-shadow-md);
+  overflow: hidden;
+  transition: border-color var(--emo-transition), box-shadow var(--emo-transition);
+}
+
+.emo-composer:focus-within {
+  border-color: var(--emo-accent-border);
+  box-shadow: var(--emo-shadow-md), 0 0 0 3px var(--emo-glow);
+}
+
+.emo-composer[data-drag="true"] {
+  border-color: var(--mode-color);
+  box-shadow: 0 0 0 3px var(--mode-glow);
+}
+
+.emo-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--emo-space-2);
+  padding: var(--emo-space-2) var(--emo-space-3);
+  border-bottom: 1px solid var(--emo-border);
+  background: var(--emo-bg-subtle);
+}
+
+.emo-composer-body {
+  padding: var(--emo-space-2) var(--emo-space-3);
+}
+
+.emo-composer-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: var(--emo-space-2) var(--emo-space-1);
+  font-size: var(--emo-text-base);
+  line-height: 1.5;
+  color: var(--emo-text);
+  max-height: 180px;
+}
+
+.emo-composer-textarea::placeholder {
+  color: var(--emo-text-muted);
+}
+
+.emo-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--emo-space-2);
+  padding: var(--emo-space-2) var(--emo-space-3) var(--emo-space-3);
+}
+
+.emo-attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--emo-space-2);
+  padding: var(--emo-space-3) var(--emo-space-3) 0;
+}
+
+.emo-attachment-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--emo-space-2);
+  padding: var(--emo-space-1);
+  padding-right: var(--emo-space-2);
+  background: var(--emo-surface-raised);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-lg);
+  max-width: 200px;
+}
+
+.emo-attachment-chip img {
+  width: 3rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: var(--emo-radius-md);
+}
+
+.emo-attachment-chip-name {
+  font-size: var(--emo-text-xs);
+  color: var(--emo-text-secondary);
+  truncate: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+.emo-attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--emo-surface-overlay);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-full);
+  color: var(--emo-text);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--emo-transition);
+}
+
+.emo-attachment-chip:hover .emo-attachment-remove {
+  opacity: 1;
+}
+
+.emo-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--emo-radius-md);
+  border: 1px solid var(--emo-border);
+  background: transparent;
+  color: var(--emo-text-secondary);
+  cursor: pointer;
+  transition: all var(--emo-transition);
+}
+
+.emo-icon-btn:hover:not(:disabled) {
+  background: var(--emo-hover-subtle);
+  color: var(--emo-text);
+}
+
+.emo-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.emo-send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--emo-radius-md);
+  background: var(--emo-accent);
+  color: var(--emo-on-accent);
+  border: none;
+  cursor: pointer;
+  transition: opacity var(--emo-transition), transform var(--emo-transition);
+}
+
+.emo-send-btn:hover:not(:disabled) {
+  background: var(--emo-accent-hover);
+}
+
+.emo-send-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ─── Sidebar ───────────────────────────────────────────────── */
+.emo-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--emo-surface);
+  border-right: 1px solid var(--emo-border);
+}
+
+.emo-sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--emo-space-3);
+  padding: var(--emo-space-2) var(--emo-space-3);
+  border-radius: var(--emo-radius-md);
+  font-size: var(--emo-text-sm);
+  color: var(--emo-text-secondary);
+  cursor: pointer;
+  transition: all var(--emo-transition);
+  border: 1px solid transparent;
+}
+
+.emo-sidebar-nav-item:hover {
+  background: var(--emo-hover-subtle);
+  color: var(--emo-text);
+}
+
+.emo-sidebar-nav-item[data-active="true"] {
+  background: var(--emo-active-bg);
+  color: var(--emo-text);
+  border-color: var(--emo-border);
+}
+
+.emo-sidebar-nav-item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--mode-color);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ─── Profile drawer ────────────────────────────────────────── */
+.emo-drawer {
+  border-top-left-radius: var(--emo-radius-2xl);
+  border-bottom-left-radius: var(--emo-radius-2xl);
+  animation: slideInRight var(--emo-transition-slow);
+}
+
+.emo-settings-layout {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.emo-settings-nav {
+  width: 11rem;
+  flex-shrink: 0;
+  padding: var(--emo-space-4) var(--emo-space-3);
+  border-right: 1px solid var(--emo-border);
+  background: var(--emo-bg-subtle);
+}
+
+.emo-settings-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--emo-space-2);
+  width: 100%;
+  padding: var(--emo-space-2) var(--emo-space-3);
+  border-radius: var(--emo-radius-md);
+  font-size: var(--emo-text-sm);
+  color: var(--emo-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--emo-transition);
+}
+
+.emo-settings-nav-btn:hover {
+  background: var(--emo-hover-subtle);
+  color: var(--emo-text);
+}
+
+.emo-settings-nav-btn[data-active="true"] {
+  background: var(--emo-accent-soft);
+  color: var(--emo-accent);
+  font-weight: 500;
+}
+
+.emo-settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--emo-space-6);
+}
+
+.emo-settings-section {
+  margin-bottom: var(--emo-space-8);
+}
+
+.emo-settings-section-title {
+  font-size: var(--emo-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--emo-text-muted);
+  margin-bottom: var(--emo-space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--emo-space-2);
+}
+
+.emo-settings-card {
+  background: var(--emo-surface-raised);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-xl);
+  padding: var(--emo-space-4);
+}
+
+/* ─── Browser chrome ────────────────────────────────────────── */
+.emo-browser {
+  overflow: hidden;
+  background: var(--emo-surface);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-xl);
+  box-shadow: var(--emo-shadow-md);
+}
+
+.emo-browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: var(--emo-space-2);
+  padding: var(--emo-space-2) var(--emo-space-3);
+  background: var(--emo-chrome-bg);
+  border-bottom: 1px solid var(--emo-border);
+}
+
+.emo-browser-dots {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--emo-space-1);
+}
+
+@media (min-width: 640px) {
+  .emo-browser-dots { display: flex; }
+}
+
+.emo-browser-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.emo-browser-url-bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--emo-space-2);
+  padding: var(--emo-space-1) var(--emo-space-3);
+  background: var(--emo-input-bg);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-full);
+  transition: border-color var(--emo-transition), box-shadow var(--emo-transition);
+}
+
+.emo-browser-url-bar:focus-within {
+  border-color: var(--emo-accent-border);
+  box-shadow: 0 0 0 2px var(--emo-glow);
+}
+
+.emo-browser-url-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--emo-text-xs);
+  color: var(--emo-text);
+}
+
+.emo-browser-viewport {
+  position: relative;
+  background: var(--emo-preview-bg);
+  outline: none;
+}
+
+.emo-browser-viewport[data-focused="true"] {
+  box-shadow: inset 0 0 0 2px var(--emo-accent);
+}
+
+.emo-browser-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--emo-space-2);
+  padding: var(--emo-space-2) var(--emo-space-3);
+  background: var(--emo-chrome-bg);
+  border-top: 1px solid var(--emo-border);
+  font-size: var(--emo-text-xs);
+  color: var(--emo-text-muted);
+}
+
+/* ─── Status screens ────────────────────────────────────────── */
+.emo-status-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: var(--emo-space-4);
+  padding: var(--emo-space-8);
+  text-align: center;
+}
+
+.emo-status-card {
+  max-width: 22rem;
+  padding: var(--emo-space-8);
+  background: var(--emo-surface);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-2xl);
+  box-shadow: var(--emo-shadow-lg);
+}
+
+.emo-status-icon {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--emo-space-4);
+  border-radius: var(--emo-radius-xl);
+  background: var(--emo-accent-soft);
+  color: var(--emo-accent);
+}
+
+/* ─── Login ─────────────────────────────────────────────────── */
+.login-page {
+  background: var(--emo-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--emo-glow), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(139, 92, 246, 0.06), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.login-card {
+  border-radius: var(--emo-radius-2xl);
+  box-shadow: var(--emo-shadow-float);
+  background: var(--emo-surface);
+  border: 1px solid var(--emo-border);
+}
+
+.login-input {
+  background: var(--emo-input-bg);
+  border: 1px solid var(--emo-border);
+  color: var(--emo-text);
+  border-radius: var(--emo-radius-md);
+  transition: border-color var(--emo-transition), box-shadow var(--emo-transition);
+}
+.login-input:focus {
+  outline: none;
+  border-color: var(--emo-accent);
+  box-shadow: 0 0 0 3px var(--emo-glow);
+}
+
+.login-submit {
+  background: var(--emo-accent);
+  color: var(--emo-on-accent);
+  border: none;
+  border-radius: var(--emo-radius-md);
+  font-weight: 500;
+  transition: background var(--emo-transition);
+}
+.login-submit:hover:not(:disabled) {
+  background: var(--emo-accent-hover);
+}
+
+.google-btn {
+  background: var(--emo-surface-raised);
+  color: var(--emo-text);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-md);
+  transition: background var(--emo-transition);
+}
+.google-btn:hover {
+  background: var(--emo-hover-subtle);
+}
+
+.login-boot-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--emo-accent);
+  opacity: 0.35;
+  animation: dot-bounce 1.2s ease-in-out infinite;
+}
+.login-boot-dots span:nth-child(2) { animation-delay: 0.15s; }
+.login-boot-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+.app-topbar {
+  z-index: 20;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────── */
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--emo-border);
+  background: var(--emo-border-strong);
   border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--emo-text-muted);
 }
 
 .chat-scroll-area {
@@ -265,6 +979,7 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
   overscroll-behavior: contain;
 }
 
+/* ─── Animations ────────────────────────────────────────────── */
 @keyframes blink {
   0%, 92%, 100% { transform: scaleY(1); }
   94% { transform: scaleY(0.1); }
@@ -284,7 +999,7 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 
 @keyframes dot-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-3px); opacity: 1; }
+  30% { transform: translateY(-4px); opacity: 1; }
 }
 
 .dot-loading span {
@@ -298,36 +1013,122 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 .dot-loading span:nth-child(2) { animation-delay: 0.15s; }
 .dot-loading span:nth-child(3) { animation-delay: 0.3s; }
 
-.mode-normal { --mode-color: #8b5cf6; --mode-glow: rgba(139, 92, 246, 0.2); }
-.mode-tech { --mode-color: #06b6d4; --mode-glow: rgba(6, 182, 212, 0.2); }
-.mode-creatif { --mode-color: #ec4899; --mode-glow: rgba(236, 72, 153, 0.2); }
-.mode-brutal { --mode-color: #ef4444; --mode-glow: rgba(239, 68, 68, 0.2); }
-
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(16px); }
+  from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-.emo-drawer {
-  border-top-left-radius: var(--emo-radius-2xl);
-  border-bottom-left-radius: var(--emo-radius-2xl);
-  animation: slideInRight 0.28s ease;
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.emo-panel-flat {
-  border-radius: 0 !important;
+.emo-msg-animate {
+  animation: msgIn 0.25s ease;
 }
+
+.mode-normal { --mode-color: #8b5cf6; --mode-glow: rgba(139, 92, 246, 0.2); }
+.mode-tech { --mode-color: #06b6d4; --mode-glow: rgba(6, 182, 212, 0.2); }
+.mode-creatif { --mode-color: #ec4899; --mode-glow: rgba(236, 72, 153, 0.2); }
+.mode-brutal { --mode-color: #ef4444; --mode-glow: rgba(239, 68, 68, 0.2); }
 
 ::selection {
   background: rgba(139, 92, 246, 0.25);
   color: inherit;
 }
 
+/* ─── Dropdown menus (composer) ─────────────────────────────── */
+.emo-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 11rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  padding: var(--emo-space-1);
+  background: var(--emo-surface);
+  border: 1px solid var(--emo-border);
+  border-radius: var(--emo-radius-lg);
+  box-shadow: var(--emo-shadow-lg);
+  z-index: 30;
+}
+
+.emo-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: var(--emo-space-2);
+  width: 100%;
+  padding: var(--emo-space-2) var(--emo-space-3);
+  border-radius: var(--emo-radius-md);
+  font-size: var(--emo-text-sm);
+  color: var(--emo-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--emo-transition);
+}
+
+.emo-dropdown-item:hover {
+  background: var(--emo-hover-subtle);
+}
+
+.emo-dropdown-item[data-active="true"] {
+  background: var(--emo-active-bg);
+  color: var(--emo-text);
+}
+
+/* ─── Error boundary ────────────────────────────────────────── */
+.emo-error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 12rem;
+  padding: var(--emo-space-6);
+  background: var(--emo-error-bg);
+  border: 1px solid var(--emo-error-border);
+  border-radius: var(--emo-radius-xl);
+  color: var(--emo-error-text);
+  text-align: center;
+}
+
+/* ─── Right panel tabs ──────────────────────────────────────── */
+.emo-panel-tabs {
+  display: flex;
+  gap: var(--emo-space-1);
+  padding: var(--emo-space-2) var(--emo-space-3);
+  border-bottom: 1px solid var(--emo-border);
+  background: var(--emo-bg-subtle);
+}
+
+.emo-panel-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--emo-radius-md);
+  font-size: var(--emo-text-xs);
+  font-weight: 500;
+  color: var(--emo-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--emo-transition);
+}
+
+.emo-panel-tab[data-active="true"] {
+  background: var(--emo-surface);
+  color: var(--emo-text);
+  box-shadow: var(--emo-shadow-sm);
+}
+
+/* ─── Tailwind shadcn base ──────────────────────────────────── */
 @layer base {
   :root, html.theme-dark {
     --background: 240 6% 4%;
@@ -377,59 +1178,3 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 }
 
 textarea, input { font-family: inherit; }
-
-/* Login */
-.login-page {
-  background: var(--emo-bg);
-}
-
-.login-card {
-  border-radius: var(--emo-radius-2xl);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-}
-
-.google-btn {
-  background: #fff;
-  color: #18181b;
-  border: 1px solid var(--emo-border);
-}
-.google-btn:hover {
-  background: #f4f4f5;
-}
-
-.login-input {
-  background: var(--emo-input-bg);
-  border: 1px solid var(--emo-border);
-  color: var(--emo-text);
-  border-radius: var(--emo-radius-md);
-}
-.login-input:focus {
-  outline: none;
-  border-color: var(--emo-accent);
-  box-shadow: 0 0 0 2px var(--emo-glow);
-}
-
-.login-submit {
-  background: var(--emo-accent);
-  color: var(--emo-on-accent);
-  border: none;
-  border-radius: var(--emo-radius-md);
-}
-.login-submit:hover {
-  background: var(--emo-accent-hover);
-}
-
-.login-boot-dots span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--emo-accent);
-  opacity: 0.35;
-  animation: dot-bounce 1.2s ease-in-out infinite;
-}
-.login-boot-dots span:nth-child(2) { animation-delay: 0.15s; }
-.login-boot-dots span:nth-child(3) { animation-delay: 0.3s; }
-
-.app-topbar {
-  z-index: 20;
-}
