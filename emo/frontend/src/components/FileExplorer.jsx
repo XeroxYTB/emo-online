@@ -36,7 +36,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   const [fsError, setFsError] = useState("");
   const [editorFailed, setEditorFailed] = useState(false);
   const [editorTheme, setEditorTheme] = useState("vs-dark");
-  const [viewMode, setViewMode] = useState("preview");
+  const [viewMode, setViewMode] = useState("code");
 
   useEffect(() => {
     const syncTheme = () => {
@@ -86,7 +86,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
       setContent(externalPreview.preview);
       setOriginalContent(externalPreview.preview);
     }
-    setViewMode(isHtmlPath(path) ? "preview" : "code");
+    setViewMode("code");
     const parent = parentDir(path);
     if (parent && parent !== cwd) refresh(parent);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,7 +101,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
       setCurrentFile(r.data.path);
       setContent(r.data.content || "");
       setOriginalContent(r.data.content || "");
-      setViewMode(isHtmlPath(r.data.path) ? "preview" : "code");
+      setViewMode("code");
     } catch (e) {
       toast.error("Lecture : " + (e?.response?.data?.detail || e.message));
     } finally {
@@ -128,6 +128,9 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
   const files = listing.files || [];
   const dirty = content !== originalContent;
   const fileName = currentFile ? basename(currentFile) : null;
+  const isHtml = currentFile ? isHtmlPath(currentFile) : false;
+  const showPreviewTab = currentFile && !isHtml;
+  const effectiveViewMode = isHtml ? "code" : viewMode;
 
   if (!agentOnline) {
     return (
@@ -135,8 +138,17 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
         <p className="mb-2">Agent local hors ligne.</p>
         <p className="text-xs text-muted-em">Agent local requis.</p>
         {externalPreview?.path && (
-          <div className="mt-6 h-48">
-            <FilePreviewPane path={externalPreview.path} content={externalPreview.preview || ""} />
+          <div className="mt-6 h-48 overflow-auto">
+            {isHtmlPath(externalPreview.path) ? (
+              <pre
+                className="text-[10px] font-code p-2 rounded-lg h-full overflow-auto whitespace-pre-wrap"
+                style={{ background: "var(--emo-editor-bg)", color: "var(--emo-editor-text)" }}
+              >
+                {(externalPreview.preview || "").slice(0, 4000)}
+              </pre>
+            ) : (
+              <FilePreviewPane path={externalPreview.path} content={externalPreview.preview || ""} />
+            )}
           </div>
         )}
       </div>
@@ -206,18 +218,20 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
                   {fileName}
                 </span>
                 <div className="flex rounded-md overflow-hidden flex-shrink-0" style={{ border: "1px solid var(--emo-border)" }}>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("preview")}
-                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] transition"
-                    style={{
-                      background: viewMode === "preview" ? "var(--emo-tab-active-bg)" : "transparent",
-                      color: viewMode === "preview" ? "var(--emo-text)" : "var(--emo-text-muted)",
-                    }}
-                    data-testid="file-tab-preview"
-                  >
-                    <Eye size={9} /> Aperçu
-                  </button>
+                  {showPreviewTab && (
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("preview")}
+                      className="flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] transition"
+                      style={{
+                        background: viewMode === "preview" ? "var(--emo-tab-active-bg)" : "transparent",
+                        color: viewMode === "preview" ? "var(--emo-text)" : "var(--emo-text-muted)",
+                      }}
+                      data-testid="file-tab-preview"
+                    >
+                      <Eye size={9} /> Aperçu
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setViewMode("code")}
@@ -246,7 +260,7 @@ export default function FileExplorer({ agentOnline, externalPreview = null }) {
               </div>
 
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                {viewMode === "preview" ? (
+                {effectiveViewMode === "preview" && showPreviewTab ? (
                   <FilePreviewPane path={currentFile} content={content} />
                 ) : editorLoading ? (
                   <div className="flex-1 flex items-center justify-center text-xs text-muted-em">Chargement…</div>
