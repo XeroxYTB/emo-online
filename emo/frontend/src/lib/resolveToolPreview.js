@@ -90,7 +90,22 @@ export function resolveToolPreview(event) {
         session_id: "default",
       };
     }
+    if (tool === "generate_image" && result?.error) {
+      return { kind: "text", text: result.error, title: "Génération d'image" };
+    }
     return null;
+  }
+
+  if (tool === "generate_image" && result?.ok && result?.image_base64) {
+    const mime = result.mime || "image/png";
+    const b64 = result.image_base64;
+    if (b64 && !String(b64).startsWith("[")) {
+      return {
+        kind: "image",
+        src: `data:${mime};base64,${b64}`,
+        title: args.prompt || result.prompt || "Image générée",
+      };
+    }
   }
 
   if (tool === "web_search" && (result.results || []).length) {

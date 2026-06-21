@@ -2172,6 +2172,39 @@ def _filter_vision_candidates(candidates: list[tuple[str, str, str]]) -> list[tu
     return [c for c in candidates if _is_vision_capable(c[0], c[1])]
 
 
+def _prioritize_vision_providers(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Gemini/OpenAI en premier pour l'analyse d'images."""
+    rank = {"gemini": 0, "openai": 1, "groq": 2, "anthropic": 3, "openrouter": 4}
+
+    def score(c: tuple[str, str, str]) -> tuple:
+        provider, model, _ = c
+        base = rank.get(provider, 9)
+        if "flash-lite" in model:
+            base += 0.4
+        if provider == "groq" and "vision" in model:
+            base += 0.2
+        return (base, model)
+
+    return sorted(candidates, key=score)
+
+
+_IMAGE_GEN_RE = re.compile(
+    r"\b(génère|genere|generate|crée|creer|create|dessine|draw|fais|fabrique)\b",
+    re.I,
+)
+_IMAGE_GEN_NOUN_RE = re.compile(
+    r"\b(logo|image|illustration|photo|avatar|icône|icone|visuel|affiche|poster|bannière|banniere)\b",
+    re.I,
+)
+
+
+def _is_image_gen_request(text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return False
+    return bool(_IMAGE_GEN_RE.search(t) and _IMAGE_GEN_NOUN_RE.search(t))
+
+
 def _prioritize_tool_providers(
     candidates: list[tuple[str, str, str]],
     *,
@@ -2503,7 +2536,7 @@ async def chat_stream(
 
     has_images = bool(body.images and any(img for img in body.images if img))
     if has_images:
-        candidates = _filter_vision_candidates(candidates)
+        candidates = _prioritize_vision_providers(_filter_vision_candidates(candidates))
         use_tools = False
     else:
         use_tools = True
@@ -2526,6 +2559,78 @@ async def chat_stream(
                         "Configure une clé API Gemini, OpenAI, Anthropic ou Groq vision "
                         "(llama-3.2-*-vision-preview) dans backend/.env."
                     ),
+                })
+                return
+
+            # Demande explicite de génération d'image → generate_image direct (sans attendre le LLM)
+            if use_tools and _is_image_gen_request(body.content):
+                tc_id = f"call_{uuid.uuid4().hex[:12]}"
+                yield _sse({"type": "tool_start", "id": tc_id, "name": "generate_image"})
+                yield _sse({
+                    "type": "tool_executing",
+                    "id": tc_id, "name": "generate_image",
+                    "arguments": {"prompt": body.content.strip()[:4000]},
+                })
+                try:
+                    gen_result = await asyncio.wait_for(
+                        do_generate_image(body.content.strip()),
+                        timeout=120.0,
+                    )
+                except asyncio.TimeoutError:
+                    gen_result = {"ok": False, "error": "Génération d'image timeout (120s)."}
+                pre_tool_log = [{
+                    "id": tc_id, "name": "generate_image",
+                    "arguments": {"prompt": body.content.strip()[:4000]},
+                    "result": gen_result,
+                }]
+                yield _sse({
+                    "type": "tool_result",
+                    "id": tc_id, "name": "generate_image",
+                    "result": _shrink_for_ui(gen_result),
+                })
+                if gen_result.get("ok") and gen_result.get("image_base64"):
+                    mime = gen_result.get("mime") or "image/png"
+                    yield _sse({
+                        "type": "image",
+                        "id": tc_id,
+                        "src": f"data:{mime};base64,{gen_result['image_base64']}",
+                        "title": body.content.strip()[:80],
+                    })
+                    clean = "Voici l'image générée."
+                    mood = "enthousiaste"
+                else:
+                    err = gen_result.get("error") or "Génération impossible."
+                    yield _sse({"type": "delta", "content": err})
+                    clean = err
+                    mood = "neutre"
+                assistant_msg = {
+                    "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+                    "conversation_id": body.conversation_id,
+                    "user_id": user.user_id,
+                    "role": "emo", "content": clean,
+                    "mode": mode, "mood": mood, "verified": False,
+                    "tool_calls": [{
+                        "name": "generate_image",
+                        "arguments": {"prompt": body.content.strip()[:4000]},
+                        "result_summary": _summarize_result(gen_result),
+                    }],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                await db.messages.insert_one(assistant_msg)
+                update = {"updated_at": datetime.now(timezone.utc).isoformat(), "mode": mode}
+                if conv.get("title") in (None, "", "Nouvelle conversation") and len(history) <= 1:
+                    update["title"] = body.content.strip()[:60]
+                await db.conversations.update_one(
+                    {"conversation_id": body.conversation_id}, {"$set": update}
+                )
+                yield _sse({
+                    "type": "done",
+                    "mood": mood,
+                    "verified": False,
+                    "message_id": assistant_msg["message_id"],
+                    "title": update.get("title"),
+                    "tool_calls": assistant_msg["tool_calls"],
+                    "model_label": "generate_image",
                 })
                 return
 
@@ -2631,7 +2736,9 @@ async def chat_stream(
                     break
                 if (provider, model) in blocked:
                     continue
-                if use_agent_mode and (tier_allows_local_agent(tier) or agent_online_raw):
+                if has_images:
+                    tool_set: list = []
+                elif use_agent_mode and (tier_allows_local_agent(tier) or agent_online_raw):
                     tool_set = EMO_TOOLS + chat_web_tools + BROWSER_CONTROL_TOOLS
                 else:
                     tool_set = chat_web_tools + BROWSER_CONTROL_TOOLS
@@ -2650,6 +2757,12 @@ async def chat_stream(
                     tool_set = _tools_for_message(body.content, tool_set)
                 model_uncensored = is_uncensored_model(provider, model)
                 effective_system = system_msg
+                if has_images:
+                    effective_system += (
+                        "\n\n# VISION\n"
+                        "L'utilisateur a joint une ou plusieurs images. Décris-les clairement en français "
+                        "et réponds précisément à sa question sur le contenu visible."
+                    )
                 if open_url and pre_tool_log:
                     effective_system += (
                         f"\n\n# SITE DÉJÀ OUVERT\n"

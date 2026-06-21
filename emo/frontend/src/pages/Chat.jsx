@@ -500,6 +500,19 @@ export default function Chat() {
                     query: evt.result.query || args.query || "",
                     results: (evt.result.results || []).slice(0, 8),
                   };
+                } else if (tool === "generate_image" && evt.result?.ok !== false) {
+                  const mime = evt.result?.mime || "image/png";
+                  const b64 = evt.result?.image_base64;
+                  const src = b64 && !String(b64).startsWith("[")
+                    ? `data:${mime};base64,${b64}`
+                    : null;
+                  if (src) {
+                    turnTools[i].inlinePreview = {
+                      type: "image",
+                      src,
+                      title: args.prompt || "Image générée",
+                    };
+                  }
                 } else if (BROWSER_PREVIEW_TOOLS.includes(tool)) {
                   const bp = buildBrowserPreview(tool, args, evt.result);
                   if (bp) turnTools[i].inlinePreview = bp;
@@ -538,15 +551,14 @@ export default function Chat() {
           } else if (evt.type === "image") {
             turnTools.push({
               id: evt.id || `img_${Date.now()}`,
-              tool: "image_output",
+              tool: "generate_image",
               state: "done",
-              args: {},
+              args: { prompt: evt.title || "" },
               result: { ok: true },
               inlinePreview: {
-                type: "file",
-                path: evt.title || "image",
-                preview: evt.src,
-                is_image: true,
+                type: "image",
+                src: evt.src,
+                title: evt.title || "Image générée",
               },
             });
             setStreamingTools([...turnTools]);
@@ -600,7 +612,18 @@ export default function Chat() {
           } else if (evt.type === "ping") {
             // keepalive SSE — connexion toujours active
           } else if (evt.type === "error") {
-            toast.error(evt.content || "Erreur.");
+            const errText = evt.content || "Erreur.";
+            toast.error(errText);
+            setMessages((m) => [
+              ...m,
+              {
+                message_id: `err_${Date.now()}`,
+                role: "emo",
+                content: errText,
+                mode,
+                mood: "neutre",
+              },
+            ]);
             setStreamingMsg(null);
             setStreamingTools([]);
           } else if (evt.type === "cancelled") {
