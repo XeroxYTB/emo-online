@@ -284,6 +284,7 @@ def build_system_prompt(
     is_owner: bool = False,
     identity_overrides: dict[str, str] | None = None,
     agent_context: dict | None = None,
+    chat_mode: bool = False,
 ) -> str:
     mode_prompt = MODE_PROMPTS.get(mode, "")
     overrides = identity_overrides or {}
@@ -318,7 +319,15 @@ def build_system_prompt(
     if agent_block:
         sections.append(agent_block)
 
-    status = "agent local: EN LIGNE (tu peux utiliser tes tools — write_file/exec_shell obligatoires pour fichiers/commandes)" if agent_online else "agent local: HORS LIGNE (tools locaux indisponibles — les tools web restent dispo)"
+    if chat_mode:
+        status = (
+            "mode CHAT actif — agent local **désactivé** (même s'il tourne sur le PC). "
+            "Interdit : write_file, read_file, edit_file, exec_shell, list_dir, grep et tout outil fichier/terminal. "
+            "Pour du code/HTML : blocs markdown dans la réponse. "
+            "Autorisé : web_search, browser_*, outils web."
+        )
+    else:
+        status = "agent local: EN LIGNE (tu peux utiliser tes tools — write_file/exec_shell obligatoires pour fichiers/commandes)" if agent_online else "agent local: HORS LIGNE (tools locaux indisponibles — les tools web restent dispo)"
     sections.append(f"\n# STATUT SYSTÈME\n{status}\n")
 
     mood_block = overrides.get("mood_instruction") or MOOD_INSTRUCTION
@@ -333,16 +342,22 @@ def build_compact_system_prompt(
     agent_context: dict | None = None,
     custom_addon: str = "",
     is_uncensored: bool = False,
+    chat_mode: bool = False,
 ) -> str:
     """Prompt court pour Groq (limites TPM free tier)."""
     raw = (user_name or "").strip()
     first_name = raw.split()[0].capitalize() if raw else "Hugo"
     mode_hint = MODE_PROMPTS.get(mode, MODE_PROMPTS.get("tech", ""))[:800]
-    status = "agent EN LIGNE — write_file/exec_shell obligatoires, JAMAIS de commandes manuelles" if agent_online else "agent HORS LIGNE — web_search + browser_open"
     ctx = agent_context or {}
-    path_hint = ""
-    if agent_online and ctx.get("desktop"):
-        path_hint = f" Bureau agent: {ctx['desktop']}."
+    if chat_mode:
+        status = "Mode CHAT — pas d'agent local, pas de write_file/exec_shell. Code en markdown dans la réponse."
+        path_hint = ""
+    elif agent_online:
+        status = "agent EN LIGNE — write_file/exec_shell obligatoires, JAMAIS de commandes manuelles"
+        path_hint = f" Bureau agent: {ctx['desktop']}." if ctx.get("desktop") else ""
+    else:
+        status = "agent HORS LIGNE — web_search + browser_open"
+        path_hint = ""
     parts = [
         f"Tu es Émo, l'IA perso de {first_name}. Tutoiement, français, directe, zéro bullshit corporate.",
         'Ne dis jamais "je suis Claude" ou "modèle Anthropic".',
@@ -350,10 +365,15 @@ def build_compact_system_prompt(
         f"Mode {mode}.",
         mode_hint,
         f"Statut: {status}{path_hint}",
-        "Agent en ligne → write_file pour fichiers, exec_shell pour terminal. Interdit de dire \"copie cette commande\".",
+    ]
+    if not chat_mode:
+        parts.append(
+            'Agent en ligne → write_file pour fichiers, exec_shell pour terminal. Interdit de dire "copie cette commande".'
+        )
+    parts.extend([
         "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",
         "Réponds concrètement. Utilise les tools quand utile. Mood en fin: [MOOD:neutre|curieuse|ironique|etc]",
-    ]
+    ])
     if is_uncensored:
         parts.append(UNCENSORED_SYSTEM_APPEND.strip())
     addon = (custom_addon or "").strip()

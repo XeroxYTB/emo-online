@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff } from "lucide-react";
+import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import { hasToolPreview } from "../lib/resolveToolPreview";
+import { getFileContentFromToolEvent, isCopyableFileToolEvent } from "../lib/filePreview";
 import ChatPreviewBubble from "./ChatPreviewBubble";
 
 const ICONS = {
@@ -57,8 +59,9 @@ const COLORS = {
   emo_restore_self: "#C084FC",
 };
 
-export const ToolCallCard = ({ event, liveHtmlByPath = {} }) => {
+export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false }) => {
   const [open, setOpen] = useState(event.state !== "done");
+  const [copied, setCopied] = useState(false);
   const canPreview = hasToolPreview(event) || Boolean(
     event.args?.url && [
       "browser_visit", "browser_open", "web_fetch",
@@ -72,6 +75,22 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {} }) => {
   const color = COLORS[event.tool] || "var(--mode-color)";
   const isError = event.state === "error" || (event.result && event.result.ok === false);
   const isExecuting = event.state === "executing";
+  const fileContent = showCopyCode && isCopyableFileToolEvent(event)
+    ? getFileContentFromToolEvent(event, liveHtmlByPath)
+    : "";
+  const canCopyCode = Boolean(fileContent);
+
+  const handleCopyCode = async () => {
+    if (!fileContent) return;
+    try {
+      await navigator.clipboard.writeText(fileContent);
+      setCopied(true);
+      toast.success("Code copié");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Impossible de copier");
+    }
+  };
 
   useEffect(() => {
     if (event.state === "done" && canPreview) {
@@ -134,6 +153,19 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {} }) => {
               </span>
             )}
           </button>
+          {canCopyCode && event.state === "done" && !isError && (
+            <button
+              type="button"
+              data-testid="tool-copy-code-btn"
+              onClick={handleCopyCode}
+              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-2 text-[10px] em-hover transition border-l em-border-l"
+              style={{ color: copied ? "var(--emo-success-text)" : "var(--emo-text-muted)" }}
+              title="Copier tout le code"
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              <span className="hidden sm:inline">{copied ? "Copié" : "Copier"}</span>
+            </button>
+          )}
           {canPreview && event.state === "done" && !isError && (
             <button
               type="button"
@@ -171,7 +203,11 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {} }) => {
       </div>
 
       {previewOpen && canPreview && (
-        <ChatPreviewBubble event={event} liveHtmlByPath={liveHtmlByPath} />
+        <ChatPreviewBubble
+          event={event}
+          liveHtmlByPath={liveHtmlByPath}
+          showCopyCode={showCopyCode}
+        />
       )}
     </div>
   );

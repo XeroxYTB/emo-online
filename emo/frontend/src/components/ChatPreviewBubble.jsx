@@ -9,7 +9,7 @@ import { resolveToolPreview } from "../lib/resolveToolPreview";
 import { normalizeFilePath } from "../lib/filePreview";
 
 /** Bulle d'aperçu dans le chat — navigateur interactif inline pour les sites web. */
-export default function ChatPreviewBubble({ event, className = "", liveHtmlByPath = {} }) {
+export default function ChatPreviewBubble({ event, className = "", liveHtmlByPath = {}, showCopyCode = false }) {
   const data = resolveToolPreview(event);
   const [copied, setCopied] = useState(false);
   if (!data) return null;
@@ -22,7 +22,7 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
   const isBrowser = data.kind === "interactive";
   const copyContent =
     data.kind === "html" ? liveHtmlContent || data.fullContent : data.fullContent;
-  const canCopy = (data.kind === "text" || data.kind === "html") && copyContent;
+  const canCopy = showCopyCode && (data.kind === "text" || data.kind === "html") && copyContent;
 
   const handleCopy = async () => {
     if (!copyContent) return;
@@ -72,10 +72,11 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
             data-testid="chat-copy-code-btn"
             title="Copier tout le code"
             onClick={handleCopy}
-            className="p-1 rounded-md em-hover-subtle flex-shrink-0"
-            style={{ color: "var(--emo-text-muted)" }}
+            className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] em-hover-subtle transition"
+            style={{ color: copied ? "var(--emo-success-text)" : "var(--emo-text-muted)" }}
           >
-            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? <Check size={11} /> : <Copy size={11} />}
+            <span className="hidden sm:inline">{copied ? "Copié" : "Copier"}</span>
           </button>
         )}
       </div>

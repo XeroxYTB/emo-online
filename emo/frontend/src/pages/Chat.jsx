@@ -543,14 +543,16 @@ export default function Chat() {
               });
             }
             setStreamingTools([...turnTools]);
-            setFilePreview({
-              path: evt.path,
-              preview: evt.preview,
-              is_image: evt.is_image,
-              language: evt.language,
-            });
             syncLiveHtml(evt.path, evt.preview);
-            setRightPanelTab("files");
+            if (useAgentTools) {
+              setFilePreview({
+                path: evt.path,
+                preview: evt.preview,
+                is_image: evt.is_image,
+                language: evt.language,
+              });
+              setRightPanelTab("files");
+            }
           } else if (evt.type === "done") {
             const finalContent = cleanStreamText(buffer).trim();
             setMessages((m) => [
@@ -696,7 +698,12 @@ export default function Chat() {
 
             <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-4 space-y-6">
               {messages.map((m) => (
-                <ChatMessage key={m.message_id} message={m} liveHtmlByPath={liveHtmlByPath} />
+                <ChatMessage
+                  key={m.message_id}
+                  message={m}
+                  liveHtmlByPath={liveHtmlByPath}
+                  showCopyCode={!useAgentTools}
+                />
               ))}
               {(streamingMsg || streamingTools.length > 0) && (
                 <ChatMessage
@@ -709,6 +716,7 @@ export default function Chat() {
                   }}
                   isStreaming
                   liveHtmlByPath={liveHtmlByPath}
+                  showCopyCode={!useAgentTools}
                 />
               )}
             </div>

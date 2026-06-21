@@ -165,7 +165,7 @@ function normalizeToolEvent(t, i) {
   };
 }
 
-export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {} }) => {
+export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCopyCode = false }) => {
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -240,6 +240,7 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {} }) => {
                 key={t.id || i}
                 event={normalizeToolEvent(t, i)}
                 liveHtmlByPath={liveHtmlByPath}
+                showCopyCode={showCopyCode}
               />
             ))}
           </div>

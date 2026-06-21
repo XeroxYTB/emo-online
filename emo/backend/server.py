@@ -1949,6 +1949,7 @@ async def execute_tool(
     args: dict,
     *,
     is_owner: bool = False,
+    allow_local_agent: bool = True,
 ) -> dict:
     """Dispatch a Claude tool call to the user's local agent OR to a backend web tool."""
     tool_name = TOOL_ALIASES.get(tool_name, tool_name)
@@ -2049,9 +2050,15 @@ async def execute_tool(
             return {"ok": False, "error": "Réservé au owner/admin."}
         return await emo_restore_self(db, user_id, str(args.get("version_id", "")).strip())
 
-    # Local-machine tools require the agent
+    # Local-machine tools require the agent (mode Agent uniquement)
     if tool_name not in LOCAL_AGENT_TOOLS:
         return {"ok": False, "error": f"Outil inconnu : {tool_name}"}
+    if not allow_local_agent:
+        return {
+            "ok": False,
+            "error": "Mode Chat — agent local désactivé.",
+            "hint": "Fournis le code dans ta réponse (bloc markdown) ou active le mode Agent.",
+        }
     if not agent_registry.is_online(user_id):
         return {
             "ok": False,
@@ -2075,7 +2082,8 @@ _TOOL_LEAK_RE = re.compile(
     r"<function\s*\([^)]*\)\s*\{[\s\S]*?\}\s*(?:</function>)?"
     r"|<function[^>]*>[\s\S]*?</function>"
     r"|<tool_call>[\s\S]*?</tool_call>"
-    r"|\[TOOL:[^\]]+\]",
+    r"|\[TOOL:[^\]]+\]"
+    r"|\b(?:browser_open|browser_visit|web_search|write_file|exec_shell)\s*\(\s*[\"'][^\"']*[\"']\s*\)",
     re.IGNORECASE,
 )
 _LEAKED_PREFIX_RE = re.compile(
@@ -2293,6 +2301,7 @@ def _compact_llm_payload(
     agent_context: Optional[dict] = None,
     custom_addon: str = "",
     is_uncensored: bool = False,
+    chat_mode: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq/Gemini : prompt compact + outils. HF : pas d'outils (router incompatible)."""
     if not tools_enabled:
@@ -2308,6 +2317,7 @@ def _compact_llm_payload(
         agent_context=agent_context,
         custom_addon=custom_addon,
         is_uncensored=is_uncensored,
+        chat_mode=chat_mode,
     )
     non_system = [m for m in initial_messages if m.get("role") != "system"]
     keep = 4 if provider == "groq" else 8
@@ -2397,15 +2407,18 @@ async def chat_stream(
 
     # Build system prompt with memories + agent status + user custom prompt addon
     memories = await _load_user_memories(user.user_id, limit=50)
-    agent_online = agent_registry.is_online(user.user_id)
-    agent_context = await _ensure_agent_context(user.user_id) if agent_online else {}
+    use_agent_mode = body.use_agent_tools is not False
+    agent_online_raw = agent_registry.is_online(user.user_id)
+    effective_agent_online = agent_online_raw and use_agent_mode
+    agent_context = await _ensure_agent_context(user.user_id) if effective_agent_online else {}
     is_owner = user.email.lower() in ADMIN_EMAILS
     identity_overrides = await get_identity_overrides(db) if is_owner else {}
     system_msg = build_system_prompt(
-        mode, memories=memories, agent_online=agent_online,
+        mode, memories=memories, agent_online=effective_agent_online,
         user_name=user.name, is_owner=is_owner,
         identity_overrides=identity_overrides,
         agent_context=agent_context,
+        chat_mode=not use_agent_mode,
     )
 
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "custom_prompt_addon": 1})
@@ -2440,7 +2453,7 @@ async def chat_stream(
         except Exception:
             return False
 
-    use_tools = body.use_agent_tools is not False
+    use_tools = True
     candidates = _prioritize_tool_providers(candidates, use_tools=use_tools)
     if body.images:
         candidates = _prioritize_vision_providers(candidates)
@@ -2470,6 +2483,7 @@ async def chat_stream(
                     visit_result = await asyncio.wait_for(
                         execute_tool(
                             user.user_id, browser_tool, {"url": open_url}, is_owner=is_owner,
+                            allow_local_agent=use_agent_mode,
                         ),
                         timeout=90.0 if browser_tool == "browser_open" else 45.0,
                     )
@@ -2553,13 +2567,13 @@ async def chat_stream(
                     break
                 if (provider, model) in blocked:
                     continue
-                tool_set = (EMO_TOOLS + WEB_TOOLS + BROWSER_CONTROL_TOOLS) if tier_allows_local_agent(tier) or agent_online else (WEB_TOOLS + BROWSER_CONTROL_TOOLS)
-                if is_owner:
-                    tool_set = tool_set + EMO_SELF_TOOLS
-                if not use_tools:
-                    tool_set = []
+                if use_agent_mode and (tier_allows_local_agent(tier) or agent_online_raw):
+                    tool_set = EMO_TOOLS + WEB_TOOLS + BROWSER_CONTROL_TOOLS
                 else:
-                    tool_set = _tools_for_message(body.content, tool_set)
+                    tool_set = WEB_TOOLS + BROWSER_CONTROL_TOOLS
+                if is_owner and use_agent_mode:
+                    tool_set = tool_set + EMO_SELF_TOOLS
+                tool_set = _tools_for_message(body.content, tool_set)
                 model_uncensored = is_uncensored_model(provider, model)
                 effective_system = system_msg
                 if open_url and pre_tool_log:
@@ -2572,13 +2586,14 @@ async def chat_stream(
                     effective_system += "\n\n" + UNCENSORED_SYSTEM_APPEND.strip()
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
                     provider, effective_system, initial_messages, tool_set,
-                    mode=mode, user_name=user.name, agent_online=agent_online,
+                    mode=mode, user_name=user.name, agent_online=effective_agent_online,
                     is_owner=is_owner,
                     user_message=body.content,
-                    tools_enabled=use_tools,
+                    tools_enabled=bool(tool_set),
                     agent_context=agent_context,
                     custom_addon=addon,
                     is_uncensored=model_uncensored,
+                    chat_mode=not use_agent_mode,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -2642,6 +2657,7 @@ async def chat_stream(
                                 result = await asyncio.wait_for(
                                     execute_tool(
                                         user.user_id, tc.name, tc.arguments or {}, is_owner=is_owner,
+                                        allow_local_agent=use_agent_mode,
                                     ),
                                     timeout=75.0,
                                 )

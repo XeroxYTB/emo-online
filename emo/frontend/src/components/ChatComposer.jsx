@@ -275,7 +275,7 @@ export const ChatComposer = ({
               borderColor: useAgentTools ? "var(--emo-accent)" : "var(--emo-border)",
               color: useAgentTools ? "var(--emo-text)" : "var(--emo-text-muted)",
             }}
-            title={useAgentTools ? "Mode agent" : "Mode chat"}
+            title={useAgentTools ? "Mode agent — fichiers sur ton PC" : "Mode chat — sans agent local (web uniquement)"}
           >
             {useAgentTools ? <Bot size={12} /> : <MessageCircle size={12} />}
             <span className="hidden sm:inline">{useAgentTools ? "Agent" : "Chat"}</span>
