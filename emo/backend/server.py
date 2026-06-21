@@ -1809,19 +1809,23 @@ class BrowserScrollBody(BaseModel):
 
 def _browser_available() -> bool:
     from browser_control import PLAYWRIGHT_AVAILABLE
-    if os.environ.get("EMO_BROWSER_ENABLED", "true").lower() in ("0", "false", "no"):
+    if os.environ.get("EMO_BROWSER_HARD_DISABLE", "").lower() in ("1", "true", "yes"):
         return False
-    return PLAYWRIGHT_AVAILABLE
+    if PLAYWRIGHT_AVAILABLE:
+        return True
+    return os.environ.get("EMO_BROWSER_ENABLED", "true").lower() not in ("0", "false", "no")
 
 
 @api.get("/browser/status")
 async def browser_status():
     from browser_control import PLAYWRIGHT_AVAILABLE
-    enabled = os.environ.get("EMO_BROWSER_ENABLED", "true").lower() not in ("0", "false", "no")
+    hard_off = os.environ.get("EMO_BROWSER_HARD_DISABLE", "").lower() in ("1", "true", "yes")
+    legacy_flag = os.environ.get("EMO_BROWSER_ENABLED", "true").lower() not in ("0", "false", "no")
+    available = PLAYWRIGHT_AVAILABLE and not hard_off
     return {
-        "available": enabled and PLAYWRIGHT_AVAILABLE,
+        "available": available,
         "playwright": PLAYWRIGHT_AVAILABLE,
-        "enabled": enabled,
+        "enabled": legacy_flag,
     }
 
 
@@ -2970,7 +2974,7 @@ async def ping():
         "ok": True,
         "google": google_auth.is_configured(),
         "service": "emo-online",
-        "build": "2026-06-20g",
+        "build": "2026-06-21a",
     }
 
 
