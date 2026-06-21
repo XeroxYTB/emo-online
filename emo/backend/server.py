@@ -67,7 +67,7 @@ from web_tools import (
 from llm_config import (
     SUBSCRIPTION_PLANS, get_user_tier, resolve_model, resolve_model_candidates, models_for_tier, plans_for_api,
     parse_client_reference, tier_allows_local_agent, TIER_RANK, PAID_TIERS,
-    stripe_link_for_tier,
+    stripe_link_for_tier, resolve_free_vision_candidates,
 )
 import google_auth
 from image_tools import generate_image as do_generate_image, GENERATE_IMAGE_TOOL
@@ -647,7 +647,7 @@ def _friendly_llm_error(exc: Exception) -> str:
         if code == 401:
             return "Clé API invalide."
         if code == 402:
-            return "Crédits API épuisés."
+            return "Quota gratuit atteint sur ce modèle — essai du suivant…"
         if code == 413:
             return "Requête trop volumineuse."
         if code == 404:
@@ -655,7 +655,7 @@ def _friendly_llm_error(exc: Exception) -> str:
         if code == 400:
             lower = _http_response_snippet(exc.response, 500).lower()
             if "credit balance" in lower or "too low" in lower or "billing" in lower:
-                return "Crédits API épuisés."
+                return "Quota gratuit atteint — essai d'un autre modèle…"
         snippet = _http_response_snippet(exc.response)
         return _sanitize_error_msg(f"Erreur API ({code})" if not snippet else f"Erreur API ({code})")
     msg = _sanitize_error_msg(str(exc))
@@ -663,11 +663,11 @@ def _friendly_llm_error(exc: Exception) -> str:
     if "attempted to access streaming response content" in lower:
         return "Erreur temporaire du service IA."
     if code == 400 and any(k in lower for k in ("credit balance", "too low", "insufficient", "billing")):
-        return "Crédits API épuisés."
+        return "Quota gratuit atteint — essai d'un autre modèle…"
     if "429" in msg or "rate limit" in lower or "quota" in lower or "too many requests" in lower:
-        return "Quota API atteint."
+        return "Quota temporaire atteint — réessayez dans 1 minute."
     if "credit balance" in lower or "too low" in lower:
-        return "Crédits API épuisés."
+        return "Quota gratuit atteint — essai d'un autre modèle…"
     return msg or "Erreur IA"
 
 
@@ -2168,21 +2168,29 @@ def _is_vision_capable(provider: str, model: str) -> bool:
 
 
 def _filter_vision_candidates(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
-    """Ne garde que les modèles multimodaux quand des images sont jointes."""
+    """Ne garde que les modèles vision gratuits (Groq Vision + Gemini)."""
+    from llm_config import FREE_VISION_PROVIDERS
+
+    free = [
+        c for c in candidates
+        if c[0] in FREE_VISION_PROVIDERS and _is_vision_capable(c[0], c[1])
+    ]
+    if free:
+        return free
     return [c for c in candidates if _is_vision_capable(c[0], c[1])]
 
 
 def _prioritize_vision_providers(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
-    """Gemini/OpenAI en premier pour l'analyse d'images."""
-    rank = {"gemini": 0, "openai": 1, "groq": 2, "anthropic": 3, "openrouter": 4}
+    """Groq Vision puis Gemini — 100 % gratuit."""
+    rank = {"groq": 0, "gemini": 1}
 
     def score(c: tuple[str, str, str]) -> tuple:
         provider, model, _ = c
         base = rank.get(provider, 9)
+        if provider == "groq" and "11b" in model:
+            base -= 0.2
         if "flash-lite" in model:
-            base += 0.4
-        if provider == "groq" and "vision" in model:
-            base += 0.2
+            base += 0.3
         return (base, model)
 
     return sorted(candidates, key=score)
@@ -2536,7 +2544,11 @@ async def chat_stream(
 
     has_images = bool(body.images and any(img for img in body.images if img))
     if has_images:
-        candidates = _prioritize_vision_providers(_filter_vision_candidates(candidates))
+        free_vision = await resolve_free_vision_candidates()
+        if free_vision:
+            candidates = _prioritize_vision_providers(free_vision)
+        else:
+            candidates = _prioritize_vision_providers(_filter_vision_candidates(candidates))
         use_tools = False
     else:
         use_tools = True
@@ -2555,9 +2567,8 @@ async def chat_stream(
                 yield _sse({
                     "type": "error",
                     "content": (
-                        "Analyse d'image impossible — aucun modèle vision disponible. "
-                        "Configure une clé API Gemini, OpenAI, Anthropic ou Groq vision "
-                        "(llama-3.2-*-vision-preview) dans backend/.env."
+                        "Analyse d'image indisponible — configure GROQ_API_KEY ou GEMINI_API_KEY "
+                        "(modèles vision gratuits) dans les secrets du serveur."
                     ),
                 })
                 return
@@ -2735,6 +2746,8 @@ async def chat_stream(
                     cancelled = True
                     break
                 if (provider, model) in blocked:
+                    continue
+                if has_images and provider not in ("groq", "gemini"):
                     continue
                 if has_images:
                     tool_set: list = []

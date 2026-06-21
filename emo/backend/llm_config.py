@@ -283,6 +283,32 @@ async def resolve_model(tier: str, preference: Optional[str] = None) -> tuple[st
     return p, m, label
 
 
+# Modèles vision 100 % gratuits (Groq Vision + Gemini free tier)
+FREE_VISION_CATALOG: list[dict] = [
+    {"provider": "groq", "model": "llama-3.2-11b-vision-preview", "label": "Llama 3.2 11B Vision (Groq — gratuit)"},
+    {"provider": "groq", "model": "llama-3.2-90b-vision-preview", "label": "Llama 3.2 90B Vision (Groq — gratuit)"},
+    {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite (gratuit)"},
+    {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash (gratuit)"},
+]
+
+FREE_VISION_PROVIDERS = frozenset({"groq", "gemini"})
+
+
+async def resolve_free_vision_candidates() -> list[tuple[str, str, str]]:
+    """Candidats vision gratuits uniquement — pas OpenAI/Anthropic payants."""
+    out: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in FREE_VISION_CATALOG:
+        key = (entry["provider"], entry["model"])
+        if key in seen or key in BLOCKED_MODELS:
+            continue
+        if not api_key_available(entry["provider"]):
+            continue
+        seen.add(key)
+        out.append((entry["provider"], entry["model"], entry.get("label", entry["model"])))
+    return out
+
+
 def get_api_key(provider: str, fallback: str = "") -> str:
     """Clés LLM — pool vente (SALES_*) prioritaire si configuré."""
     sales_mapping = {
