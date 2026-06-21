@@ -1782,10 +1782,12 @@ async def agent_fs_write(body: FileWriteBody, user: User = Depends(get_current_u
 class BrowserOpenBody(BaseModel):
     url: str
     session_id: str = "default"
+    fast: bool = True
 
 
 class BrowserSessionBody(BaseModel):
     session_id: str = "default"
+    fast: bool = True
 
 
 class BrowserClickBody(BaseModel):
@@ -1794,6 +1796,7 @@ class BrowserClickBody(BaseModel):
     selector: Optional[str] = None
     x: Optional[float] = None
     y: Optional[float] = None
+    fast: bool = True
 
 
 class BrowserTypeBody(BaseModel):
@@ -1803,18 +1806,22 @@ class BrowserTypeBody(BaseModel):
     text: str
     clear: bool = False
     press_enter: bool = False
+    fast: bool = True
 
 
 class BrowserScrollBody(BaseModel):
     session_id: str = "default"
     direction: str = "down"
     amount: int = 600
+    fast: bool = True
 
 
 class BrowserKeyBody(BaseModel):
     session_id: str = "default"
     key: Optional[str] = None
     text: Optional[str] = None
+    fast: bool = True
+    snapshot: bool = True
 
 
 def _browser_available() -> bool:
@@ -1843,7 +1850,7 @@ async def browser_status():
 async def user_browser_open(body: BrowserOpenBody, user: User = Depends(get_current_user)):
     if not _browser_available():
         raise HTTPException(status_code=503, detail="Navigateur interactif indisponible sur ce serveur.")
-    result = await do_browser_open(user.user_id, body.url.strip(), body.session_id or "default")
+    result = await do_browser_open(user.user_id, body.url.strip(), body.session_id or "default", fast=body.fast)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Navigation échouée"))
     return result
@@ -1853,7 +1860,7 @@ async def user_browser_open(body: BrowserOpenBody, user: User = Depends(get_curr
 async def user_browser_snapshot(body: BrowserSessionBody, user: User = Depends(get_current_user)):
     if not _browser_available():
         raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
-    result = await do_browser_snapshot(user.user_id, body.session_id or "default")
+    result = await do_browser_snapshot(user.user_id, body.session_id or "default", fast=body.fast)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Snapshot échoué"))
     return result
@@ -1866,6 +1873,7 @@ async def user_browser_click(body: BrowserClickBody, user: User = Depends(get_cu
     result = await do_browser_click(
         user.user_id, body.session_id or "default",
         ref=body.ref, selector=body.selector, x=body.x, y=body.y,
+        fast=body.fast,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Clic échoué"))
@@ -1884,6 +1892,7 @@ async def user_browser_type(body: BrowserTypeBody, user: User = Depends(get_curr
         selector=body.selector,
         clear=body.clear,
         press_enter=body.press_enter,
+        fast=body.fast,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Saisie échouée"))
@@ -1896,6 +1905,7 @@ async def user_browser_scroll(body: BrowserScrollBody, user: User = Depends(get_
         raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
     result = await do_browser_scroll(
         user.user_id, body.direction, body.amount, body.session_id or "default",
+        fast=body.fast,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Scroll échoué"))
@@ -1913,6 +1923,8 @@ async def user_browser_key(body: BrowserKeyBody, user: User = Depends(get_curren
         body.session_id or "default",
         key=body.key,
         text=body.text,
+        fast=body.fast,
+        snapshot=body.snapshot,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Saisie clavier échouée"))

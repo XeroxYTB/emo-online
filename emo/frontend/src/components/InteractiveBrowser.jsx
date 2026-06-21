@@ -15,7 +15,7 @@ import {
   browserOpen,
   browserScroll,
   browserSnapshot,
-  browserKey,
+  browserKeyFire,
 } from "../lib/browserSession";
 import { mapImageClickToViewport } from "../lib/browserClickCoords";
 import { formatApiError } from "../lib/api";
@@ -26,8 +26,8 @@ const SPECIAL_KEYS = new Set([
   "Home", "End", "PageUp", "PageDown", "Space",
 ]);
 
-const SCROLL_THROTTLE_MS = 200;
-const SCROLL_SLOW_OVERLAY_MS = 400;
+const SCROLL_THROTTLE_MS = 16;
+const KEY_SNAPSHOT_MS = 80;
 
 function mapDomKey(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -70,12 +70,12 @@ export default function InteractiveBrowser({
   const urlInputRef = useRef(null);
   const scrollAccumRef = useRef(0);
   const scrollTimerRef = useRef(null);
-  const scrollSlowTimerRef = useRef(null);
-  const scrollInFlightRef = useRef(false);
+  const scrollPendingRef = useRef(false);
+  const keySnapshotTimerRef = useRef(null);
+  const actionGenRef = useRef(0);
   const [local, setLocal] = useState(frame || null);
-  const [loading, setLoading] = useState(false);
-  const [scrolling, setScrolling] = useState(false);
-  const [scrollSlow, setScrollSlow] = useState(false);
+  const [navigating, setNavigating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [urlInput, setUrlInput] = useState(frame?.url || "");
   const [clickMark, setClickMark] = useState(null);
@@ -112,9 +112,9 @@ export default function InteractiveBrowser({
     [onFrameUpdate],
   );
 
-  const run = useCallback(
+  const runNavigate = useCallback(
     async (fn) => {
-      setLoading(true);
+      setNavigating(true);
       setLoadError("");
       try {
         const next = await fn();
@@ -126,61 +126,74 @@ export default function InteractiveBrowser({
         toast.error(msg);
         return null;
       } finally {
-        setLoading(false);
+        setNavigating(false);
       }
     },
     [applyFrame],
   );
 
-  const runScroll = useCallback(
-    async (direction, amount) => {
-      if (scrollInFlightRef.current) return;
-      scrollInFlightRef.current = true;
-      setScrolling(true);
-      scrollSlowTimerRef.current = setTimeout(() => setScrollSlow(true), SCROLL_SLOW_OVERLAY_MS);
+  const runRefresh = useCallback(
+    async (fn) => {
+      const gen = ++actionGenRef.current;
+      setRefreshing(true);
       try {
-        const next = await browserScroll(sessionId, direction, amount);
-        if (next) applyFrame(next);
+        const next = await fn();
+        if (next && gen === actionGenRef.current) applyFrame(next);
+        return next;
       } catch (e) {
-        toast.error(formatApiError(e, "Défilement échoué"));
+        toast.error(formatApiError(e, "Action navigateur échouée"));
+        return null;
       } finally {
-        clearTimeout(scrollSlowTimerRef.current);
-        setScrollSlow(false);
-        setScrolling(false);
-        scrollInFlightRef.current = false;
+        if (gen === actionGenRef.current) setRefreshing(false);
       }
     },
-    [sessionId, applyFrame],
+    [applyFrame],
+  );
+
+  const scheduleKeySnapshot = useCallback(() => {
+    if (keySnapshotTimerRef.current) clearTimeout(keySnapshotTimerRef.current);
+    keySnapshotTimerRef.current = setTimeout(() => {
+      keySnapshotTimerRef.current = null;
+      runRefresh(() => browserSnapshot(sessionId));
+    }, KEY_SNAPSHOT_MS);
+  }, [runRefresh, sessionId]);
+
+  const runScroll = useCallback(
+    async (direction, amount) => {
+      if (scrollPendingRef.current) return;
+      scrollPendingRef.current = true;
+      try {
+        await runRefresh(() => browserScroll(sessionId, direction, amount));
+      } finally {
+        scrollPendingRef.current = false;
+        if (Math.abs(scrollAccumRef.current) >= 8 && !scrollTimerRef.current) {
+          scrollTimerRef.current = setTimeout(flushScrollAccum, SCROLL_THROTTLE_MS);
+        }
+      }
+    },
+    [sessionId, runRefresh, flushScrollAccum],
   );
 
   const flushScrollAccum = useCallback(() => {
     scrollTimerRef.current = null;
-    if (scrollInFlightRef.current) {
-      scrollTimerRef.current = setTimeout(flushScrollAccum, SCROLL_THROTTLE_MS);
-      return;
-    }
     const delta = scrollAccumRef.current;
     scrollAccumRef.current = 0;
     if (Math.abs(delta) < 8) return;
     const direction = delta > 0 ? "down" : "up";
-    const amount = Math.round(Math.min(Math.abs(delta) * 1.5, 900));
-    runScroll(direction, amount).then(() => {
-      if (Math.abs(scrollAccumRef.current) >= 8 && !scrollTimerRef.current) {
-        scrollTimerRef.current = setTimeout(flushScrollAccum, SCROLL_THROTTLE_MS);
-      }
-    });
+    const amount = Math.round(Math.min(Math.abs(delta) * 1.2, 720));
+    runScroll(direction, amount);
   }, [runScroll]);
 
   const handleWheel = useCallback(
     (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (loading) return;
+      if (navigating) return;
       scrollAccumRef.current += e.deltaY;
       if (scrollTimerRef.current) return;
       scrollTimerRef.current = setTimeout(flushScrollAccum, SCROLL_THROTTLE_MS);
     },
-    [loading, flushScrollAccum],
+    [navigating, flushScrollAccum],
   );
 
   useEffect(() => {
@@ -193,31 +206,29 @@ export default function InteractiveBrowser({
   useEffect(() => {
     return () => {
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-      if (scrollSlowTimerRef.current) clearTimeout(scrollSlowTimerRef.current);
+      if (keySnapshotTimerRef.current) clearTimeout(keySnapshotTimerRef.current);
     };
   }, []);
 
   useEffect(() => {
-    if (!autoOpen || !pageUrl || hasValidScreenshot(local) || loading || autoOpenedRef.current) return;
+    if (!autoOpen || !pageUrl || hasValidScreenshot(local) || navigating || autoOpenedRef.current) return;
     autoOpenedRef.current = true;
-    run(() => browserOpen(pageUrl, sessionId));
-  }, [autoOpen, pageUrl, local?.screenshot_base64, loading, run, sessionId]);
+    runNavigate(() => browserOpen(pageUrl, sessionId));
+  }, [autoOpen, pageUrl, local?.screenshot_base64, navigating, runNavigate, sessionId]);
 
   const handleKeyDown = useCallback(
     (e) => {
-      if (!keyboardFocused || loading) return;
+      if (!keyboardFocused || navigating) return;
       if (urlInputRef.current && document.activeElement === urlInputRef.current) return;
       const mapped = mapDomKey(e);
       if (!mapped) return;
       e.preventDefault();
       e.stopPropagation();
-      if (typeof mapped === "string") {
-        run(() => browserKey(sessionId, { key: mapped }));
-      } else {
-        run(() => browserKey(sessionId, { text: mapped.text }));
-      }
+      const payload = typeof mapped === "string" ? { key: mapped } : { text: mapped.text };
+      browserKeyFire(sessionId, payload).catch(() => {});
+      scheduleKeySnapshot();
     },
-    [keyboardFocused, loading, run, sessionId],
+    [keyboardFocused, navigating, sessionId, scheduleKeySnapshot],
   );
 
   useEffect(() => {
@@ -239,7 +250,7 @@ export default function InteractiveBrowser({
     : null;
 
   const handleScreenshotClick = (e) => {
-    if (loading || !imgRef.current) return;
+    if (navigating || !imgRef.current) return;
     containerRef.current?.focus();
     const coords = mapImageClickToViewport(
       imgRef.current,
@@ -255,8 +266,10 @@ export default function InteractiveBrowser({
       y: e.clientY - rect.top,
     });
     setTimeout(() => setClickMark(null), 600);
-    run(() => browserClickAt(coords.x, coords.y, sessionId));
+    runRefresh(() => browserClickAt(coords.x, coords.y, sessionId));
   };
+
+  const busy = navigating;
 
   const toolbarBtn =
     "p-1 rounded-md em-hover-subtle flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none transition-opacity";
@@ -284,12 +297,12 @@ export default function InteractiveBrowser({
         <button
           type="button"
           title="Actualiser"
-          disabled={loading}
-          onClick={() => run(() => browserSnapshot(sessionId))}
+          disabled={busy}
+          onClick={() => runRefresh(() => browserSnapshot(sessionId))}
           className={toolbarBtn}
         >
-          {loading ? (
-            <Loader2 size={13} className="animate-spin" style={{ color: "var(--emo-text-muted)" }} />
+          {refreshing ? (
+            <Loader2 size={13} className="animate-spin" style={{ color: "var(--mode-color)" }} />
           ) : (
             <RefreshCw size={13} style={{ color: "var(--emo-text-muted)" }} />
           )}
@@ -315,7 +328,7 @@ export default function InteractiveBrowser({
             onKeyDown={(e) => {
               e.stopPropagation();
               if (e.key === "Enter" && urlInput.trim()) {
-                run(() => browserOpen(urlInput.trim(), sessionId));
+                runNavigate(() => browserOpen(urlInput.trim(), sessionId));
               }
             }}
             onFocus={() => setKeyboardFocused(false)}
@@ -323,7 +336,7 @@ export default function InteractiveBrowser({
             title={local?.title || pageUrl}
             className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[10px] font-code truncate"
             style={{ color: "var(--emo-text)" }}
-            disabled={loading}
+            disabled={busy}
           />
         </div>
 
@@ -344,8 +357,8 @@ export default function InteractiveBrowser({
         <button
           type="button"
           title="Défiler vers le haut"
-          disabled={loading}
-          onClick={() => runScroll("up", 600)}
+          disabled={busy}
+          onClick={() => runScroll("up", 480)}
           className={toolbarBtn}
         >
           <ArrowUp size={13} style={{ color: "var(--emo-text-muted)" }} />
@@ -353,8 +366,8 @@ export default function InteractiveBrowser({
         <button
           type="button"
           title="Défiler vers le bas"
-          disabled={loading}
-          onClick={() => runScroll("down", 600)}
+          disabled={busy}
+          onClick={() => runScroll("down", 480)}
           className={toolbarBtn}
         >
           <ArrowDown size={13} style={{ color: "var(--emo-text-muted)" }} />
@@ -401,7 +414,7 @@ export default function InteractiveBrowser({
               maxHeight: compact ? 280 : 520,
               objectFit: "contain",
               objectPosition: "top",
-              cursor: loading ? "wait" : "crosshair",
+              cursor: busy ? "wait" : "crosshair",
             }}
             draggable={false}
           />
@@ -418,18 +431,12 @@ export default function InteractiveBrowser({
               }}
             />
           )}
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-              <Loader2 size={28} className="animate-spin text-white" />
-            </div>
-          )}
-          {scrollSlow && scrolling && !loading && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 py-1 rounded-full pointer-events-none"
-              style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
-            >
-              <Loader2 size={11} className="animate-spin" />
-              <span className="text-[9px]">Défilement…</span>
-            </div>
+          {refreshing && (
+            <div
+              className="absolute top-2 left-2 w-1.5 h-1.5 rounded-full pointer-events-none animate-pulse"
+              style={{ background: "var(--mode-color)" }}
+              aria-hidden
+            />
           )}
         </div>
       ) : (
@@ -441,7 +448,7 @@ export default function InteractiveBrowser({
             boxShadow: "inset 0 2px 8px rgba(0,0,0,0.08)",
           }}
         >
-          {loading ? (
+          {navigating ? (
             <>
               <Loader2 size={32} className="animate-spin" style={{ color: "var(--mode-color)" }} />
               <p className="text-xs" style={{ color: "var(--emo-text-muted)" }}>Chargement du navigateur…</p>
@@ -456,7 +463,7 @@ export default function InteractiveBrowser({
                   type="button"
                   onClick={() => {
                     autoOpenedRef.current = false;
-                    run(() => browserOpen(pageUrl, sessionId));
+                    runNavigate(() => browserOpen(pageUrl, sessionId));
                   }}
                   className="text-[11px] px-3 py-1.5 rounded-lg font-medium"
                   style={{ background: "var(--mode-color)", color: "var(--emo-on-mode)" }}

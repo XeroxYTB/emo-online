@@ -22,6 +22,8 @@ SESSION_TTL_SEC = 300
 MAX_SESSIONS_PER_USER = 3
 MAX_ELEMENTS = 45
 MAX_TEXT = 6000
+FAST_SETTLE_SEC = 0.04
+AGENT_SETTLE_SEC = 0.35
 
 
 class _Session:
@@ -124,70 +126,81 @@ class BrowserController:
         self._sessions[key] = sess
         return sess
 
-    async def _snapshot(self, page: "Page", session_id: str) -> dict[str, Any]:
+    async def _snapshot(self, page: "Page", session_id: str, *, fast: bool = False) -> dict[str, Any]:
         url = page.url
         title = await page.title()
         elements: list[dict] = []
-        try:
-            elements = await page.evaluate(
-                """() => {
-                    const out = [];
-                    let ref = 0;
-                    const sel = 'a, button, input, textarea, select, [role=button], [onclick]';
-                    for (const el of document.querySelectorAll(sel)) {
-                        if (!el || el.offsetParent === null) continue;
-                        const tag = el.tagName.toLowerCase();
-                        const text = (
-                            el.innerText || el.value || el.placeholder ||
-                            el.getAttribute('aria-label') || el.name || ''
-                        ).trim().slice(0, 100);
-                        if (!text && !['input', 'textarea', 'select'].includes(tag)) continue;
-                        ref += 1;
-                        el.setAttribute('data-emo-ref', String(ref));
-                        out.push({
-                            ref,
-                            tag,
-                            text: text || `[${tag}]`,
-                            type: el.type || null,
-                            href: el.href ? el.href.slice(0, 200) : null,
-                        });
-                        if (out.length >= 45) break;
-                    }
-                    return out;
-                }"""
-            )
-        except Exception as e:
-            logger.warning("snapshot elements: %s", e)
-
         text = ""
-        try:
-            text = (await page.inner_text("body"))[:MAX_TEXT]
-        except Exception:
-            pass
+
+        if not fast:
+            try:
+                elements = await page.evaluate(
+                    """() => {
+                        const out = [];
+                        let ref = 0;
+                        const sel = 'a, button, input, textarea, select, [role=button], [onclick]';
+                        for (const el of document.querySelectorAll(sel)) {
+                            if (!el || el.offsetParent === null) continue;
+                            const tag = el.tagName.toLowerCase();
+                            const text = (
+                                el.innerText || el.value || el.placeholder ||
+                                el.getAttribute('aria-label') || el.name || ''
+                            ).trim().slice(0, 100);
+                            if (!text && !['input', 'textarea', 'select'].includes(tag)) continue;
+                            ref += 1;
+                            el.setAttribute('data-emo-ref', String(ref));
+                            out.push({
+                                ref,
+                                tag,
+                                text: text || `[${tag}]`,
+                                type: el.type || null,
+                                href: el.href ? el.href.slice(0, 200) : null,
+                            });
+                            if (out.length >= 45) break;
+                        }
+                        return out;
+                    }"""
+                )
+            except Exception as e:
+                logger.warning("snapshot elements: %s", e)
+
+            try:
+                text = (await page.inner_text("body"))[:MAX_TEXT]
+            except Exception:
+                pass
 
         screenshot_b64 = None
         vp = page.viewport_size or {"width": 1280, "height": 900}
         try:
-            raw = await page.screenshot(type="jpeg", quality=55, full_page=False)
+            quality = 42 if fast else 55
+            raw = await page.screenshot(type="jpeg", quality=quality, full_page=False)
             if len(raw) < 400_000:
                 screenshot_b64 = base64.b64encode(raw).decode("ascii")
         except Exception as e:
             logger.warning("screenshot: %s", e)
 
-        return {
+        out: dict[str, Any] = {
             "ok": True,
             "session_id": session_id or "default",
             "url": url,
             "title": title,
-            "text": text,
-            "elements": elements[:MAX_ELEMENTS],
             "screenshot_base64": screenshot_b64,
             "viewport_width": int(vp.get("width") or 1280),
             "viewport_height": int(vp.get("height") or 900),
-            "hint": "browser_click(ref=N|x,y) · browser_type(ref=N, text=...) · browser_snapshot()",
         }
+        if not fast:
+            out["text"] = text
+            out["elements"] = elements[:MAX_ELEMENTS]
+            out["hint"] = "browser_click(ref=N|x,y) · browser_type(ref=N, text=...) · browser_snapshot()"
+        return out
 
-    async def open(self, user_id: str, url: str, session_id: str = "default") -> dict[str, Any]:
+    async def _settle(self, page: "Page", *, fast: bool) -> None:
+        if fast:
+            await asyncio.sleep(FAST_SETTLE_SEC)
+            return
+        await asyncio.sleep(AGENT_SETTLE_SEC)
+
+    async def open(self, user_id: str, url: str, session_id: str = "default", *, fast: bool = False) -> dict[str, Any]:
         from web_tools import normalize_url
 
         url = normalize_url(url)
@@ -196,23 +209,26 @@ class BrowserController:
         sess = await self._get_session(user_id, session_id)
         try:
             await sess.page.goto(url, wait_until="domcontentloaded", timeout=45000)
-            try:
-                await sess.page.wait_for_load_state("networkidle", timeout=8000)
-            except Exception:
-                pass
-            await asyncio.sleep(1.0)
+            if not fast:
+                try:
+                    await sess.page.wait_for_load_state("networkidle", timeout=8000)
+                except Exception:
+                    pass
+                await asyncio.sleep(0.8)
+            else:
+                await asyncio.sleep(0.12)
         except Exception as e:
             return {"ok": False, "error": f"Navigation échouée: {e}", "url": url}
-        snap = await self._snapshot(sess.page, session_id)
+        snap = await self._snapshot(sess.page, session_id, fast=fast)
         snap["action"] = "navigate"
         return snap
 
-    async def snapshot(self, user_id: str, session_id: str = "default") -> dict[str, Any]:
+    async def snapshot(self, user_id: str, session_id: str = "default", *, fast: bool = False) -> dict[str, Any]:
         try:
             sess = await self._get_session(user_id, session_id, create=False)
         except RuntimeError as e:
             return {"ok": False, "error": str(e)}
-        snap = await self._snapshot(sess.page, session_id)
+        snap = await self._snapshot(sess.page, session_id, fast=fast)
         snap["action"] = "snapshot"
         return snap
 
@@ -224,26 +240,29 @@ class BrowserController:
         selector: Optional[str] = None,
         x: Optional[float] = None,
         y: Optional[float] = None,
+        *,
+        fast: bool = False,
     ) -> dict[str, Any]:
         try:
             sess = await self._get_session(user_id, session_id, create=False)
         except RuntimeError as e:
             return {"ok": False, "error": str(e)}
         page = sess.page
+        click_timeout = 5000 if fast else 12000
         try:
             if x is not None and y is not None:
                 await page.mouse.click(float(x), float(y))
             elif ref is not None:
                 loc = page.locator(f'[data-emo-ref="{int(ref)}"]')
-                await loc.first.click(timeout=12000)
+                await loc.first.click(timeout=click_timeout)
             elif selector:
-                await page.click(selector, timeout=12000)
+                await page.click(selector, timeout=click_timeout)
             else:
                 return {"ok": False, "error": "Indique x,y ou ref ou selector CSS."}
-            await asyncio.sleep(0.5)
+            await self._settle(page, fast=fast)
         except Exception as e:
             return {"ok": False, "error": f"Clic échoué: {e}"}
-        snap = await self._snapshot(page, session_id)
+        snap = await self._snapshot(page, session_id, fast=fast)
         snap["action"] = "click"
         snap["clicked_ref"] = ref
         snap["clicked_selector"] = selector
@@ -261,37 +280,41 @@ class BrowserController:
         selector: Optional[str] = None,
         clear: bool = False,
         press_enter: bool = False,
+        *,
+        fast: bool = False,
     ) -> dict[str, Any]:
         try:
             sess = await self._get_session(user_id, session_id, create=False)
         except RuntimeError as e:
             return {"ok": False, "error": str(e)}
         page = sess.page
+        type_timeout = 5000 if fast else 12000
+        key_delay = 0 if fast else 20
         try:
             if ref is not None:
                 loc = page.locator(f'[data-emo-ref="{int(ref)}"]')
                 if clear:
-                    await loc.first.fill(text, timeout=12000)
+                    await loc.first.fill(text, timeout=type_timeout)
                 else:
-                    await loc.first.click(timeout=12000)
-                    await loc.first.type(text, timeout=12000)
+                    await loc.first.click(timeout=type_timeout)
+                    await loc.first.type(text, timeout=type_timeout, delay=key_delay)
             elif selector:
                 loc = page.locator(selector)
                 if clear:
-                    await loc.first.fill(text, timeout=12000)
+                    await loc.first.fill(text, timeout=type_timeout)
                 else:
-                    await loc.first.click(timeout=12000)
-                    await loc.first.type(text, timeout=12000)
+                    await loc.first.click(timeout=type_timeout)
+                    await loc.first.type(text, timeout=type_timeout, delay=key_delay)
             elif text:
-                await page.keyboard.type(text, delay=20)
+                await page.keyboard.type(text, delay=key_delay)
             else:
                 return {"ok": False, "error": "Indique ref, selector, ou text seul (clavier page)."}
             if press_enter:
                 await page.keyboard.press("Enter")
-            await asyncio.sleep(0.4)
+            await self._settle(page, fast=fast)
         except Exception as e:
             return {"ok": False, "error": f"Saisie échouée: {e}"}
-        snap = await self._snapshot(page, session_id)
+        snap = await self._snapshot(page, session_id, fast=fast)
         snap["action"] = "type"
         return snap
 
@@ -301,6 +324,8 @@ class BrowserController:
         direction: str = "down",
         amount: int = 600,
         session_id: str = "default",
+        *,
+        fast: bool = False,
     ) -> dict[str, Any]:
         try:
             sess = await self._get_session(user_id, session_id, create=False)
@@ -309,24 +334,24 @@ class BrowserController:
         delta = amount if direction.lower() != "up" else -amount
         try:
             await sess.page.mouse.wheel(0, delta)
-            await asyncio.sleep(0.3)
+            await self._settle(sess.page, fast=fast)
         except Exception as e:
             return {"ok": False, "error": f"Scroll échoué: {e}"}
-        snap = await self._snapshot(sess.page, session_id)
+        snap = await self._snapshot(sess.page, session_id, fast=fast)
         snap["action"] = "scroll"
         return snap
 
-    async def press_key(self, user_id: str, key: str, session_id: str = "default") -> dict[str, Any]:
+    async def press_key(self, user_id: str, key: str, session_id: str = "default", *, fast: bool = False) -> dict[str, Any]:
         try:
             sess = await self._get_session(user_id, session_id, create=False)
         except RuntimeError as e:
             return {"ok": False, "error": str(e)}
         try:
             await sess.page.keyboard.press(key)
-            await asyncio.sleep(0.3)
+            await self._settle(sess.page, fast=fast)
         except Exception as e:
             return {"ok": False, "error": f"Touche échouée: {e}"}
-        snap = await self._snapshot(sess.page, session_id)
+        snap = await self._snapshot(sess.page, session_id, fast=fast)
         snap["action"] = "press"
         return snap
 
@@ -337,6 +362,9 @@ class BrowserController:
         *,
         key: Optional[str] = None,
         text: Optional[str] = None,
+        *,
+        fast: bool = False,
+        snapshot: bool = True,
     ) -> dict[str, Any]:
         """Saisie clavier directe sur la page (focus utilisateur sur la capture)."""
         try:
@@ -344,19 +372,23 @@ class BrowserController:
         except RuntimeError as e:
             return {"ok": False, "error": str(e)}
         try:
+            key_delay = 0 if fast else 15
             if text:
-                await sess.page.keyboard.type(text, delay=15)
+                await sess.page.keyboard.type(text, delay=key_delay)
             elif key:
                 if len(key) == 1:
-                    await sess.page.keyboard.type(key, delay=15)
+                    await sess.page.keyboard.type(key, delay=key_delay)
                 else:
                     await sess.page.keyboard.press(key)
             else:
                 return {"ok": False, "error": "Indique key ou text."}
-            await asyncio.sleep(0.25)
+            if snapshot:
+                await self._settle(sess.page, fast=fast)
         except Exception as e:
             return {"ok": False, "error": f"Saisie clavier échouée: {e}"}
-        snap = await self._snapshot(sess.page, session_id)
+        if not snapshot:
+            return {"ok": True, "session_id": session_id or "default", "action": "keyboard"}
+        snap = await self._snapshot(sess.page, session_id, fast=fast)
         snap["action"] = "keyboard"
         return snap
 
@@ -374,12 +406,12 @@ class BrowserController:
 browser_controller = BrowserController()
 
 
-async def browser_open(user_id: str, url: str, session_id: str = "default") -> dict:
-    return await browser_controller.open(user_id, url, session_id)
+async def browser_open(user_id: str, url: str, session_id: str = "default", *, fast: bool = False) -> dict:
+    return await browser_controller.open(user_id, url, session_id, fast=fast)
 
 
-async def browser_snapshot(user_id: str, session_id: str = "default") -> dict:
-    return await browser_controller.snapshot(user_id, session_id)
+async def browser_snapshot(user_id: str, session_id: str = "default", *, fast: bool = False) -> dict:
+    return await browser_controller.snapshot(user_id, session_id, fast=fast)
 
 
 async def browser_click(
@@ -389,9 +421,11 @@ async def browser_click(
     selector: Optional[str] = None,
     x: Optional[float] = None,
     y: Optional[float] = None,
+    *,
+    fast: bool = False,
 ) -> dict:
     return await browser_controller.click(
-        user_id, session_id, ref=ref, selector=selector, x=x, y=y,
+        user_id, session_id, ref=ref, selector=selector, x=x, y=y, fast=fast,
     )
 
 
@@ -403,9 +437,11 @@ async def browser_type(
     selector: Optional[str] = None,
     clear: bool = False,
     press_enter: bool = False,
+    *,
+    fast: bool = False,
 ) -> dict:
     return await browser_controller.type_text(
-        user_id, text, session_id, ref=ref, selector=selector, clear=clear, press_enter=press_enter,
+        user_id, text, session_id, ref=ref, selector=selector, clear=clear, press_enter=press_enter, fast=fast,
     )
 
 
@@ -414,12 +450,14 @@ async def browser_scroll(
     direction: str = "down",
     amount: int = 600,
     session_id: str = "default",
+    *,
+    fast: bool = False,
 ) -> dict:
-    return await browser_controller.scroll(user_id, direction, amount, session_id)
+    return await browser_controller.scroll(user_id, direction, amount, session_id, fast=fast)
 
 
-async def browser_press(user_id: str, key: str, session_id: str = "default") -> dict:
-    return await browser_controller.press_key(user_id, key, session_id)
+async def browser_press(user_id: str, key: str, session_id: str = "default", *, fast: bool = False) -> dict:
+    return await browser_controller.press_key(user_id, key, session_id, fast=fast)
 
 
 async def browser_keyboard(
@@ -428,8 +466,12 @@ async def browser_keyboard(
     *,
     key: Optional[str] = None,
     text: Optional[str] = None,
+    fast: bool = False,
+    snapshot: bool = True,
 ) -> dict:
-    return await browser_controller.keyboard_input(user_id, session_id, key=key, text=text)
+    return await browser_controller.keyboard_input(
+        user_id, session_id, key=key, text=text, fast=fast, snapshot=snapshot,
+    )
 
 
 async def browser_close(user_id: str, session_id: str = "default") -> dict:
