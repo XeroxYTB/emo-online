@@ -71,6 +71,8 @@ from llm_config import (
 )
 import google_auth
 from image_tools import generate_image as do_generate_image, GENERATE_IMAGE_TOOL
+from site_intent import is_full_site_request, resolve_site_output_dir
+from site_builder import build_sales_site
 from llm_health import refresh_probe_cache, mark_provider_ok, mark_provider_failed
 
 
@@ -2645,6 +2647,108 @@ async def chat_stream(
                 })
                 return
 
+            # Site e-commerce clé en main → génération pro (HTML + CSS + JS)
+            if is_full_site_request(body.content):
+                site = build_sales_site(body.content)
+                out_dir = resolve_site_output_dir(body.content, agent_context)
+                site_tool_log: list[dict] = []
+                written_ok = 0
+                for fname, fcontent in site["files"].items():
+                    fpath = f"{out_dir}\\{fname}" if "\\" in out_dir else f"{out_dir}/{fname}"
+                    tc_id = f"call_{uuid.uuid4().hex[:12]}"
+                    yield _sse({"type": "tool_start", "id": tc_id, "name": "write_file"})
+                    yield _sse({
+                        "type": "tool_executing",
+                        "id": tc_id, "name": "write_file",
+                        "arguments": {"path": fpath},
+                    })
+                    if use_agent_mode and effective_agent_online:
+                        try:
+                            wf = await asyncio.wait_for(
+                                execute_tool(
+                                    user.user_id, "write_file",
+                                    {"path": fpath, "content": fcontent},
+                                    is_owner=is_owner,
+                                    allow_local_agent=use_agent_mode,
+                                ),
+                                timeout=45.0,
+                            )
+                        except asyncio.TimeoutError:
+                            wf = {"ok": False, "error": "Écriture timeout."}
+                    else:
+                        wf = {"ok": True, "path": fpath, "content": fcontent}
+                    site_tool_log.append({
+                        "id": tc_id, "name": "write_file",
+                        "arguments": {"path": fpath, "content": fcontent},
+                        "result": wf,
+                    })
+                    yield _sse({
+                        "type": "tool_result",
+                        "id": tc_id, "name": "write_file",
+                        "result": _shrink_for_ui(wf),
+                    })
+                    fp_evt = _file_preview_sse("write_file", {"path": fpath, "content": fcontent}, wf)
+                    if fp_evt:
+                        yield _sse(fp_evt)
+                    if wf.get("ok"):
+                        written_ok += 1
+
+                if written_ok == len(site["files"]):
+                    reply = (
+                        f"**Site e-commerce clé en main** — **{site['title']}** créé avec succès.\n\n"
+                        f"📁 `{out_dir}`\n"
+                        f"- `index.html` — page complète (hero, produits, avantages, contact)\n"
+                        f"- `style.css` — design moderne responsive\n"
+                        f"- `script.js` — panier, menu mobile, formulaires\n\n"
+                        f"Ouvre `index.html` dans ton navigateur. "
+                        f"Dis-moi ce que tu veux modifier (couleurs, textes, produits)."
+                    )
+                elif use_agent_mode and not effective_agent_online:
+                    reply = (
+                        f"Site généré dans l'aperçu ci-dessous. "
+                        f"**Active l'agent local** (mode Agent) pour écrire sur ton PC dans `{out_dir}`."
+                    )
+                else:
+                    reply = (
+                        f"Site partiellement écrit ({written_ok}/{len(site['files'])} fichiers). "
+                        f"Vérifie les permissions du dossier `{out_dir}`."
+                    )
+                now_site = datetime.now(timezone.utc).isoformat()
+                assistant_msg = {
+                    "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+                    "conversation_id": body.conversation_id,
+                    "user_id": user.user_id,
+                    "role": "emo", "content": reply,
+                    "mode": mode, "mood": "enthousiaste", "verified": written_ok == len(site["files"]),
+                    "tool_calls": [
+                        {
+                            "name": t["name"],
+                            "arguments": {"path": t["arguments"].get("path")},
+                            "result_summary": _summarize_result(t["result"]),
+                        }
+                        for t in site_tool_log
+                    ],
+                    "created_at": now_site,
+                }
+                await db.messages.insert_one(assistant_msg)
+                update = {"updated_at": now_site, "mode": mode}
+                if conv.get("title") in (None, "", "Nouvelle conversation") and len(history) <= 1:
+                    update["title"] = f"Site {site['title']}"[:60]
+                await db.conversations.update_one(
+                    {"conversation_id": body.conversation_id}, {"$set": update}
+                )
+                yield _sse({"type": "delta", "content": reply})
+                yield _sse({
+                    "type": "done",
+                    "mood": "enthousiaste",
+                    "verified": written_ok == len(site["files"]),
+                    "message_id": assistant_msg["message_id"],
+                    "title": update.get("title"),
+                    "tool_calls": assistant_msg["tool_calls"],
+                    "model_label": "site_builder",
+                })
+                return
+
             # « ouvres ytb » → browser_open interactif (Playwright) si dispo
             open_url = resolve_open_site_url(body.content) if use_tools else None
             simple_open = bool(open_url and is_simple_open_request(body.content))
@@ -2758,7 +2862,9 @@ async def chat_stream(
                 if is_owner and use_agent_mode:
                     tool_set = tool_set + EMO_SELF_TOOLS
                 if not use_agent_mode and not resolve_open_site_url(body.content):
-                    if re.search(
+                    if is_full_site_request(body.content):
+                        pass  # géré par site_builder avant la boucle LLM
+                    elif re.search(
                         r"\b(html|htm|code|fichier|crée|créer|ecris|écris|page web|script)\b",
                         body.content or "",
                         re.I,

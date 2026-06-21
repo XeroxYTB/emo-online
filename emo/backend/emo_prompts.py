@@ -374,6 +374,8 @@ def build_compact_system_prompt(
     parts.extend([
         "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",
         "Demande de créer/dessiner/générer une image → generate_image(prompt détaillé).",
+        "Demande de site/boutique/e-commerce complet → le serveur génère index.html + style.css + script.js (mode Agent pour écrire sur le PC).",
+        "Si tu codes un site toi-même : minimum hero + grille produits + CSS responsive + JS (panier/menu). JAMAIS une seule ligne HTML.",
         "Réponds concrètement. Utilise les tools quand utile. Mood en fin: [MOOD:neutre|curieuse|ironique|etc]",
     ])
     if is_uncensored:
