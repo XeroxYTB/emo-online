@@ -1,16 +1,40 @@
-import React from "react";
-import { Globe, FileCode2 } from "lucide-react";
+import React, { useState } from "react";
+import { Globe, FileCode2, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import SquarePreviewFrame from "./SquarePreviewFrame";
 import SearchResultPreview from "./SearchResultPreview";
 import InteractiveBrowser from "./InteractiveBrowser";
+import LiveHtmlPreview from "./LiveHtmlPreview";
 import { resolveToolPreview } from "../lib/resolveToolPreview";
+import { normalizeFilePath } from "../lib/filePreview";
 
 /** Bulle d'aperçu dans le chat — navigateur interactif inline pour les sites web. */
-export default function ChatPreviewBubble({ event, className = "" }) {
+export default function ChatPreviewBubble({ event, className = "", liveHtmlByPath = {} }) {
   const data = resolveToolPreview(event);
+  const [copied, setCopied] = useState(false);
   if (!data) return null;
 
+  const liveHtmlContent =
+    data.kind === "html" && data.path
+      ? liveHtmlByPath[normalizeFilePath(data.path)] ?? liveHtmlByPath[data.path] ?? data.fullContent
+      : data.fullContent;
+
   const isBrowser = data.kind === "interactive";
+  const copyContent =
+    data.kind === "html" ? liveHtmlContent || data.fullContent : data.fullContent;
+  const canCopy = (data.kind === "text" || data.kind === "html") && copyContent;
+
+  const handleCopy = async () => {
+    if (!copyContent) return;
+    try {
+      await navigator.clipboard.writeText(copyContent);
+      setCopied(true);
+      toast.success("Code copié");
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Copie impossible");
+    }
+  };
 
   return (
     <div
@@ -42,6 +66,18 @@ export default function ChatPreviewBubble({ event, className = "" }) {
             ? data.title || data.url?.replace(/^https?:\/\//, "") || "Navigateur"
             : data.title || data.url || "Aperçu"}
         </span>
+        {canCopy && (
+          <button
+            type="button"
+            data-testid="chat-copy-code-btn"
+            title="Copier tout le code"
+            onClick={handleCopy}
+            className="p-1 rounded-md em-hover-subtle flex-shrink-0"
+            style={{ color: "var(--emo-text-muted)" }}
+          >
+            {copied ? <Check size={12} /> : <Copy size={12} />}
+          </button>
+        )}
       </div>
 
       <div className={isBrowser ? "p-1.5" : "p-2"}>
@@ -77,13 +113,11 @@ export default function ChatPreviewBubble({ event, className = "" }) {
         )}
 
         {data.kind === "html" && (
-          <SquarePreviewFrame
-            kind="iframe"
-            url={data.htmlUrl}
+          <LiveHtmlPreview
+            path={data.path}
             title={data.title}
-            subtitle={data.path}
-            testId="bubble-html-preview"
-            className="max-w-none w-full"
+            content={liveHtmlContent || ""}
+            compact={false}
           />
         )}
 

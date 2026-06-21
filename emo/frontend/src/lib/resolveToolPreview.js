@@ -18,6 +18,27 @@ export function hasToolPreview(event) {
   return Boolean(resolveToolPreview(event));
 }
 
+/** Contenu fichier complet pour copie (priorité SSE > args > result). */
+export function resolveFullCopyContent(event) {
+  const preview = event?.inlinePreview;
+  const result = event?.result;
+  const args = event?.args || {};
+  const tool = event?.tool;
+
+  if (preview?.preview) return preview.preview;
+  if (tool === "write_file" || tool === "edit_file") {
+    if (args.content) return args.content;
+  }
+  if (result?.content) return result.content;
+  return "";
+}
+
+function enrichWithFullContent(data, event) {
+  if (!data || (data.kind !== "text" && data.kind !== "html")) return data;
+  const copyContent = resolveFullCopyContent(event);
+  return copyContent ? { ...data, fullContent: copyContent } : data;
+}
+
 /** Résout les données d'aperçu pour fichier, HTML, site, capture. */
 export function resolveToolPreview(event) {
   const preview = event?.inlinePreview;
@@ -48,7 +69,10 @@ export function resolveToolPreview(event) {
   }
 
   if (preview?.type === "file") {
-    return resolveFilePreview(preview.path, preview.preview, preview.is_image);
+    return enrichWithFullContent(
+      resolveFilePreview(preview.path, preview.preview, preview.is_image),
+      event
+    );
   }
 
   if (preview?.type === "image" && preview.src) {
@@ -83,7 +107,9 @@ export function resolveToolPreview(event) {
       tool === "write_file" || tool === "edit_file"
         ? (args.content || result.content || preview?.preview || "")
         : (result.content || preview?.preview || "");
-    if (path && content) return resolveFilePreview(path, content);
+    if (path && content) {
+      return enrichWithFullContent(resolveFilePreview(path, content), event);
+    }
   }
 
   if (BROWSER_TOOLS.includes(tool)) {
@@ -137,6 +163,7 @@ function resolveFilePreview(path, content, isImage) {
       htmlUrl: htmlPreviewUrl(content),
       title: path.split(/[/\\]/).pop(),
       path,
+      fullContent: content,
     };
   }
   if (content.length > 20) {
@@ -145,6 +172,7 @@ function resolveFilePreview(path, content, isImage) {
       text: previewTextSnippet(content, 1200),
       title: path.split(/[/\\]/).pop(),
       path,
+      fullContent: content,
     };
   }
   return null;
