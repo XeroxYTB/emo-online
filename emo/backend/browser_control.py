@@ -362,7 +362,6 @@ class BrowserController:
         *,
         key: Optional[str] = None,
         text: Optional[str] = None,
-        *,
         fast: bool = False,
         snapshot: bool = True,
     ) -> dict[str, Any]:
