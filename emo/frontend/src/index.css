@@ -40,6 +40,7 @@
   --emo-transition-slow: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   --emo-transition-panel: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* Layering: overlay (40) < drawer (50) < profile (55) < modal (60) < toast (70) */
   --emo-z-base: 0;
   --emo-z-sticky: 10;
   --emo-z-header: 20;
