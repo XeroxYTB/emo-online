@@ -1,4 +1,4 @@
-import { isImagePath, previewTextSnippet } from "../components/SquarePreviewFrame";
+import { isImagePath, previewTextSnippet } from "./previewHelpers";
 import { htmlPreviewUrl, isHtmlPath } from "./filePreview";
 import { getApiBase } from "./api";
 

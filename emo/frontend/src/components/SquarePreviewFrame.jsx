@@ -4,6 +4,7 @@ import { Globe, FileText, Image as ImageIcon, Copy, Check, Download } from "luci
 import { toast } from "sonner";
 import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
 import { copyImageFromSrc, downloadImageFromSrc } from "../lib/imageExport";
+import { isImagePath, previewTextSnippet } from "../lib/previewHelpers";
 
 /**
  * Cadre carré réutilisable pour aperçus site / fichier.
@@ -194,13 +195,4 @@ export default function SquarePreviewFrame({
   );
 }
 
-export function isImagePath(path = "") {
-  const ext = path.split(".").pop()?.toLowerCase() || "";
-  return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"].includes(ext);
-}
-
-export function previewTextSnippet(content = "", max = 900) {
-  const t = (content || "").replace(/\r\n/g, "\n").trim();
-  if (!t) return "";
-  return t.length > max ? `${t.slice(0, max)}…` : t;
-}
+export { isImagePath, previewTextSnippet } from "../lib/previewHelpers";
