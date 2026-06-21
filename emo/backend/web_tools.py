@@ -77,6 +77,25 @@ def _site_title(url: str) -> str:
     return host.split(".")[0].capitalize() if host else "Site web"
 
 
+def _youtube_video_id(url: str) -> str | None:
+    try:
+        from urllib.parse import urlparse, parse_qs
+        p = urlparse(url)
+        host = (p.netloc or "").lower()
+        if "youtu.be" in host:
+            vid = p.path.lstrip("/").split("/")[0]
+            return vid or None
+        if "youtube.com" in host:
+            if p.path == "/watch":
+                return (parse_qs(p.query).get("v") or [None])[0]
+            m = re.match(r"^/(embed|shorts|v)/([^/?]+)", p.path)
+            if m:
+                return m.group(2)
+    except Exception:
+        pass
+    return None
+
+
 def _synthetic_browser_visit(url: str, *, note: str = "") -> dict:
     """Aperçu fiable quand le fetch HTTP échoue (YouTube, réseaux sociaux, etc.)."""
     url = normalize_url(url)
@@ -84,10 +103,14 @@ def _synthetic_browser_visit(url: str, *, note: str = "") -> dict:
     host = _domain(url)
     favicon = f"https://www.google.com/s2/favicons?domain={host}&sz=128" if host else ""
     images = [{"url": favicon, "alt": title}] if favicon else []
-    preview = (
-        f"{title} — ce site bloque la lecture automatique depuis le serveur. "
-        f"Utilise le bouton **Ouvrir** pour l'afficher dans ton navigateur."
-    )
+    vid = _youtube_video_id(url)
+    if vid:
+        preview = f"{title} — vidéo prête à lire dans le navigateur intégré."
+    else:
+        preview = (
+            f"{title} — ce site bloque la lecture automatique depuis le serveur. "
+            f"Utilise le bouton **Ouvrir** pour l'afficher dans ton navigateur."
+        )
     out = {
         "ok": True,
         "url": url,
@@ -96,9 +119,12 @@ def _synthetic_browser_visit(url: str, *, note: str = "") -> dict:
         "preview": preview,
         "links": [{"text": f"Ouvrir {title}", "url": url}],
         "images": images,
-        "embed_blocked": True,
-        "hint": "Site ouvert en mode aperçu externe.",
+        "embed_blocked": not bool(vid),
+        "hint": "Site ouvert en mode aperçu externe." if not vid else "Vidéo YouTube — lecteur embed.",
     }
+    if vid:
+        out["youtube_video_id"] = vid
+        out["embed_url"] = f"https://www.youtube-nocookie.com/embed/{vid}?rel=0&modestbranding=1&playsinline=1"
     if note:
         out["fetch_note"] = note[:200]
     return out

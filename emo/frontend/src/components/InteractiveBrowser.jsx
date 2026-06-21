@@ -19,6 +19,8 @@ import {
 } from "../lib/browserSession";
 import { mapImageClickToViewport } from "../lib/browserClickCoords";
 import { formatApiError } from "../lib/api";
+import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
+import { isYouTubeUrl, youtubeEmbedUrl } from "../lib/sitePreview";
 
 const SPECIAL_KEYS = new Set([
   "Enter", "Tab", "Escape", "Backspace", "Delete",
@@ -28,6 +30,8 @@ const SPECIAL_KEYS = new Set([
 
 const SCROLL_THROTTLE_MS = 16;
 const KEY_SNAPSHOT_MS = 80;
+const LIVE_SYNC_MS = 2500;
+const LIVE_SYNC_VIDEO_MS = 1200;
 
 function mapDomKey(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -63,6 +67,7 @@ export default function InteractiveBrowser({
   compact = false,
   autoOpen = true,
   embedded = false,
+  liveSync = true,
 }) {
   const sessionId = sessionIdProp || frame?.session_id || "default";
   const imgRef = useRef(null);
@@ -74,6 +79,7 @@ export default function InteractiveBrowser({
   const keySnapshotTimerRef = useRef(null);
   const flushScrollAccumRef = useRef(() => {});
   const actionGenRef = useRef(0);
+  const liveSyncGenRef = useRef(0);
   const [local, setLocal] = useState(frame || null);
   const [navigating, setNavigating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,19 +87,31 @@ export default function InteractiveBrowser({
   const [urlInput, setUrlInput] = useState(frame?.url || "");
   const [clickMark, setClickMark] = useState(null);
   const [keyboardFocused, setKeyboardFocused] = useState(false);
+  const { inset: keyboardInset, open: keyboardOpen } = useVisualViewportKeyboard({
+    enabled: keyboardFocused,
+  });
   const autoOpenedRef = useRef(false);
 
   const pageUrl = local?.url || frame?.url || "";
+  const embedUrl = youtubeEmbedUrl(pageUrl);
+  const showEmbed = Boolean(embedUrl);
   const viewportW = local?.viewport_width || frame?.viewport_width || 1280;
   const viewportH = local?.viewport_height || frame?.viewport_height || 900;
   const secure = isSecureUrl(pageUrl);
 
   useEffect(() => {
-    if (frame) {
-      setLocal(frame);
-      setUrlInput(frame.url || "");
-    }
-  }, [frame?.url, frame?.screenshot_base64, frame?.elements?.length]);
+    if (!frame) return;
+    setLocal((prev) => {
+      const same =
+        frame.url === prev?.url &&
+        frame.screenshot_base64 === prev?.screenshot_base64 &&
+        frame.title === prev?.title &&
+        (frame.elements?.length || 0) === (prev?.elements?.length || 0);
+      if (same) return prev;
+      return { ...prev, ...frame };
+    });
+    if (frame.url) setUrlInput(frame.url);
+  }, [frame]);
 
   const hasValidScreenshot = (data) => {
     const b64 = data?.screenshot_base64;
@@ -150,6 +168,42 @@ export default function InteractiveBrowser({
     },
     [applyFrame],
   );
+
+  const runSilentSync = useCallback(async () => {
+    if (showEmbed || navigating || refreshing || document.hidden) return;
+    const gen = ++liveSyncGenRef.current;
+    try {
+      const next = await browserSnapshot(sessionId);
+      if (!next || gen !== liveSyncGenRef.current) return;
+      setLocal((prev) => {
+        const unchanged =
+          prev?.url === next.url &&
+          prev?.screenshot_base64 === next.screenshot_base64 &&
+          prev?.title === next.title;
+        if (unchanged) return prev;
+        const merged = { ...prev, ...next };
+        onFrameUpdate?.(merged);
+        return merged;
+      });
+      if (next.url) setUrlInput(next.url);
+    } catch {
+      /* sync silencieux — pas de toast */
+    }
+  }, [showEmbed, navigating, refreshing, sessionId, onFrameUpdate]);
+
+  useEffect(() => {
+    if (!liveSync || showEmbed || !hasValidScreenshot(local)) return undefined;
+    const intervalMs = isYouTubeUrl(pageUrl) ? LIVE_SYNC_VIDEO_MS : LIVE_SYNC_MS;
+    const id = setInterval(runSilentSync, intervalMs);
+    const onVis = () => {
+      if (!document.hidden) runSilentSync();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [liveSync, showEmbed, local?.screenshot_base64, pageUrl, runSilentSync]);
 
   const scheduleKeySnapshot = useCallback(() => {
     if (keySnapshotTimerRef.current) clearTimeout(keySnapshotTimerRef.current);
@@ -220,10 +274,18 @@ export default function InteractiveBrowser({
   }, []);
 
   useEffect(() => {
-    if (!autoOpen || !pageUrl || hasValidScreenshot(local) || navigating || autoOpenedRef.current) return;
+    if (!autoOpen || !pageUrl || showEmbed || hasValidScreenshot(local) || navigating || autoOpenedRef.current) return;
     autoOpenedRef.current = true;
     runNavigate(() => browserOpen(pageUrl, sessionId));
-  }, [autoOpen, pageUrl, local?.screenshot_base64, navigating, runNavigate, sessionId]);
+  }, [autoOpen, pageUrl, showEmbed, local?.screenshot_base64, navigating, runNavigate, sessionId]);
+
+  const fireKeyPayload = useCallback(
+    (payload) => {
+      browserKeyFire(sessionId, payload).catch(() => {});
+      scheduleKeySnapshot();
+    },
+    [sessionId, scheduleKeySnapshot],
+  );
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -234,25 +296,72 @@ export default function InteractiveBrowser({
       e.preventDefault();
       e.stopPropagation();
       const payload = typeof mapped === "string" ? { key: mapped } : { text: mapped.text };
-      browserKeyFire(sessionId, payload).catch(() => {});
-      scheduleKeySnapshot();
+      fireKeyPayload(payload);
     },
-    [keyboardFocused, navigating, sessionId, scheduleKeySnapshot],
+    [keyboardFocused, navigating, fireKeyPayload],
   );
 
   useEffect(() => {
     if (!keyboardFocused) return undefined;
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    const onKey = (e) => {
+      if (document.activeElement !== containerRef.current) return;
+      handleKeyDown(e);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [keyboardFocused, handleKeyDown]);
+
+  const handleMobileBeforeInput = useCallback(
+    (e) => {
+      if (!keyboardFocused || navigating) return;
+      if (e.inputType === "deleteContentBackward") {
+        e.preventDefault();
+        fireKeyPayload({ key: "Backspace" });
+      }
+    },
+    [keyboardFocused, navigating, fireKeyPayload],
+  );
+
+  const handleMobileInput = useCallback(
+    (e) => {
+      if (!keyboardFocused || navigating) return;
+      const { value } = e.target;
+      if (!value) return;
+      for (const char of value) {
+        if (char) fireKeyPayload({ text: char });
+      }
+      e.target.value = "";
+    },
+    [keyboardFocused, navigating, fireKeyPayload],
+  );
+
+  const activateKeyboardCapture = useCallback(() => {
+    if (navigating) return;
+    setKeyboardFocused(true);
+    if (touchKeyboardRef.current && mobileInputRef.current) {
+      mobileInputRef.current.focus({ preventScroll: true });
+      return;
+    }
+    containerRef.current?.focus({ preventScroll: true });
+  }, [navigating]);
 
   const handleContainerBlur = () => {
     requestAnimationFrame(() => {
+      const active = document.activeElement;
       const root = containerRef.current;
-      if (root && root.contains(document.activeElement)) return;
+      if (root?.contains(active)) return;
+      if (mobileInputRef.current === active) return;
+      if (urlInputRef.current === active) return;
       setKeyboardFocused(false);
     });
   };
+
+  useEffect(() => {
+    const root = browserRootRef.current;
+    if (!root) return undefined;
+    root.style.setProperty("--emo-keyboard-inset", `${keyboardInset}px`);
+    return () => root.style.removeProperty("--emo-keyboard-inset");
+  }, [keyboardInset]);
 
   const screenshotSrc = hasValidScreenshot(local)
     ? `data:image/jpeg;base64,${local.screenshot_base64}`
@@ -260,7 +369,7 @@ export default function InteractiveBrowser({
 
   const handleScreenshotClick = (e) => {
     if (navigating || !imgRef.current) return;
-    containerRef.current?.focus();
+    activateKeyboardCapture();
     const coords = mapImageClickToViewport(
       imgRef.current,
       e.clientX,
@@ -280,12 +389,16 @@ export default function InteractiveBrowser({
 
   const busy = navigating;
 
-  if (!pageUrl && !screenshotSrc) return null;
+  if (!pageUrl && !screenshotSrc && !showEmbed) return null;
+
+  const viewportHeight = compact ? 280 : 520;
 
   return (
     <div
+      ref={browserRootRef}
       className={`emo-browser ${embedded ? "border-0 shadow-none" : ""}`}
       data-testid="interactive-browser"
+      data-keyboard-open={keyboardOpen ? "true" : "false"}
     >
       {/* Chrome toolbar */}
       <div className="emo-browser-chrome">
@@ -326,7 +439,10 @@ export default function InteractiveBrowser({
                 runNavigate(() => browserOpen(urlInput.trim(), sessionId));
               }
             }}
-            onFocus={() => setKeyboardFocused(false)}
+            onFocus={() => {
+              setKeyboardFocused(false);
+              mobileInputRef.current?.blur();
+            }}
             placeholder="https://…"
             title={local?.title || pageUrl}
             className="emo-browser-url-input"
@@ -392,22 +508,57 @@ export default function InteractiveBrowser({
       </div>
 
       {/* Viewport */}
-      {screenshotSrc ? (
+      {showEmbed ? (
+        <div className="emo-browser-viewport" data-testid="browser-youtube-embed">
+          <iframe
+            key={embedUrl}
+            title={local?.title || "YouTube"}
+            src={embedUrl}
+            className="w-full border-0 block"
+            style={{ height: viewportHeight, background: "#000" }}
+            sandbox={IFRAME_SANDBOX}
+            allow={IFRAME_ALLOW}
+            allowFullScreen
+          />
+        </div>
+      ) : screenshotSrc ? (
         <div
           ref={containerRef}
-          tabIndex={0}
+          tabIndex={touchKeyboardRef.current ? -1 : 0}
           onFocus={() => setKeyboardFocused(true)}
           onBlur={handleContainerBlur}
-          onClick={() => containerRef.current?.focus()}
+          onPointerDown={(e) => {
+            if (e.pointerType === "mouse" && e.button !== 0) return;
+            if (e.target.closest(".emo-browser-keyboard-input")) return;
+            activateKeyboardCapture();
+          }}
           className="emo-browser-viewport"
           data-focused={keyboardFocused ? "true" : "false"}
           data-compact={compact ? "true" : "false"}
           data-testid="browser-keyboard-capture"
           data-keyboard-focused={keyboardFocused ? "true" : "false"}
         >
+          <input
+            ref={mobileInputRef}
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            enterKeyHint="done"
+            aria-label="Saisie clavier pour la page distante"
+            className="emo-browser-keyboard-input"
+            tabIndex={-1}
+            onFocus={() => setKeyboardFocused(true)}
+            onBlur={handleContainerBlur}
+            onKeyDown={handleKeyDown}
+            onBeforeInput={handleMobileBeforeInput}
+            onInput={handleMobileInput}
+          />
           {keyboardFocused && (
             <div
-              className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium pointer-events-none"
+              className="emo-browser-badge emo-browser-badge--keyboard flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium"
               style={{
                 background: "var(--emo-accent)",
                 color: "var(--emo-on-accent)",
@@ -433,7 +584,7 @@ export default function InteractiveBrowser({
           />
           {clickMark && (
             <span
-              className="absolute pointer-events-none rounded-full animate-ping"
+              className="emo-browser-click-mark rounded-full animate-ping"
               style={{
                 left: clickMark.x - 10,
                 top: clickMark.y - 10,
@@ -446,7 +597,7 @@ export default function InteractiveBrowser({
           )}
           {refreshing && (
             <div
-              className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full pointer-events-none text-[10px] font-medium"
+              className="emo-browser-badge emo-browser-badge--refresh flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium"
               style={{ background: "var(--emo-surface)", border: "1px solid var(--emo-border)", color: "var(--emo-text-muted)" }}
               aria-hidden
             >
@@ -500,7 +651,8 @@ export default function InteractiveBrowser({
             className="w-1.5 h-1.5 rounded-full"
             style={{ background: busy ? "#fbbf24" : "var(--emo-status-online)" }}
           />
-          Clic · Molette · Clavier
+          {touchKeyboardRef.current ? "Clic · Toucher · Clavier" : "Clic · Molette · Clavier"}
+          {showEmbed && " · Vidéo YouTube"}
         </span>
         {local?.title && (
           <span className="truncate max-w-[55%] font-medium" title={local.title}>

@@ -14,6 +14,7 @@ import ProfileDrawer from "../components/ProfileDrawer";
 import FeedbackPrompt from "../components/FeedbackPrompt";
 import { cleanDisplayText } from "../lib/messageClean";
 import { isHtmlPath, normalizeFilePath } from "../lib/filePreview";
+import { useVisualViewportKeyboard } from "../lib/useVisualViewportKeyboard";
 
 const MODE_LABELS = { tech: "Tech", creatif: "Créatif", brutal: "Brutal" };
 
@@ -115,6 +116,12 @@ export default function Chat() {
   const stickyBottomRef = useRef(true);
   const streamAbortRef = useRef(null);
   const themeSyncedRef = useRef(false);
+  const [mobileLayout, setMobileLayout] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches,
+  );
+  const { inset: mobileKbInset, open: mobileKeyboardOpen } = useVisualViewportKeyboard({
+    enabled: mobileLayout,
+  });
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const isNearBottom = useCallback((el, threshold = 140) => {
@@ -153,6 +160,28 @@ export default function Chat() {
     document.body.classList.toggle("emo-scroll-locked", locked);
     return () => document.body.classList.remove("emo-scroll-locked");
   }, [sidebarOpenMobile, profileOpen, rightPanelMobileOpen]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onChange = () => setMobileLayout(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--emo-mobile-kb-inset", `${mobileKbInset}px`);
+    document.body.classList.toggle("emo-mobile-keyboard-open", mobileKeyboardOpen);
+    return () => {
+      document.documentElement.style.removeProperty("--emo-mobile-kb-inset");
+      document.body.classList.remove("emo-mobile-keyboard-open");
+    };
+  }, [mobileKbInset, mobileKeyboardOpen]);
+
+  useEffect(() => {
+    document.body.classList.toggle("emo-browser-sheet-open", rightPanelMobileOpen);
+    return () => document.body.classList.remove("emo-browser-sheet-open");
+  }, [rightPanelMobileOpen]);
 
   useEffect(() => {
     if (!sidebarOpenMobile) return;
@@ -868,7 +897,7 @@ export default function Chat() {
             </button>
             <button
               data-testid="header-profile-btn"
-              onClick={() => setProfileOpen(true)}
+              onClick={openProfile}
               className="emo-icon-btn"
               title="Paramètres"
             >

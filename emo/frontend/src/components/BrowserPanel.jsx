@@ -149,7 +149,7 @@ export default function BrowserPanel({ frames = [], reflectNotes = [], onFrameUp
 
         ) : (
 
-          <PagePreview frame={active} onFrameUpdate={handleFrameUpdate} />
+          <PagePreview frame={active} onFrameUpdate={handleFrameUpdate} liveSync />
 
         )}
 
@@ -211,7 +211,7 @@ function SearchResults({ frame }) {
 
 
 
-function PagePreview({ frame, onFrameUpdate }) {
+function PagePreview({ frame, onFrameUpdate, liveSync = true }) {
 
   return (
 
@@ -240,6 +240,8 @@ function PagePreview({ frame, onFrameUpdate }) {
         sessionId={frame.session_id || "default"}
 
         onFrameUpdate={onFrameUpdate}
+
+        liveSync={liveSync}
 
       />
 

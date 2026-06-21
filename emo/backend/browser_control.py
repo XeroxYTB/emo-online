@@ -217,6 +217,8 @@ class BrowserController:
                 await asyncio.sleep(0.8)
             else:
                 await asyncio.sleep(0.12)
+            if "youtube.com" in url or "youtu.be" in url:
+                await asyncio.sleep(0.8 if fast else 1.5)
         except Exception as e:
             return {"ok": False, "error": f"Navigation échouée: {e}", "url": url}
         snap = await self._snapshot(sess.page, session_id, fast=fast)

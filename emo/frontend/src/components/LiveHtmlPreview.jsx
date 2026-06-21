@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { FileCode2, Globe } from "lucide-react";
 import { basename } from "../lib/filePreview";
+import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
 
 /** Mini-navigateur pour aperçu HTML live — chrome pro, iframe sandbox, mises à jour sans reload. */
 export default function LiveHtmlPreview({ path = "", title, content = "", compact = false }) {
@@ -87,7 +88,9 @@ export default function LiveHtmlPreview({ path = "", title, content = "", compac
             height: compact ? 220 : 360,
             background: "#fff",
           }}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox={IFRAME_SANDBOX}
+          allow={IFRAME_ALLOW}
+          allowFullScreen
         />
       </div>
 

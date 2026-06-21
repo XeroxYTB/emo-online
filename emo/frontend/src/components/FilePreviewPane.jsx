@@ -2,6 +2,7 @@ import React from "react";
 import { Globe, FileText } from "lucide-react";
 import { isImagePath, previewTextSnippet } from "./SquarePreviewFrame";
 import { htmlPreviewUrl, isHtmlPath } from "../lib/filePreview";
+import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
 
 /** Aperçu pleine hauteur pour le panneau Fichiers (HTML rendu, image, texte). */
 export default function FilePreviewPane({ path = "", content = "" }) {
@@ -25,7 +26,9 @@ export default function FilePreviewPane({ path = "", content = "" }) {
             title={path}
             src={htmlPreviewUrl(content)}
             className="w-full h-full border-0"
-            sandbox="allow-scripts allow-same-origin"
+            sandbox={IFRAME_SANDBOX}
+            allow={IFRAME_ALLOW}
+            allowFullScreen
           />
         </div>
         <p className="text-[10px] text-muted-em mt-1.5 px-1 flex items-center gap-1">

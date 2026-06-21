@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { AspectRatio } from "./ui/aspect-ratio";
 import { Globe, FileText, Image as ImageIcon } from "lucide-react";
+import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
 
 /**
  * Cadre carré réutilisable pour aperçus site / fichier.
@@ -66,8 +67,10 @@ export default function SquarePreviewFrame({
                 title={title || "Aperçu site"}
                 src={url}
                 className="absolute inset-0 w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin allow-forms"
-                referrerPolicy="no-referrer"
+                sandbox={IFRAME_SANDBOX}
+                allow={IFRAME_ALLOW}
+                allowFullScreen
+                referrerPolicy="no-referrer-when-downgrade"
               />
             ) : kind === "image" && src ? (
               <PreviewImage

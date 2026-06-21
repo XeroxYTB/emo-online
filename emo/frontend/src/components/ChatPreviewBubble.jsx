@@ -104,6 +104,7 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
               autoOpen
               compact={false}
               embedded
+              liveSync
               frame={{
                 url: data.url,
                 title: data.title,

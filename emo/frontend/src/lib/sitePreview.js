@@ -1,6 +1,8 @@
-/** Sites qui refusent l'embed iframe (X-Frame-Options / CSP). */
+/** Sites qui refusent l'embed iframe page complète (X-Frame-Options / CSP). */
 const IFRAME_BLOCKED =
-  /youtube\.com|youtu\.be|facebook\.com|instagram\.com|twitter\.com|x\.com|tiktok\.com|linkedin\.com|accounts\.google/i;
+  /facebook\.com|instagram\.com|twitter\.com|x\.com|tiktok\.com|linkedin\.com|accounts\.google/i;
+
+const YOUTUBE_HOST = /youtube\.com|youtu\.be/i;
 
 export function isIframeBlocked(url = "") {
   try {
@@ -25,6 +27,14 @@ export function faviconUrl(url = "", size = 128) {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
 }
 
+export function isYouTubeUrl(url = "") {
+  try {
+    return YOUTUBE_HOST.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function youtubeVideoId(url = "") {
   try {
     const u = new URL(url);
@@ -38,6 +48,13 @@ export function youtubeVideoId(url = "") {
     /* ignore */
   }
   return null;
+}
+
+/** URL embed YouTube (lecture vidéo dans iframe — youtube.com/watch est bloqué en iframe direct). */
+export function youtubeEmbedUrl(url = "") {
+  const vid = youtubeVideoId(url);
+  if (!vid) return null;
+  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?rel=0&modestbranding=1&playsinline=1`;
 }
 
 export function siteThumbnail(url = "") {
@@ -55,8 +72,12 @@ function clipText(text = "", max = 900) {
 /** Choisit le mode d'aperçu : iframe, image (screenshot/miniature), texte, ou carte bloquée. */
 export function resolveSitePreview(url, { screenshot, previewText } = {}) {
   if (screenshot) return { kind: "image", src: screenshot };
+  const embed = youtubeEmbedUrl(url);
+  if (embed) return { kind: "iframe", url: embed, embed: true };
   const thumb = siteThumbnail(url);
-  if (thumb) return { kind: "image", src: thumb, blocked: isIframeBlocked(url) };
+  if (thumb && isYouTubeUrl(url)) {
+    return { kind: "image", src: thumb, blocked: true };
+  }
   if (isIframeBlocked(url)) {
     if (previewText) return { kind: "text", text: clipText(previewText, 1200), blocked: true };
     const fav = faviconUrl(url);
