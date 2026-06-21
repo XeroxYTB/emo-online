@@ -16,10 +16,34 @@ from llm_providers import api_key_available
 # Priorite fallback : HF gratuit → Groq → OpenRouter free → APIs payantes
 HF_FREE_MODELS = hf_free_models_flat()
 
+# OpenRouter :free — vérifiés mars 2026 (404 retirés ; 429 = rate limit temporaire OK)
 OPENROUTER_FREE_MODELS = [
+    # Dolphin Venice — non censuré, chat/code/créatif (Cognitive Computations)
+    {"provider": "openrouter", "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", "label": "Dolphin Mistral 24B Venice (OpenRouter — non censuré)"},
+    # Qwen3 Coder free — code dédié trending
+    {"provider": "openrouter", "model": "qwen/qwen3-coder:free", "label": "Qwen3 Coder Free (OpenRouter — code)"},
+    # Llama 3.2 3B — petit modèle rapide polyvalent
+    {"provider": "openrouter", "model": "meta-llama/llama-3.2-3b-instruct:free", "label": "Llama 3.2 3B Free (OpenRouter)"},
+    # Llama 3.3 70B — meilleur free general (rate limit possible)
     {"provider": "openrouter", "model": "meta-llama/llama-3.3-70b-instruct:free", "label": "Llama 3.3 70B Free (OpenRouter)"},
-    {"provider": "openrouter", "model": "google/gemma-2-9b-it:free", "label": "Gemma 2 9B Free (OpenRouter)"},
-    {"provider": "openrouter", "model": "qwen/qwen-2.5-72b-instruct:free", "label": "Qwen 2.5 72B Free (OpenRouter)"},
+    # Qwen3 Next 80B MoE — polyvalent chat/code
+    {"provider": "openrouter", "model": "qwen/qwen3-next-80b-a3b-instruct:free", "label": "Qwen3 Next 80B Free (OpenRouter)"},
+]
+
+# Groq free tier — IDs vérifiés via api.groq.com/openai/v1/models (juin 2026)
+GROQ_MODELS = [
+    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
+    {"provider": "groq", "model": "qwen/qwen3-32b", "label": "Qwen 3 32B (Groq)"},
+    {"provider": "groq", "model": "openai/gpt-oss-20b", "label": "GPT-OSS 20B (Groq)"},
+    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
+    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
+]
+
+GEMINI_MODELS = [
+    {"provider": "gemini", "model": "gemini-2.5-flash", "label": "Gemini 2.5 Flash"},
+    {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
+    {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite"},
 ]
 
 def _tier_hf(tier: str) -> list[dict]:
@@ -28,16 +52,10 @@ def _tier_hf(tier: str) -> list[dict]:
 
 FREE_MODELS = [
     *_tier_hf("free"),
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    *GROQ_MODELS,
     *OPENROUTER_FREE_MODELS,
-    {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
-    {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
-    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
-    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
-    {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
-    {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite"},
+    *GEMINI_MODELS,
     {"provider": "anthropic", "model": "claude-3-5-haiku-20241022", "label": "Claude 3.5 Haiku"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "openrouter", "model": "openai/gpt-4o-mini", "label": "ChatGPT 4o mini (OpenRouter)"},
@@ -46,15 +64,10 @@ FREE_MODELS = [
 
 BASIC_MODELS = [
     *_tier_hf("basic"),
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    *GROQ_MODELS,
     *OPENROUTER_FREE_MODELS,
-    {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
-    {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
-    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
-    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
-    {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
+    *GEMINI_MODELS[:2],
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "anthropic", "model": "claude-3-5-haiku-20241022", "label": "Claude 3.5 Haiku"},
     {"provider": "openrouter", "model": "openai/gpt-4o-mini", "label": "ChatGPT 4o mini (OpenRouter)"},
@@ -62,19 +75,15 @@ BASIC_MODELS = [
 
 PREMIUM_MODELS = [
     *_tier_hf("premium"),
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
-    {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
-    {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
-    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
-    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
+    *GROQ_MODELS,
+    *OPENROUTER_FREE_MODELS[:3],
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
     {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022", "label": "Claude 3.5 Sonnet"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "openai", "model": "gpt-4o", "label": "ChatGPT 4o"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "openrouter", "model": "openai/gpt-4o-mini", "label": "ChatGPT 4o mini (OpenRouter)"},
-    {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
+    *GEMINI_MODELS[:2],
 ]
 
 ULTRA_MODELS = [
@@ -83,29 +92,31 @@ ULTRA_MODELS = [
     {"provider": "anthropic", "model": "claude-opus-4-20250514", "label": "Claude Opus 4"},
     {"provider": "openai", "model": "gpt-4o", "label": "ChatGPT 4o"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
-    {"provider": "groq", "model": "llama-3.1-8b-instant", "label": "Llama 3.1 8B (Groq — gratuit)"},
+    *GROQ_MODELS,
     *OPENROUTER_FREE_MODELS,
-    {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
-    {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
-    {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
-    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
     {"provider": "deepseek", "model": "deepseek-reasoner", "label": "DeepSeek R1 (Reasoner)"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "openrouter", "model": "openai/gpt-4o", "label": "ChatGPT 4o (OpenRouter)"},
-    {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
-    {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite"},
+    *GEMINI_MODELS,
 ]
 
 # Modeles retires / invalides (404 API) — jamais proposes
 BLOCKED_MODELS = frozenset({
     ("gemini", "gemini-2.5-pro-preview-03-25"),
-    ("gemini", "gemini-1.5-flash"),
+    ("gemini", "gemini-1.5-flash"),       # 404 API v1beta
     ("gemini", "gemini-1.5-pro"),
-    # Groq — retirés avril 2025 (remplacés par Llama 4 Scout)
+    # Groq — décommissionnés (juin 2026)
+    ("groq", "gemma2-9b-it"),
+    ("groq", "mixtral-8x7b-32768"),
     ("groq", "llama-3.2-11b-vision-preview"),
     ("groq", "llama-3.2-90b-vision-preview"),
     ("groq", "meta-llama/llama-4-maverick-17b-128e-instruct"),
+    # OpenRouter free — endpoints retirés
+    ("openrouter", "google/gemma-2-9b-it:free"),
+    ("openrouter", "qwen/qwen-2.5-72b-instruct:free"),
+    # HF router — IDs invalides / plus chat
+    ("huggingface", "meta-llama/Meta-Llama-3.1-8B-Instruct"),
+    ("huggingface", "mistralai/Mistral-Nemo-Instruct-2407"),
 })
 
 SUBSCRIPTION_PLANS = {
@@ -291,6 +302,7 @@ async def resolve_model(tier: str, preference: Optional[str] = None) -> tuple[st
 FREE_VISION_CATALOG: list[dict] = [
     {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq — gratuit)"},
     {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq — gratuit)"},
+    {"provider": "gemini", "model": "gemini-2.5-flash", "label": "Gemini 2.5 Flash (gratuit)"},
     {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite (gratuit)"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash (gratuit)"},
 ]

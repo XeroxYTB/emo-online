@@ -22,8 +22,8 @@ _PROBE_MODELS = {
     "gemini": ("gemini-2.0-flash-lite", None),
     "anthropic": ("claude-3-5-haiku-20241022", None),
     "deepseek": ("https://api.deepseek.com/chat/completions", "deepseek-chat"),
-    "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "meta-llama/llama-3.3-70b-instruct:free"),
-    "huggingface": ("https://router.huggingface.co/v1/chat/completions", "meta-llama/Meta-Llama-3.1-8B-Instruct"),
+    "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "meta-llama/llama-3.2-3b-instruct:free"),
+    "huggingface": ("https://router.huggingface.co/v1/chat/completions", "Qwen/Qwen2.5-7B-Instruct"),
 }
 
 
