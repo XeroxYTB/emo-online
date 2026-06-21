@@ -101,13 +101,14 @@ export function GoogleSignInButton({ clientId, onCredential, disabled, busy, onB
     try {
       const opened = await triggerGooglePopup(cid, onCredential);
       if (!opened) throw new Error("popup");
+      // Credential callback sets busy again; release after popup opens only if no callback within 90s
+      window.setTimeout(() => onBusyChange?.(false), 90000);
     } catch (_) {
+      onBusyChange?.(false);
       const redirectUrl = frontendUrl("/auth/google/callback");
       window.location.assign(
         `${getApiBase()}/auth/google/login?redirect=${encodeURIComponent(redirectUrl)}`
       );
-    } finally {
-      onBusyChange?.(false);
     }
   }, [cid, disabled, busy, onCredential, onBusyChange]);
 

@@ -21,10 +21,15 @@ export default function Login() {
   const verifyGoogleCredential = useCallback(async (credential) => {
     setGoogleBusy(true);
     try {
-      await wakeBackend({ maxWaitMs: 45000 });
+      const warm = await wakeBackend({ maxWaitMs: 25000 });
+      if (!warm?.ok) {
+        setApiDown(true);
+        toast.error("API injoignable. Le serveur HF démarre — réessayez dans 1–2 min.");
+        return;
+      }
       const res = await authRequest(
-        () => http.post("/auth/google/verify", { credential }, { timeout: 60000 }),
-        { maxAttempts: 10 }
+        () => http.post("/auth/google/verify", { credential }, { timeout: 30000, _emoSkipRetry: true, _emoMaxRetries: 0 }),
+        { maxAttempts: 3 }
       );
       if (res.data?.session_token) saveSessionToken(res.data.session_token);
       navigate("/chat", { replace: true, state: { user: res.data } });
@@ -72,17 +77,22 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await wakeBackend({ maxWaitMs: 45000 });
+      const warm = await wakeBackend({ maxWaitMs: 25000 });
+      if (!warm?.ok) {
+        setApiDown(true);
+        toast.error("API injoignable. Le serveur HF démarre — réessayez dans 1–2 min.");
+        return;
+      }
       if (mode === "signup") {
         const res = await authRequest(
-          () => http.post("/auth/signup", { email, password, name }, { timeout: 60000 }),
-          { maxAttempts: 10 }
+          () => http.post("/auth/signup", { email, password, name }, { timeout: 30000, _emoSkipRetry: true, _emoMaxRetries: 0 }),
+          { maxAttempts: 3 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       } else {
         const res = await authRequest(
-          () => http.post("/auth/login", { email, password }, { timeout: 60000 }),
-          { maxAttempts: 10 }
+          () => http.post("/auth/login", { email, password }, { timeout: 30000, _emoSkipRetry: true, _emoMaxRetries: 0 }),
+          { maxAttempts: 3 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       }
@@ -125,7 +135,7 @@ export default function Login() {
 
             {apiDown && (
               <p className="mb-4 text-xs rounded-xl px-3 py-2.5 emo-alert-warning">
-                API en pause (HF). Attendez 1–2 min puis réessayez.
+                Serveur HF en démarrage ou injoignable. Attendez 1–3 min puis réessayez (Ctrl+F5).
               </p>
             )}
 
