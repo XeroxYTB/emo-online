@@ -2798,11 +2798,7 @@ async def chat_stream(
                     "user_id": user.user_id,
                     "role": "emo", "content": clean,
                     "mode": mode, "mood": mood, "verified": False,
-                    "tool_calls": [{
-                        "name": "generate_image",
-                        "arguments": {"prompt": body.content.strip()[:4000]},
-                        "result_summary": _summarize_result(gen_result),
-                    }],
+                    "tool_calls": [_persist_tool_call(pre_tool_log[0])],
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
                 await db.messages.insert_one(assistant_msg)
@@ -2896,14 +2892,7 @@ async def chat_stream(
                     "user_id": user.user_id,
                     "role": "emo", "content": reply,
                     "mode": mode, "mood": "enthousiaste", "verified": written_ok == len(site["files"]),
-                    "tool_calls": [
-                        {
-                            "name": t["name"],
-                            "arguments": {"path": t["arguments"].get("path")},
-                            "result_summary": _summarize_result(t["result"]),
-                        }
-                        for t in site_tool_log
-                    ],
+                    "tool_calls": [_persist_tool_call(t) for t in site_tool_log],
                     "created_at": now_site,
                 }
                 await db.messages.insert_one(assistant_msg)
@@ -3305,11 +3294,35 @@ def _shrink_for_llm(result: dict) -> dict:
     return out
 
 
+def _persist_tool_call(t: dict) -> dict:
+    """Serialize a tool call for MongoDB — keeps generated image bytes for reload."""
+    result = t.get("result") or {}
+    entry: dict = {
+        "name": t["name"],
+        "arguments": t.get("arguments") or {},
+        "result_summary": _summarize_result(result),
+    }
+    if t.get("id"):
+        entry["id"] = t["id"]
+    if t["name"] == "generate_image" and result.get("ok") and result.get("image_base64"):
+        entry["result"] = {
+            "ok": True,
+            "mime": result.get("mime") or "image/png",
+            "image_base64": result["image_base64"],
+            "prompt": result.get("prompt") or entry["arguments"].get("prompt"),
+            "provider": result.get("provider"),
+        }
+    return entry
+
+
 def _summarize_result(result: dict) -> str:
     if not result:
         return ""
     if not result.get("ok", True):
         return f"erreur: {result.get('error', '')[:200]}"
+    if result.get("image_base64") or result.get("has_image"):
+        prov = result.get("provider") or "image"
+        return f"image générée ({prov})"
     if "exit_code" in result:
         return f"exit={result['exit_code']}"
     if "content" in result:
@@ -3324,6 +3337,9 @@ def _summarize_result(result: dict) -> str:
         if "dirs" in result:
             return f"{len(result['files'])} files, {len(result['dirs'])} dirs"
         return f"{len(result['files'])} files"
+    if "image_base64" in result and result.get("ok"):
+        fp = str(result.get("final_prompt") or result.get("prompt") or "")[:120]
+        return f"image ok — {fp}" if fp else "image ok"
     return "ok"
 
 

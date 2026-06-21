@@ -504,7 +504,14 @@ class LlmChat:
         turn_text = ""
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", url, json=payload) as resp:
-                await self._ensure_stream_ok(resp)
+                if resp.is_error:
+                    err_body = await resp.aread()
+                    detail = err_body.decode("utf-8", errors="replace")[:500]
+                    raise httpx.HTTPStatusError(
+                        f"gemini API {resp.status_code}: {detail}",
+                        request=resp.request,
+                        response=resp,
+                    )
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
                         continue

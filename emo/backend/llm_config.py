@@ -33,8 +33,8 @@ FREE_MODELS = [
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-11b-vision-preview", "label": "Llama 3.2 11B Vision (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-90b-vision-preview", "label": "Llama 3.2 90B Vision (Groq)"},
+    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
+    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
     {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite"},
@@ -51,8 +51,8 @@ BASIC_MODELS = [
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-11b-vision-preview", "label": "Llama 3.2 11B Vision (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-90b-vision-preview", "label": "Llama 3.2 90B Vision (Groq)"},
+    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
+    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
@@ -66,8 +66,8 @@ PREMIUM_MODELS = [
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-11b-vision-preview", "label": "Llama 3.2 11B Vision (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-90b-vision-preview", "label": "Llama 3.2 90B Vision (Groq)"},
+    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
+    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
     {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
     {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022", "label": "Claude 3.5 Sonnet"},
     {"provider": "openai", "model": "gpt-4o-mini", "label": "ChatGPT 4o mini"},
@@ -88,8 +88,8 @@ ULTRA_MODELS = [
     {"provider": "groq", "model": "gemma2-9b-it", "label": "Gemma 2 9B (Groq — gratuit)"},
     {"provider": "groq", "model": "mixtral-8x7b-32768", "label": "Mixtral 8x7B (Groq)"},
     {"provider": "groq", "model": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-11b-vision-preview", "label": "Llama 3.2 11B Vision (Groq)"},
-    {"provider": "groq", "model": "llama-3.2-90b-vision-preview", "label": "Llama 3.2 90B Vision (Groq)"},
+    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq)"},
+    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq)"},
     {"provider": "deepseek", "model": "deepseek-reasoner", "label": "DeepSeek R1 (Reasoner)"},
     {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat"},
     {"provider": "openrouter", "model": "openai/gpt-4o", "label": "ChatGPT 4o (OpenRouter)"},
@@ -102,6 +102,10 @@ BLOCKED_MODELS = frozenset({
     ("gemini", "gemini-2.5-pro-preview-03-25"),
     ("gemini", "gemini-1.5-flash"),
     ("gemini", "gemini-1.5-pro"),
+    # Groq — retirés avril 2025 (remplacés par Llama 4 Scout)
+    ("groq", "llama-3.2-11b-vision-preview"),
+    ("groq", "llama-3.2-90b-vision-preview"),
+    ("groq", "meta-llama/llama-4-maverick-17b-128e-instruct"),
 })
 
 SUBSCRIPTION_PLANS = {
@@ -285,8 +289,8 @@ async def resolve_model(tier: str, preference: Optional[str] = None) -> tuple[st
 
 # Modèles vision 100 % gratuits (Groq Vision + Gemini free tier)
 FREE_VISION_CATALOG: list[dict] = [
-    {"provider": "groq", "model": "llama-3.2-11b-vision-preview", "label": "Llama 3.2 11B Vision (Groq — gratuit)"},
-    {"provider": "groq", "model": "llama-3.2-90b-vision-preview", "label": "Llama 3.2 90B Vision (Groq — gratuit)"},
+    {"provider": "groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct", "label": "Llama 4 Scout Vision (Groq — gratuit)"},
+    {"provider": "groq", "model": "qwen/qwen3.6-27b", "label": "Qwen 3.6 27B Vision (Groq — gratuit)"},
     {"provider": "gemini", "model": "gemini-2.0-flash-lite", "label": "Gemini 2.0 Flash Lite (gratuit)"},
     {"provider": "gemini", "model": "gemini-2.0-flash", "label": "Gemini 2.0 Flash (gratuit)"},
 ]
