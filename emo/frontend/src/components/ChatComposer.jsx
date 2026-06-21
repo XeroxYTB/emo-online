@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle } from "lucide-react";
+import { Send, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle, ImagePlus, X } from "lucide-react";
+import { filesToAttachments, mergeAttachments, MAX_IMAGES } from "../lib/imageAttachments";
 
 const MODES = [
   { id: "tech", label: "Tech", Icon: Code },
@@ -14,11 +15,14 @@ export const ChatComposer = ({
   onSend, onCancel, disabled, streaming,
 }) => {
   const [value, setValue] = useState("");
+  const [attachments, setAttachments] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef(null);
   const pickerRef = useRef(null);
   const modelPickerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const models = availableModels?.length
     ? availableModels
@@ -49,11 +53,18 @@ export const ChatComposer = ({
     return () => document.removeEventListener("mousedown", onClick);
   }, [pickerOpen, modelPickerOpen]);
 
+  const addFiles = async (files) => {
+    const incoming = await filesToAttachments(files);
+    if (!incoming.length) return;
+    setAttachments((prev) => mergeAttachments(prev, incoming));
+  };
+
   const submit = () => {
     const v = value.trim();
-    if (!v || disabled) return;
-    onSend(v);
+    if ((!v && !attachments.length) || disabled) return;
+    onSend(v, attachments.map((a) => a.base64));
     setValue("");
+    setAttachments([]);
   };
 
   const currentMode = MODES.find((m) => m.id === mode) || MODES[0];
@@ -67,17 +78,63 @@ export const ChatComposer = ({
     <div className={`mode-${mode} w-full`}>
       <div
         data-testid="chat-composer"
-        className="rounded-xl p-2 flex flex-col gap-1 transition-colors"
+        className={`rounded-xl p-2 flex flex-col gap-1 transition-colors ${dragOver ? "ring-2 ring-[var(--mode-color)]" : ""}`}
         style={{
           background: "var(--emo-surface)",
           border: "1px solid var(--emo-border)",
         }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          addFiles(e.dataTransfer?.files);
+        }}
       >
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-2 pt-1" data-testid="composer-attachments">
+            {attachments.map((a) => (
+              <div key={a.preview} className="relative group">
+                <img
+                  src={a.preview}
+                  alt={a.name || "Image"}
+                  className="h-14 w-14 object-cover rounded-lg em-border"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAttachments((prev) => prev.filter((x) => x.preview !== a.preview))}
+                  className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition"
+                  aria-label="Retirer l'image"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           data-testid="composer-textarea"
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onPaste={(e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            const imageFiles = [];
+            for (const item of items) {
+              if (item.type.startsWith("image/")) {
+                const f = item.getAsFile();
+                if (f) imageFiles.push(f);
+              }
+            }
+            if (imageFiles.length) {
+              e.preventDefault();
+              addFiles(imageFiles);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -85,13 +142,35 @@ export const ChatComposer = ({
             }
           }}
           rows={1}
-          placeholder={streaming ? "Réponse en cours…" : "Message"}
+          placeholder={streaming ? "Réponse en cours…" : attachments.length ? "Décris l'image…" : "Message — colle ou glisse une image"}
           disabled={disabled && !streaming}
           className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none py-3 px-3 text-base placeholder:text-muted-em disabled:opacity-60"
           style={{ maxHeight: 180, color: "var(--emo-text)" }}
         />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
         <div className="flex items-center justify-between gap-2 px-2 pb-1">
           <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            data-testid="composer-image-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={attachments.length >= MAX_IMAGES || (disabled && !streaming)}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition border em-hover-subtle disabled:opacity-40"
+            style={{ borderColor: "var(--emo-border)", color: "var(--emo-text-secondary)" }}
+            title="Joindre une image"
+          >
+            <ImagePlus size={12} />
+          </button>
           <div className="relative" ref={pickerRef}>
             <button
               type="button"
@@ -222,7 +301,7 @@ export const ChatComposer = ({
             <button
               data-testid="send-message-btn"
               onClick={submit}
-              disabled={disabled || !value.trim()}
+              disabled={disabled || (!value.trim() && !attachments.length)}
               className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
                 background: "var(--emo-accent)",

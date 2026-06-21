@@ -49,6 +49,7 @@ from browser_control import (
     browser_type as do_browser_type,
     browser_scroll as do_browser_scroll,
     browser_press as do_browser_press,
+    browser_keyboard as do_browser_keyboard,
     browser_close as do_browser_close,
 )
 from agent_relay import registry as agent_registry
@@ -287,6 +288,7 @@ class SendMessageBody(BaseModel):
     mode: Optional[str] = "tech"
     model_preference: Optional[str] = "auto"
     use_agent_tools: Optional[bool] = True
+    images: Optional[List[str]] = None  # base64 JPEG/PNG sans préfixe data:
 
 
 class MemoryBody(BaseModel):
@@ -1809,6 +1811,12 @@ class BrowserScrollBody(BaseModel):
     amount: int = 600
 
 
+class BrowserKeyBody(BaseModel):
+    session_id: str = "default"
+    key: Optional[str] = None
+    text: Optional[str] = None
+
+
 def _browser_available() -> bool:
     from browser_control import PLAYWRIGHT_AVAILABLE
     if os.environ.get("EMO_BROWSER_HARD_DISABLE", "").lower() in ("1", "true", "yes"):
@@ -1891,6 +1899,23 @@ async def user_browser_scroll(body: BrowserScrollBody, user: User = Depends(get_
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Scroll échoué"))
+    return result
+
+
+@api.post("/browser/key")
+async def user_browser_key(body: BrowserKeyBody, user: User = Depends(get_current_user)):
+    if not _browser_available():
+        raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
+    if not body.key and not body.text:
+        raise HTTPException(status_code=400, detail="Indique key ou text.")
+    result = await do_browser_keyboard(
+        user.user_id,
+        body.session_id or "default",
+        key=body.key,
+        text=body.text,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Saisie clavier échouée"))
     return result
 
 
@@ -2086,6 +2111,25 @@ def _tools_for_message(content: str, tool_set: list[dict]) -> list[dict]:
 _TOOL_CAPABLE_PROVIDERS = frozenset({
     "anthropic", "openai", "groq", "gemini", "deepseek", "openrouter",
 })
+
+
+_VISION_CAPABLE = frozenset({
+    ("anthropic", "claude-sonnet-4-20250514"),
+    ("anthropic", "claude-3-5-sonnet-20241022"),
+    ("openai", "gpt-4o"),
+    ("openai", "gpt-4o-mini"),
+    ("gemini", "gemini-2.0-flash"),
+    ("gemini", "gemini-2.0-flash-lite"),
+    ("openrouter", "openai/gpt-4o"),
+    ("openrouter", "openai/gpt-4o-mini"),
+})
+
+
+def _prioritize_vision_providers(candidates: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Préfère les modèles multimodaux quand des images sont jointes."""
+    vision = [c for c in candidates if (c[0], c[1]) in _VISION_CAPABLE or c[0] in ("anthropic", "openai", "gemini", "openrouter")]
+    rest = [c for c in candidates if c not in vision]
+    return vision + rest
 
 
 def _prioritize_tool_providers(
@@ -2324,6 +2368,8 @@ async def chat_stream(
         "mode": mode, "mood": None, "tool_calls": [],
         "created_at": now,
     }
+    if body.images:
+        user_msg_doc["images"] = [img for img in body.images if img][:4]
     await db.messages.insert_one(user_msg_doc)
 
     # Count daily message (only if free tier)
@@ -2374,7 +2420,10 @@ async def chat_stream(
         content = m["content"]
         if role == "assistant" and m.get("mood"):
             content = f"{content}\n[MOOD:{m['mood']}]"
-        initial_messages.append({"role": role, "content": content})
+        msg_entry: dict = {"role": role, "content": content}
+        if role == "user" and m.get("images"):
+            msg_entry["images"] = m["images"]
+        initial_messages.append(msg_entry)
 
     tier = get_user_tier(lic, is_admin=user.email.lower() in ADMIN_EMAILS)
     pref = (body.model_preference or "auto").strip() or "auto"
@@ -2391,6 +2440,8 @@ async def chat_stream(
 
     use_tools = body.use_agent_tools is not False
     candidates = _prioritize_tool_providers(candidates, use_tools=use_tools)
+    if body.images:
+        candidates = _prioritize_vision_providers(candidates)
 
     async def event_gen():
         last_error: Optional[Exception] = None
@@ -2537,7 +2588,10 @@ async def chat_stream(
                 ).with_model(provider, model).with_tools(prov_tools)
                 full_text_parts: list[str] = []
                 tool_call_log: list[dict] = list(pre_tool_log)
-                user_message_for_iter: Optional[UserMessage] = UserMessage(text=body.content)
+                user_message_for_iter: Optional[UserMessage] = UserMessage(
+                    text=body.content,
+                    images=[img for img in (body.images or []) if img][:4],
+                )
                 started = False
                 try:
                     for _safety in range(80):

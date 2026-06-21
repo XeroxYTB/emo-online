@@ -270,15 +270,22 @@ class BrowserController:
         try:
             if ref is not None:
                 loc = page.locator(f'[data-emo-ref="{int(ref)}"]')
+                if clear:
+                    await loc.first.fill(text, timeout=12000)
+                else:
+                    await loc.first.click(timeout=12000)
+                    await loc.first.type(text, timeout=12000)
             elif selector:
                 loc = page.locator(selector)
+                if clear:
+                    await loc.first.fill(text, timeout=12000)
+                else:
+                    await loc.first.click(timeout=12000)
+                    await loc.first.type(text, timeout=12000)
+            elif text:
+                await page.keyboard.type(text, delay=20)
             else:
-                return {"ok": False, "error": "Indique ref ou selector pour le champ."}
-            if clear:
-                await loc.first.fill(text, timeout=12000)
-            else:
-                await loc.first.click(timeout=12000)
-                await loc.first.type(text, timeout=12000)
+                return {"ok": False, "error": "Indique ref, selector, ou text seul (clavier page)."}
             if press_enter:
                 await page.keyboard.press("Enter")
             await asyncio.sleep(0.4)
@@ -321,6 +328,36 @@ class BrowserController:
             return {"ok": False, "error": f"Touche échouée: {e}"}
         snap = await self._snapshot(sess.page, session_id)
         snap["action"] = "press"
+        return snap
+
+    async def keyboard_input(
+        self,
+        user_id: str,
+        session_id: str = "default",
+        *,
+        key: Optional[str] = None,
+        text: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Saisie clavier directe sur la page (focus utilisateur sur la capture)."""
+        try:
+            sess = await self._get_session(user_id, session_id, create=False)
+        except RuntimeError as e:
+            return {"ok": False, "error": str(e)}
+        try:
+            if text:
+                await sess.page.keyboard.type(text, delay=15)
+            elif key:
+                if len(key) == 1:
+                    await sess.page.keyboard.type(key, delay=15)
+                else:
+                    await sess.page.keyboard.press(key)
+            else:
+                return {"ok": False, "error": "Indique key ou text."}
+            await asyncio.sleep(0.25)
+        except Exception as e:
+            return {"ok": False, "error": f"Saisie clavier échouée: {e}"}
+        snap = await self._snapshot(sess.page, session_id)
+        snap["action"] = "keyboard"
         return snap
 
     async def close(self, user_id: str, session_id: str = "default") -> dict[str, Any]:
@@ -385,6 +422,16 @@ async def browser_press(user_id: str, key: str, session_id: str = "default") -> 
     return await browser_controller.press_key(user_id, key, session_id)
 
 
+async def browser_keyboard(
+    user_id: str,
+    session_id: str = "default",
+    *,
+    key: Optional[str] = None,
+    text: Optional[str] = None,
+) -> dict:
+    return await browser_controller.keyboard_input(user_id, session_id, key=key, text=text)
+
+
 async def browser_close(user_id: str, session_id: str = "default") -> dict:
     return await browser_controller.close(user_id, session_id)
 
@@ -426,12 +473,14 @@ BROWSER_CONTROL_TOOLS = [
         "type": "function",
         "function": {
             "name": "browser_click",
-            "description": "Clique sur un élément (ref depuis snapshot, ou selector CSS).",
+            "description": "Clique sur un élément (ref depuis snapshot, selector CSS, ou coordonnées x,y viewport).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "ref": {"type": "integer", "description": "Numéro ref de l'élément."},
                     "selector": {"type": "string", "description": "Selector CSS alternatif."},
+                    "x": {"type": "number", "description": "Coordonnée X viewport (pixels)."},
+                    "y": {"type": "number", "description": "Coordonnée Y viewport (pixels)."},
                     "session_id": {"type": "string"},
                 },
             },

@@ -15,10 +15,31 @@ const MOOD_LABELS = {
   pensive: "Pensive",
 };
 
-/** Render simple markdown-ish content: code blocks and inline code. */
-const RichContent = ({ text }) => {
+/** Render simple markdown-ish content: code blocks, inline code, images. */
+const RichContent = ({ text, images }) => {
+  if (images?.length) {
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {images.map((img, i) => (
+            <img
+              key={i}
+              src={img.startsWith("data:") ? img : `data:image/jpeg;base64,${img}`}
+              alt=""
+              className="max-h-48 rounded-lg em-border object-contain"
+            />
+          ))}
+        </div>
+        {text ? <RichText text={text} /> : null}
+      </div>
+    );
+  }
+  return <RichText text={text} />;
+};
+
+const RichText = ({ text }) => {
   if (!text) return null;
-  const parts = text.split(/(```[\s\S]*?```)/g);
+  const parts = text.split(/(```[\s\S]*?```|!\[[^\]]*\]\([^)]+\))/g);
   return (
     <div className="space-y-3">
       {parts.map((part, i) => {
@@ -42,7 +63,22 @@ const RichContent = ({ text }) => {
             </pre>
           );
         }
-        // Inline transformations
+        const imgMatch = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+        if (imgMatch) {
+          const [, alt, src] = imgMatch;
+          const resolved = src.startsWith("data:") || src.startsWith("http")
+            ? src
+            : `data:image/jpeg;base64,${src}`;
+          return (
+            <img
+              key={i}
+              src={resolved}
+              alt={alt || ""}
+              className="max-w-full rounded-xl em-border my-2"
+              style={{ maxHeight: 420, objectFit: "contain" }}
+            />
+          );
+        }
         const segments = part.split(/(`[^`]+`)/g);
         return (
           <p key={i} className="leading-relaxed whitespace-pre-wrap">
@@ -89,8 +125,8 @@ function normalizeToolEvent(t, i) {
   }
   if (
     !inlinePreview &&
-    ["browser_visit", "browser_open", "web_fetch"].includes(tool) &&
-    (t.result?.url || args.url)
+    ["browser_visit", "browser_open", "web_fetch", "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type"].includes(tool) &&
+    (t.result?.url || args.url || t.result?.screenshot_base64)
   ) {
     inlinePreview = {
       type: "browser",
@@ -135,7 +171,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
             color: "var(--emo-text)",
           }}
         >
-          <RichContent text={cleanDisplayText(message.content)} />
+          <RichContent text={cleanDisplayText(message.content)} images={message.images} />
         </div>
       </div>
     );
@@ -200,7 +236,7 @@ export const ChatMessage = ({ message, isStreaming }) => {
           </div>
         )}
         <div className="text-[15px]" style={{ color: "var(--emo-text)" }}>
-          <RichContent text={cleanDisplayText(message.content)} />
+          <RichContent text={cleanDisplayText(message.content)} images={message.images} />
         </div>
       </div>
     </div>

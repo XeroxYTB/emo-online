@@ -327,7 +327,10 @@ export default function Chat() {
       }
     } else if (preview.type === "browser") {
       for (let i = updated.length - 1; i >= 0; i -= 1) {
-        if (["browser_visit", "browser_open", "web_fetch", "web_search"].includes(updated[i].tool)) {
+        if ([
+          "browser_visit", "browser_open", "web_fetch", "web_search",
+          "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
+        ].includes(updated[i].tool)) {
           idx = i;
           break;
         }
@@ -349,8 +352,29 @@ export default function Chat() {
     };
   };
 
-  const handleSend = async (text) => {
+  const buildBrowserPreview = (tool, args, result) => {
+    const url = args.url || result?.url;
+    if (!url && !result?.screenshot_base64) return null;
+    return {
+      type: "browser",
+      action: tool === "browser_open" ? "control" : "control",
+      url: url || result?.url || "",
+      title: result?.title,
+      preview: result?.preview || result?.text,
+      screenshot_base64: result?.screenshot_base64,
+      elements: result?.elements || [],
+      session_id: result?.session_id || args.session_id || "default",
+    };
+  };
+
+  const BROWSER_PREVIEW_TOOLS = [
+    "browser_visit", "browser_open", "web_fetch",
+    "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
+  ];
+
+  const handleSend = async (text, images = []) => {
     if (streaming) return;
+    if (!text.trim() && !images.length) return;
     let convId = activeId;
     if (!convId) {
       const r = await http.post("/conversations", { title: "Nouvelle conversation", mode });
@@ -360,6 +384,7 @@ export default function Chat() {
     }
     const optimistic = {
       message_id: `tmp_${Date.now()}`, role: "user", content: text, mode,
+      images: images.length ? images : undefined,
     };
     setMessages((m) => [...m, optimistic]);
     stickyBottomRef.current = true;
@@ -379,7 +404,7 @@ export default function Chat() {
 
     try {
       await streamChat({
-        conversation_id: convId, content: text, mode,
+        conversation_id: convId, content: text, images, mode,
         model_preference: modelPreference || "auto",
         use_agent_tools: useAgentTools,
         signal: abortController.signal,
@@ -421,20 +446,9 @@ export default function Chat() {
                     query: evt.result.query || args.query || "",
                     results: (evt.result.results || []).slice(0, 8),
                   };
-                } else if (["browser_visit", "browser_open", "web_fetch"].includes(tool)) {
-                  const url = args.url || evt.result?.url;
-                  if (url) {
-                    turnTools[i].inlinePreview = {
-                      type: "browser",
-                      action: tool === "browser_open" ? "control" : "visit",
-                      url,
-                      title: evt.result?.title,
-                      preview: evt.result?.preview || evt.result?.text,
-                      screenshot_base64: evt.result?.screenshot_base64,
-                      elements: evt.result?.elements || [],
-                      session_id: evt.result?.session_id || "default",
-                    };
-                  }
+                } else if (BROWSER_PREVIEW_TOOLS.includes(tool)) {
+                  const bp = buildBrowserPreview(tool, args, evt.result);
+                  if (bp) turnTools[i].inlinePreview = bp;
                 }
               }
             }
@@ -467,6 +481,21 @@ export default function Chat() {
           } else if (evt.type === "reflect") {
             const note = { id: `rn_${Date.now()}`, ...evt };
             setReflectNotes((prev) => [note, ...prev].slice(0, 12));
+          } else if (evt.type === "image") {
+            turnTools.push({
+              id: evt.id || `img_${Date.now()}`,
+              tool: "image_output",
+              state: "done",
+              args: {},
+              result: { ok: true },
+              inlinePreview: {
+                type: "file",
+                path: evt.title || "image",
+                preview: evt.src,
+                is_image: true,
+              },
+            });
+            setStreamingTools([...turnTools]);
           } else if (evt.type === "file_preview") {
             const preview = { type: "file", ...evt };
             if (turnTools.length) {

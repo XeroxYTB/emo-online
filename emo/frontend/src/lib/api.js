@@ -183,7 +183,7 @@ http.interceptors.response.use(
   }
 );
 
-export async function streamChat({ conversation_id, content, mode, model_preference, use_agent_tools, onEvent, signal }) {
+export async function streamChat({ conversation_id, content, images, mode, model_preference, use_agent_tools, onEvent, signal }) {
   const headers = { "Content-Type": "application/json", Accept: "text/event-stream" };
   const token = getSessionToken();
   if (token) {
@@ -205,6 +205,7 @@ export async function streamChat({ conversation_id, content, mode, model_prefere
       body: JSON.stringify({
         conversation_id,
         content,
+        images: images?.length ? images : undefined,
         mode,
         model_preference: model_preference || "auto",
         use_agent_tools: use_agent_tools !== false,

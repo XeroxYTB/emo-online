@@ -59,7 +59,12 @@ const COLORS = {
 
 export const ToolCallCard = ({ event }) => {
   const [open, setOpen] = useState(event.state !== "done");
-  const canPreview = hasToolPreview(event) || Boolean(event.args?.url && ["browser_visit", "browser_open", "web_fetch"].includes(event.tool));
+  const canPreview = hasToolPreview(event) || Boolean(
+    event.args?.url && [
+      "browser_visit", "browser_open", "web_fetch",
+      "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type",
+    ].includes(event.tool),
+  );
   const [previewOpen, setPreviewOpen] = useState(
     canPreview && (event.state === "done" || ["browser_visit", "browser_open"].includes(event.tool)),
   );
@@ -184,6 +189,7 @@ function formatArgs(tool, args) {
   if (tool === "web_search") return `"${args.query || ""}"${args.focus && args.focus !== "general" ? ` [${args.focus}]` : ""}`;
   if (tool === "web_fetch" || tool === "browser_visit" || tool === "browser_open") return args.url || "";
   if (tool.startsWith("browser_")) {
+    if (args.x != null && args.y != null) return `@${args.x},${args.y}`;
     if (args.ref != null) return `ref=${args.ref}`;
     if (args.selector) return args.selector;
     if (args.text) return `"${String(args.text).slice(0, 40)}"`;

@@ -23,17 +23,28 @@ export default function ChatPreviewBubble({ event, className = "" }) {
       }}
     >
       <div
-        className="flex items-center gap-2 px-3 py-1.5 text-[10px] uppercase tracking-wider em-border-b"
-        style={{ color: "var(--emo-text-muted)" }}
+        className="flex items-center gap-2 px-3 py-2 em-border-b"
+        style={{ background: "var(--emo-subtle-bg, var(--emo-surface))" }}
       >
-        {data.kind === "html" ? <FileCode2 size={11} /> : <Globe size={11} />}
-        <span className="truncate flex-1 normal-case tracking-normal text-xs" style={{ color: "var(--emo-text)" }}>
-          {isBrowser ? "Navigateur" : data.title || data.url || "Aperçu"}
-          {isBrowser && data.title ? ` — ${data.title}` : ""}
+        {isBrowser ? (
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ background: "var(--mode-color)" }}
+            aria-hidden
+          />
+        ) : data.kind === "html" ? (
+          <FileCode2 size={12} style={{ color: "var(--emo-text-muted)" }} />
+        ) : (
+          <Globe size={12} style={{ color: "var(--emo-text-muted)" }} />
+        )}
+        <span className="truncate flex-1 text-xs font-medium" style={{ color: "var(--emo-text)" }}>
+          {isBrowser
+            ? data.title || data.url?.replace(/^https?:\/\//, "") || "Navigateur"
+            : data.title || data.url || "Aperçu"}
         </span>
       </div>
 
-      <div className="p-2">
+      <div className={isBrowser ? "p-1.5" : "p-2"}>
         {data.kind === "search" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {(data.results || []).map((r, i) => (

@@ -21,6 +21,8 @@ from llm_config import get_api_key
 @dataclass
 class UserMessage:
     text: str
+    images: list[str] = field(default_factory=list)
+    image_media_type: str = "image/jpeg"
 
 
 @dataclass
@@ -85,8 +87,52 @@ def _normalize_messages(initial_messages: list[dict], system_message: str) -> tu
                 system = f"{system}\n\n{content}".strip()
             continue
         if role in ("user", "assistant"):
-            messages.append({"role": role, "content": content})
+            entry: dict[str, Any] = {"role": role, "content": content}
+            if role == "user" and msg.get("images"):
+                entry["images"] = msg["images"]
+            messages.append(entry)
     return system, messages
+
+
+def _build_user_content(text: str, images: list[str], media_type: str = "image/jpeg") -> Any:
+    if not images:
+        return text
+    blocks: list[dict] = []
+    for img in images[:4]:
+        b64 = img.split(",", 1)[-1] if img.startswith("data:") else img
+        blocks.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": media_type, "data": b64},
+        })
+    blocks.append({"type": "text", "text": text or "Analyse cette image."})
+    return blocks
+
+
+def _openai_user_content(text: str, images: list[str], media_type: str = "image/jpeg") -> Any:
+    if not images:
+        return text
+    parts: list[dict] = [{"type": "text", "text": text or "Analyse cette image."}]
+    for img in images[:4]:
+        b64 = img.split(",", 1)[-1] if img.startswith("data:") else img
+        mime = media_type
+        if img.startswith("data:"):
+            mime = img.split(";")[0].split(":")[1] if ";" in img else media_type
+        parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{mime};base64,{b64}"},
+        })
+    return parts
+
+
+def _gemini_user_parts(text: str, images: list[str], media_type: str = "image/jpeg") -> list[dict]:
+    parts: list[dict] = [{"text": text or "Analyse cette image."}]
+    for img in images[:4]:
+        b64 = img.split(",", 1)[-1] if img.startswith("data:") else img
+        mime = media_type
+        if img.startswith("data:"):
+            mime = img.split(";")[0].split(":")[1] if ";" in img else media_type
+        parts.append({"inline_data": {"mime_type": mime, "data": b64}})
+    return parts
 
 
 class LlmChat:
@@ -142,7 +188,16 @@ class LlmChat:
 
     async def stream_message(self, user_message: Optional[UserMessage] = None) -> AsyncIterator[Any]:
         if user_message is not None:
-            self._messages.append({"role": "user", "content": user_message.text})
+            imgs = user_message.images or []
+            if imgs:
+                self._messages.append({
+                    "role": "user",
+                    "content": user_message.text,
+                    "images": imgs,
+                    "image_media_type": user_message.image_media_type,
+                })
+            else:
+                self._messages.append({"role": "user", "content": user_message.text})
 
         if self._provider == "anthropic":
             async for ev in self._stream_anthropic():
@@ -171,6 +226,24 @@ class LlmChat:
             await resp.aread()
         resp.raise_for_status()
 
+    def _anthropic_messages(self) -> list[dict]:
+        out: list[dict] = []
+        for m in self._messages:
+            role = m.get("role")
+            content = m.get("content")
+            if role == "user" and m.get("images"):
+                out.append({
+                    "role": "user",
+                    "content": _build_user_content(
+                        str(content or ""),
+                        m.get("images") or [],
+                        m.get("image_media_type") or "image/jpeg",
+                    ),
+                })
+            elif role in ("user", "assistant"):
+                out.append({"role": role, "content": content if content is not None else ""})
+        return out
+
     async def _stream_anthropic(self) -> AsyncIterator[Any]:
         if AsyncAnthropic is None:
             raise ValueError("Package anthropic non installé")
@@ -179,7 +252,7 @@ class LlmChat:
             "model": self._model,
             "max_tokens": 8192,
             "system": self._system_message,
-            "messages": self._messages,
+            "messages": self._anthropic_messages(),
         }
         if self._anthropic_tools:
             kwargs["tools"] = self._anthropic_tools
@@ -260,7 +333,18 @@ class LlmChat:
                     entry["tool_calls"] = m["tool_calls"]
                 msgs.append(entry)
             elif role == "user" and content is not None:
-                msgs.append({"role": "user", "content": content})
+                imgs = m.get("images") or []
+                if imgs:
+                    msgs.append({
+                        "role": "user",
+                        "content": _openai_user_content(
+                            str(content),
+                            imgs,
+                            m.get("image_media_type") or "image/jpeg",
+                        ),
+                    })
+                else:
+                    msgs.append({"role": "user", "content": content})
         return msgs
 
     async def _stream_openai_compat(self) -> AsyncIterator[Any]:
@@ -352,8 +436,17 @@ class LlmChat:
                 text = f"[Résultat outil {m.get('tool_call_id', '')}]: {content}"
                 contents.append({"role": "user", "parts": [{"text": str(text)[:8000]}]})
             elif role == "user":
-                text = content if isinstance(content, str) else str(content)
-                contents.append({"role": "user", "parts": [{"text": text}]})
+                imgs = m.get("images") or []
+                if imgs:
+                    parts = _gemini_user_parts(
+                        str(content) if content is not None else "",
+                        imgs,
+                        m.get("image_media_type") or "image/jpeg",
+                    )
+                    contents.append({"role": "user", "parts": parts})
+                else:
+                    text = content if isinstance(content, str) else str(content)
+                    contents.append({"role": "user", "parts": [{"text": text}]})
             elif role == "assistant":
                 text = content if isinstance(content, str) else str(content)
                 if m.get("tool_calls"):

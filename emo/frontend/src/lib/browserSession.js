@@ -50,3 +50,8 @@ export async function browserScroll(sessionId = "default", direction = "down", a
   const r = await http.post("/browser/scroll", { session_id: sessionId, direction, amount });
   return frameFromResult(r.data);
 }
+
+export async function browserKey(sessionId = "default", { key, text } = {}) {
+  const r = await http.post("/browser/key", { session_id: sessionId, key, text });
+  return frameFromResult(r.data);
+}
