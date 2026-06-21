@@ -38,7 +38,7 @@ export default function RightPanel({
       className={
         mobileSheet
           ? "flex w-full min-w-0 flex-1 flex-col emo-panel-flat emo-right-panel-sheet overflow-hidden"
-          : "hidden md:flex w-[min(460px,38vw)] min-w-[360px] flex-shrink-0 h-full flex-col emo-panel-flat"
+          : "hidden md:flex emo-right-panel flex-shrink-0 h-full flex-col emo-panel-flat"
       }
       style={{
         borderLeft: mobileSheet ? "none" : "1px solid var(--emo-border)",

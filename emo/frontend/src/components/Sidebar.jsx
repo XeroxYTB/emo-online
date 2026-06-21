@@ -71,7 +71,7 @@ export const Sidebar = ({
   return (
     <aside
       data-testid="sidebar-container"
-      className={`emo-sidebar w-72 emo-panel-flat ${mobile ? "flex emo-sidebar-mobile" : "hidden md:flex"}`}
+      className={`emo-sidebar w-64 emo-panel-flat ${mobile ? "flex emo-sidebar-mobile" : "hidden md:flex"}`}
     >
       <div className="px-4 py-3.5 flex items-center justify-between border-b" style={{ borderColor: "var(--emo-border)" }}>
         <EmoLogo size="sm" showSubtitle={false} />

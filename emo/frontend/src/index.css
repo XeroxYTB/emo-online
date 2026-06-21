@@ -429,13 +429,34 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 
 /* ─── Chat layout ───────────────────────────────────────────── */
 .emo-chat-main {
-  flex: 1;
+  flex: 1 1 0%;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--emo-bg);
+}
+
+.emo-right-panel-wrap {
+  height: 100%;
+  min-height: 0;
+}
+
+.emo-right-panel {
+  width: min(300px, 26vw);
+  min-width: 240px;
+  max-width: 340px;
+}
+
+.emo-app-shell:not([data-right-panel-open="true"]) .emo-chat-messages,
+.emo-app-shell:not([data-right-panel-open="true"]) .emo-chat-composer-inner {
+  max-width: 52rem;
+}
+
+.emo-app-shell[data-right-panel-open="true"] .emo-chat-messages,
+.emo-app-shell[data-right-panel-open="true"] .emo-chat-composer-inner {
+  max-width: 44rem;
 }
 
 .emo-chat-header {
@@ -1475,6 +1496,30 @@ textarea, input { font-family: inherit; }
   flex-wrap: wrap;
   min-width: 0;
   width: 100%;
+}
+
+/* Squeezed desktop: sidebar + chat + right panel */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .emo-right-panel {
+    width: min(260px, 22vw);
+    min-width: 220px;
+    max-width: 280px;
+  }
+
+  .emo-app-shell[data-right-panel-open="true"] .emo-chat-messages,
+  .emo-app-shell[data-right-panel-open="true"] .emo-chat-composer-inner {
+    max-width: 100%;
+    padding-left: var(--emo-space-4);
+    padding-right: var(--emo-space-4);
+  }
+
+  .emo-app-shell[data-right-panel-open="true"] .emo-composer-toolbar-inner {
+    gap: var(--emo-space-1);
+  }
+
+  .emo-app-shell[data-right-panel-open="true"] .emo-segment-btn {
+    padding: 6px 8px;
+  }
 }
 
 .emo-settings-nav-mobile {

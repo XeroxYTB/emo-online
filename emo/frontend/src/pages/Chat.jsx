@@ -90,9 +90,10 @@ export default function Chat() {
   }, []);
   const [reflectNotes, setReflectNotes] = useState([]);
   const [rightPanelTab, setRightPanelTab] = useState("activity");
-  const [rightOpen, setRightOpen] = useState(
-    typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : true
-  );
+  const [rightOpen, setRightOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("emo_right_panel_open") === "1";
+  });
   const [rightPanelMobileOpen, setRightPanelMobileOpen] = useState(false);
   const [debugEvents, setDebugEvents] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -154,6 +155,12 @@ export default function Chat() {
       localStorage.setItem("emo_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
     }
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("emo_right_panel_open", rightOpen ? "1" : "0");
+    }
+  }, [rightOpen]);
 
   useEffect(() => {
     const locked = sidebarOpenMobile || profileOpen || rightPanelMobileOpen;
@@ -839,7 +846,10 @@ export default function Chat() {
   const activeConv = conversations.find((c) => c.conversation_id === activeId);
 
   return (
-    <div className={`mode-${mode} emo-app-shell`}>
+    <div
+      className={`mode-${mode} emo-app-shell`}
+      data-right-panel-open={rightOpen && !mobileLayout ? "true" : "false"}
+    >
       <Sidebar
         conversations={conversations}
         activeId={activeId}
@@ -993,7 +1003,7 @@ export default function Chat() {
       </main>
 
       {rightOpen && (
-        <div className="hidden md:block">
+        <div className="hidden md:flex flex-shrink-0 emo-right-panel-wrap">
           <RightPanel
             tools={allTools}
             agentOnline={agentOnline}
