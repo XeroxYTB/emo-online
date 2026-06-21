@@ -1,5 +1,6 @@
 import { isImagePath, previewTextSnippet } from "../components/SquarePreviewFrame";
 import { htmlPreviewUrl, isHtmlPath } from "./filePreview";
+import { getApiBase } from "./api";
 
 const BROWSER_TOOLS = [
   "web_fetch", "browser_visit", "browser_open",
@@ -13,10 +14,25 @@ function hasValidScreenshot(data) {
   return b64.length > 500;
 }
 
+/** Resolve relative API image paths to absolute URLs. */
+function resolveImageUrl(url) {
+  if (!url || typeof url !== "string") return null;
+  if (url.startsWith("data:")) {
+    if (url.includes("[image:") || url.endsWith("base64,") || url.length < 120) return null;
+    return url;
+  }
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const apiBase = getApiBase().replace(/\/$/, "");
+  const path = url.startsWith("/") ? url : `/${url}`;
+  return `${apiBase}${path}`;
+}
+
 /** Build a displayable image src from SSE / tool result fields. */
 export function buildImagePreviewSrc({ src, image_base64, image_url, mime = "image/png" } = {}) {
-  if (image_url && typeof image_url === "string") return image_url;
-  if (src && typeof src === "string" && !src.includes("[image:")) return src;
+  const fromUrl = resolveImageUrl(image_url);
+  if (fromUrl) return fromUrl;
+  const fromSrc = resolveImageUrl(src);
+  if (fromSrc) return fromSrc;
   const b64 = image_base64;
   if (b64 && typeof b64 === "string" && !b64.startsWith("[") && b64.length > 100) {
     return `data:${mime || "image/png"};base64,${b64}`;

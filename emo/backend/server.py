@@ -1070,6 +1070,28 @@ async def admin_list_product_keys(user: User = Depends(get_current_user)):
     return {"keys": items}
 
 
+@api.get("/generated-image/{image_id}")
+async def get_generated_image(image_id: str, t: str = Query("")):
+    """Serve cached generated images (token auth — img tags cannot send Bearer headers)."""
+    entry = _GENERATED_IMAGES.get(image_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Image introuvable")
+    expected = _image_access_token(entry["user_id"], image_id)
+    if not t or t != expected:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    try:
+        raw = base64.b64decode(entry["b64"])
+    except Exception:
+        raise HTTPException(status_code=404, detail="Image corrompue")
+    if not raw:
+        raise HTTPException(status_code=404, detail="Image vide")
+    return Response(
+        content=raw,
+        media_type=entry.get("mime") or "image/png",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
 class FeedbackBody(BaseModel):
     response: str
 
@@ -2605,6 +2627,11 @@ def _prune_generated_images() -> None:
         _GENERATED_IMAGES.pop(oldest, None)
 
 
+def _image_access_token(user_id: str, image_id: str) -> str:
+    secret = os.environ.get("JWT_SECRET") or os.environ.get("EMO_SESSION_SECRET") or "emo-image-dev"
+    return hashlib.sha256(f"{user_id}:{image_id}:{secret}".encode()).hexdigest()[:32]
+
+
 def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
     """Attach a fetchable image_url so the UI does not depend on huge SSE payloads."""
     if not result.get("ok"):
@@ -2613,7 +2640,8 @@ def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
     if not b64 or not isinstance(b64, str) or b64.startswith("["):
         return result
     out = dict(result)
-    if out.get("image_url"):
+    ext_url = out.get("image_url")
+    if ext_url and str(ext_url).startswith("http"):
         return out
     _prune_generated_images()
     image_id = f"img_{(tc_id or uuid.uuid4().hex)[:20]}"
@@ -2623,7 +2651,8 @@ def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
         "b64": b64,
         "ts": time.time(),
     }
-    out["image_url"] = f"/generated-image/{image_id}"
+    token = _image_access_token(user_id, image_id)
+    out["image_url"] = f"/generated-image/{image_id}?t={token}"
     return out
 
 
@@ -3494,17 +3523,22 @@ def _persist_tool_call(t: dict) -> dict:
     }
     if t.get("id"):
         entry["id"] = t["id"]
-    if t["name"] == "generate_image" and result.get("ok") and result.get("image_base64"):
+    if t["name"] == "generate_image" and result.get("ok") and (
+        result.get("image_base64") or result.get("image_url")
+    ):
         entry["result"] = {
             "ok": True,
             "mime": result.get("mime") or "image/png",
-            "image_base64": result["image_base64"],
             "prompt": result.get("prompt") or entry["arguments"].get("prompt"),
             "final_prompt": result.get("final_prompt") or result.get("prompt"),
             "subject": result.get("subject"),
             "provider": result.get("provider"),
             "seed": result.get("seed"),
         }
+        if result.get("image_url"):
+            entry["result"]["image_url"] = result["image_url"]
+        if result.get("image_base64"):
+            entry["result"]["image_base64"] = result["image_base64"]
     return entry
 
 

@@ -92,7 +92,7 @@ function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = f
     return (
       <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-em p-4 text-center ${className || ""}`}>
         <ImageIcon size={28} className="opacity-40" />
-        <span className="text-[11px] opacity-70">{alt || "Aperçu"}</span>
+        <span className="text-[11px] opacity-70">{failed ? "Image indisponible" : (alt || "Aperçu")}</span>
       </div>
     );
   }

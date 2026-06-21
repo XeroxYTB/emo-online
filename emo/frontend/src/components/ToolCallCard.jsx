@@ -84,8 +84,7 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   const color = COLORS[event.tool] || "var(--mode-color)";
   const isError = event.state === "error" || (event.result && event.result.ok === false);
   const isExecuting = event.state === "executing";
-  const waitingForImage = isImageGen && event.result?.has_image && !imagePreviewSrc;
-  const showImageGenLoading = isImageGen && (isExecuting || waitingForImage);
+  const showImageGenLoading = isImageGen && isExecuting;
   const fileContent = showCopyCode && isCopyableFileToolEvent(event)
     ? getFileContentFromToolEvent(event, liveHtmlByPath)
     : "";
@@ -219,7 +218,17 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
         <ImageGeneratingPlaceholder prompt={event.args?.prompt} />
       )}
 
-      {previewOpen && canPreview && !showImageGenLoading && (
+      {previewOpen && isImageGen && event.state === "done" && !isError && !showImageGenLoading && !imagePreviewSrc && (
+        <div
+          className="w-full max-w-[340px] mx-auto rounded-xl px-4 py-6 text-center text-xs"
+          style={{ border: "1px solid var(--emo-border)", color: "var(--emo-text-muted)" }}
+          data-testid="image-gen-failed"
+        >
+          Image non reçue — réessayez dans un instant.
+        </div>
+      )}
+
+      {previewOpen && canPreview && !showImageGenLoading && imagePreviewSrc && (
         <ChatPreviewBubble
           event={event}
           liveHtmlByPath={liveHtmlByPath}

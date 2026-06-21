@@ -225,6 +225,7 @@ async def _pollinations_generate(
             return {
                 "ok": True,
                 "image_base64": b64,
+                "image_url": str(resp.url),
                 "mime": ctype,
                 "prompt": final,
                 "final_prompt": final,
