@@ -28,7 +28,9 @@ function resolveImageUrl(url) {
 }
 
 /** Build a displayable image src from SSE / tool result fields. */
-export function buildImagePreviewSrc({ src, image_base64, image_url, mime = "image/png" } = {}) {
+export function buildImagePreviewSrc(input) {
+  if (!input || typeof input !== "object") return null;
+  const { src, image_base64, image_url, mime = "image/png" } = input;
   const fromUrl = resolveImageUrl(image_url);
   if (fromUrl) return fromUrl;
   const fromSrc = resolveImageUrl(src);

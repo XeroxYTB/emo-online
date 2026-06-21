@@ -70,7 +70,7 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   const isImageGen = event.tool === "generate_image";
   const imagePreviewSrc = event.inlinePreview?.type === "image"
     ? buildImagePreviewSrc(event.inlinePreview)
-    : buildImagePreviewSrc(event.result);
+    : (event.result ? buildImagePreviewSrc(event.result) : null);
   const canPreview = hasToolPreview(event) || Boolean(isImageGen && imagePreviewSrc) || Boolean(
     event.args?.url && [
       "browser_visit", "browser_open", "web_fetch",
