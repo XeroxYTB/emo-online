@@ -120,7 +120,11 @@ export const ChatComposer = ({
               </button>
             </div>
 
-            <div className="emo-composer-picker emo-composer-picker-mode" ref={pickerRef}>
+            <div
+              className="emo-composer-picker emo-composer-picker-mode"
+              ref={pickerRef}
+              data-open={openPicker === "mode" ? "true" : undefined}
+            >
               <button
                 type="button"
                 data-testid="mode-picker-trigger"
@@ -159,7 +163,11 @@ export const ChatComposer = ({
               )}
             </div>
 
-            <div className="emo-composer-picker emo-composer-picker-model" ref={modelPickerRef}>
+            <div
+              className="emo-composer-picker emo-composer-picker-model"
+              ref={modelPickerRef}
+              data-open={openPicker === "model" ? "true" : undefined}
+            >
               <button
                 type="button"
                 data-testid="model-picker-trigger"
