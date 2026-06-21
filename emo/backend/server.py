@@ -48,6 +48,7 @@ from browser_control import (
     browser_snapshot as do_browser_snapshot,
     browser_click as do_browser_click,
     browser_type as do_browser_type,
+    browser_fill as do_browser_fill,
     browser_scroll as do_browser_scroll,
     browser_press as do_browser_press,
     browser_keyboard as do_browser_keyboard,
@@ -2134,6 +2135,24 @@ async def user_browser_type(body: BrowserTypeBody, user: User = Depends(get_curr
     return result
 
 
+@api.post("/browser/fill")
+async def user_browser_fill(body: BrowserFillBody, user: User = Depends(get_current_user)):
+    if not _browser_available():
+        raise HTTPException(status_code=503, detail="Navigateur interactif indisponible.")
+    result = await do_browser_fill(
+        user.user_id,
+        body.text,
+        body.session_id or "default",
+        ref=body.ref,
+        selector=body.selector,
+        press_enter=body.press_enter,
+        fast=body.fast,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Remplissage échoué"))
+    return result
+
+
 @api.post("/browser/scroll")
 async def user_browser_scroll(body: BrowserScrollBody, user: User = Depends(get_current_user)):
     if not _browser_available():
@@ -2270,6 +2289,14 @@ async def execute_tool(
             ref=args.get("ref"),
             selector=args.get("selector"),
             clear=bool(args.get("clear")),
+            press_enter=bool(args.get("press_enter")),
+        )
+    if tool_name == "browser_fill":
+        return await do_browser_fill(
+            user_id, str(args.get("text", "")),
+            sid,
+            ref=args.get("ref"),
+            selector=args.get("selector"),
             press_enter=bool(args.get("press_enter")),
         )
     if tool_name == "browser_scroll":
@@ -2560,6 +2587,71 @@ def _strip_verified(text: str) -> tuple[str, Optional[str]]:
     val = m.group(1).strip().lower()
     clean = text[: m.start()].rstrip()
     return clean, val
+
+
+# Generated images cache (SSE cannot carry multi-MB base64 reliably)
+_GENERATED_IMAGES: dict[str, dict] = {}
+_GENERATED_IMAGES_MAX = 48
+_GENERATED_IMAGES_TTL = 3600
+
+
+def _prune_generated_images() -> None:
+    now = time.time()
+    stale = [k for k, v in _GENERATED_IMAGES.items() if now - v.get("ts", 0) > _GENERATED_IMAGES_TTL]
+    for k in stale:
+        _GENERATED_IMAGES.pop(k, None)
+    while len(_GENERATED_IMAGES) > _GENERATED_IMAGES_MAX:
+        oldest = min(_GENERATED_IMAGES.items(), key=lambda kv: kv[1].get("ts", 0))[0]
+        _GENERATED_IMAGES.pop(oldest, None)
+
+
+def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
+    """Attach a fetchable image_url so the UI does not depend on huge SSE payloads."""
+    if not result.get("ok"):
+        return result
+    b64 = result.get("image_base64")
+    if not b64 or not isinstance(b64, str) or b64.startswith("["):
+        return result
+    out = dict(result)
+    if out.get("image_url"):
+        return out
+    _prune_generated_images()
+    image_id = f"img_{(tc_id or uuid.uuid4().hex)[:20]}"
+    _GENERATED_IMAGES[image_id] = {
+        "user_id": user_id,
+        "mime": out.get("mime") or "image/png",
+        "b64": b64,
+        "ts": time.time(),
+    }
+    out["image_url"] = f"/generated-image/{image_id}"
+    return out
+
+
+def _image_sse_payload(tc_id: str, result: dict, *, title: str = "") -> Optional[dict]:
+    """Small SSE image event — URL only, no inline base64."""
+    if not result.get("ok"):
+        return None
+    url = result.get("image_url")
+    mime = result.get("mime") or "image/png"
+    prompt = title or result.get("subject") or result.get("prompt") or "Image générée"
+    if url:
+        return {
+            "type": "image",
+            "id": tc_id,
+            "image_url": url,
+            "mime": mime,
+            "title": str(prompt)[:80],
+        }
+    b64 = result.get("image_base64")
+    if b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("["):
+        return {
+            "type": "image",
+            "id": tc_id,
+            "image_url": f"data:{mime};base64,{b64}",
+            "mime": mime,
+            "title": str(prompt)[:80],
+        }
+    return None
 
 
 def _sse(payload: dict) -> str:
@@ -3236,6 +3328,8 @@ async def chat_stream(
                                 )
                             except asyncio.TimeoutError:
                                 result = {"ok": False, "error": "Outil timeout (75s) — réessaie ou simplifie la requête."}
+                            if tc.name == "generate_image":
+                                result = _prepare_image_delivery(user.user_id, tc.id, result)
                             tool_call_log.append({
                                 "id": tc.id, "name": tc.name,
                                 "arguments": tc.arguments, "result": result,
@@ -3248,17 +3342,13 @@ async def chat_stream(
                             browser_evt = _browser_sse_payload(tc.name, result)
                             if browser_evt:
                                 yield _sse(browser_evt)
-                            if tc.name == "generate_image" and result.get("ok") and result.get("image_base64"):
-                                mime = result.get("mime") or "image/png"
-                                prompt = str((tc.arguments or {}).get("prompt") or result.get("prompt") or "")
-                                yield _sse({
-                                    "type": "image",
-                                    "id": tc.id,
-                                    "src": f"data:{mime};base64,{result['image_base64']}",
-                                    "image_base64": result["image_base64"],
-                                    "mime": mime,
-                                    "title": prompt[:80],
-                                })
+                            img_evt = _image_sse_payload(
+                                tc.id,
+                                result,
+                                title=str((tc.arguments or {}).get("prompt") or result.get("prompt") or ""),
+                            ) if tc.name == "generate_image" else None
+                            if img_evt:
+                                yield _sse(img_evt)
                             reflect_evt = _reflect_sse_payload(tc.name, result)
                             if reflect_evt:
                                 yield _sse(reflect_evt)
