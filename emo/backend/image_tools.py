@@ -59,9 +59,13 @@ async def _hf_generate(client: httpx.AsyncClient, model: str, prompt: str) -> di
 
 
 async def _pollinations_generate(client: httpx.AsyncClient, prompt: str) -> dict | None:
-    """Génération 100 % gratuite, sans clé API (Pollinations.ai)."""
-    q = urllib.parse.quote(prompt[:1000])
-    url = f"https://image.pollinations.ai/prompt/{q}?width=1024&height=1024&nologo=true&enhance=true"
+    """Génération gratuite via Pollinations — prompt enrichi pour meilleure qualité."""
+    enhanced = (
+        f"{prompt[:800]}, professional quality, highly detailed, "
+        "studio lighting, sharp focus, 8k, masterpiece"
+    )
+    q = urllib.parse.quote(enhanced)
+    url = f"https://image.pollinations.ai/prompt/{q}?width=1024&height=1024&nologo=true&enhance=true&model=flux"
     try:
         resp = await client.get(url, follow_redirects=True)
         ctype = (resp.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
