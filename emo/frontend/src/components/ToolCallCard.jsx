@@ -59,8 +59,10 @@ const COLORS = {
 
 export const ToolCallCard = ({ event }) => {
   const [open, setOpen] = useState(event.state !== "done");
-  const canPreview = hasToolPreview(event);
-  const [previewOpen, setPreviewOpen] = useState(canPreview && event.state === "done");
+  const canPreview = hasToolPreview(event) || Boolean(event.args?.url && ["browser_visit", "browser_open", "web_fetch"].includes(event.tool));
+  const [previewOpen, setPreviewOpen] = useState(
+    canPreview && (event.state === "done" || ["browser_visit", "browser_open"].includes(event.tool)),
+  );
   const Icon = ICONS[event.tool] || Wrench;
   const color = COLORS[event.tool] || "var(--mode-color)";
   const isError = event.state === "error" || (event.result && event.result.ok === false);
@@ -163,7 +165,7 @@ export const ToolCallCard = ({ event }) => {
         )}
       </div>
 
-      {previewOpen && canPreview && event.state === "done" && !isError && (
+      {previewOpen && canPreview && (
         <ChatPreviewBubble event={event} />
       )}
     </div>

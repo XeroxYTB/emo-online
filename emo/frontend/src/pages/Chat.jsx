@@ -464,7 +464,6 @@ export default function Chat() {
               });
               setStreamingTools([...turnTools]);
             }
-            setRightPanelTab("activity");
           } else if (evt.type === "reflect") {
             const note = { id: `rn_${Date.now()}`, ...evt };
             setReflectNotes((prev) => [note, ...prev].slice(0, 12));

@@ -1814,6 +1814,17 @@ def _browser_available() -> bool:
     return PLAYWRIGHT_AVAILABLE
 
 
+@api.get("/browser/status")
+async def browser_status():
+    from browser_control import PLAYWRIGHT_AVAILABLE
+    enabled = os.environ.get("EMO_BROWSER_ENABLED", "true").lower() not in ("0", "false", "no")
+    return {
+        "available": enabled and PLAYWRIGHT_AVAILABLE,
+        "playwright": PLAYWRIGHT_AVAILABLE,
+        "enabled": enabled,
+    }
+
+
 @api.post("/browser/open")
 async def user_browser_open(body: BrowserOpenBody, user: User = Depends(get_current_user)):
     if not _browser_available():
@@ -2403,8 +2414,9 @@ async def chat_stream(
                 except asyncio.TimeoutError:
                     visit_result = {"ok": False, "error": "Ouverture timeout."}
                 if browser_tool == "browser_open" and not visit_result.get("ok"):
-                    visit_result = await do_browser_visit(open_url)
-                    browser_tool = "browser_visit"
+                    if not _browser_available():
+                        visit_result = await do_browser_visit(open_url)
+                        browser_tool = "browser_visit"
                 pre_tool_log.append({
                     "id": tc_id, "name": browser_tool,
                     "arguments": {"url": open_url}, "result": visit_result,
@@ -2426,8 +2438,8 @@ async def chat_stream(
                     if visit_result.get("ok"):
                         if visit_result.get("screenshot_base64"):
                             reply = (
-                                f"**{title}** est ouvert dans le navigateur interactif (panneau Activité). "
-                                f"Clique les éléments **[1] [2]…** pour naviguer, ou utilise la barre d'URL."
+                                f"**{title}** est ouvert dans le navigateur ci-dessous. "
+                                f"Clique les éléments **[1] [2]…** pour interagir."
                             )
                         else:
                             reply = (
@@ -2958,7 +2970,7 @@ async def ping():
         "ok": True,
         "google": google_auth.is_configured(),
         "service": "emo-online",
-        "build": "2026-06-20f",
+        "build": "2026-06-20g",
     }
 
 

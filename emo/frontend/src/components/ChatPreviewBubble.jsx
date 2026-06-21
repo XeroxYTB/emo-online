@@ -1,15 +1,16 @@
 import React from "react";
 import { Globe, FileCode2 } from "lucide-react";
 import SquarePreviewFrame from "./SquarePreviewFrame";
-import SiteUrlPreview from "./SiteUrlPreview";
 import SearchResultPreview from "./SearchResultPreview";
 import InteractiveBrowser from "./InteractiveBrowser";
 import { resolveToolPreview } from "../lib/resolveToolPreview";
 
-/** Bulle d'aperçu dans le chat (HTML rendu, site, fichier, capture). */
+/** Bulle d'aperçu dans le chat — navigateur interactif inline pour les sites web. */
 export default function ChatPreviewBubble({ event, className = "" }) {
   const data = resolveToolPreview(event);
   if (!data) return null;
+
+  const isBrowser = data.kind === "interactive";
 
   return (
     <div
@@ -27,7 +28,8 @@ export default function ChatPreviewBubble({ event, className = "" }) {
       >
         {data.kind === "html" ? <FileCode2 size={11} /> : <Globe size={11} />}
         <span className="truncate flex-1 normal-case tracking-normal text-xs" style={{ color: "var(--emo-text)" }}>
-          {data.title || data.url || "Aperçu"}
+          {isBrowser ? "Navigateur" : data.title || data.url || "Aperçu"}
+          {isBrowser && data.title ? ` — ${data.title}` : ""}
         </span>
       </div>
 
@@ -49,7 +51,8 @@ export default function ChatPreviewBubble({ event, className = "" }) {
 
         {data.kind === "interactive" && (
           <InteractiveBrowser
-            compact
+            autoOpen
+            compact={false}
             frame={{
               url: data.url,
               title: data.title,
@@ -59,18 +62,6 @@ export default function ChatPreviewBubble({ event, className = "" }) {
               session_id: data.session_id,
             }}
             sessionId={data.session_id}
-          />
-        )}
-
-        {data.kind === "url" && (
-          <SiteUrlPreview
-            url={data.url}
-            title={data.title}
-            subtitle={data.url}
-            previewText={data.previewText}
-            screenshotSrc={data.screenshotSrc}
-            testId="bubble-url-preview"
-            className="max-w-none"
           />
         )}
 

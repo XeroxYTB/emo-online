@@ -193,8 +193,12 @@ class BrowserController:
             return {"ok": False, "error": "URL manquante"}
         sess = await self._get_session(user_id, session_id)
         try:
-            await sess.page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await asyncio.sleep(0.4)
+            await sess.page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            try:
+                await sess.page.wait_for_load_state("networkidle", timeout=8000)
+            except Exception:
+                pass
+            await asyncio.sleep(1.0)
         except Exception as e:
             return {"ok": False, "error": f"Navigation échouée: {e}", "url": url}
         snap = await self._snapshot(sess.page, session_id)

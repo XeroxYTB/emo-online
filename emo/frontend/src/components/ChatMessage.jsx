@@ -94,11 +94,13 @@ function normalizeToolEvent(t, i) {
   ) {
     inlinePreview = {
       type: "browser",
-      action: "visit",
+      action: tool === "browser_open" ? "control" : "visit",
       url: t.result?.url || args.url,
       title: t.result?.title,
       preview: t.result?.preview || t.result?.text,
       screenshot_base64: t.result?.screenshot_base64,
+      elements: t.result?.elements || [],
+      session_id: t.result?.session_id || "default",
     };
   }
   if (!inlinePreview && tool === "write_file" && args.path && args.content) {
