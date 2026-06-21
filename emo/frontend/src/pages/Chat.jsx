@@ -674,7 +674,7 @@ export default function Chat() {
             <button
               data-testid="toggle-right-panel"
               onClick={() => setRightOpen(!rightOpen)}
-              className="hidden lg:inline-flex p-2 rounded-lg em-hover text-muted-em"
+              className="hidden md:inline-flex p-2 rounded-lg em-hover text-muted-em"
               title="Panneau latéral"
             >
               {rightOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
@@ -769,7 +769,7 @@ export default function Chat() {
 
       {/* Right panel: hidden on small screens (kept for desktop only) */}
       {rightOpen && (
-        <div className="hidden lg:block">
+        <div className="hidden md:block">
           <RightPanel
             tools={allTools}
             agentOnline={agentOnline}

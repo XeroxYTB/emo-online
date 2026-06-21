@@ -1,6 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
+import { Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import EmoEyes from "./EmoEyes";
 import ToolCallCard from "./ToolCallCard";
+import LiveHtmlPreview from "./LiveHtmlPreview";
 import { cleanDisplayText } from "../lib/messageClean";
 
 const MOOD_LABELS = {
@@ -16,7 +19,7 @@ const MOOD_LABELS = {
 };
 
 /** Render simple markdown-ish content: code blocks, inline code, images. */
-const RichContent = ({ text, images }) => {
+const RichContent = ({ text, images, showCopyCode = false }) => {
   if (images?.length) {
     return (
       <div className="space-y-2">
@@ -30,14 +33,66 @@ const RichContent = ({ text, images }) => {
             />
           ))}
         </div>
-        {text ? <RichText text={text} /> : null}
+        {text ? <RichText text={text} showCopyCode={showCopyCode} /> : null}
       </div>
     );
   }
-  return <RichText text={text} />;
+  return <RichText text={text} showCopyCode={showCopyCode} />;
 };
 
-const RichText = ({ text }) => {
+const CodeBlock = ({ inner, lang, showCopyCode }) => {
+  const [copied, setCopied] = useState(false);
+  const isHtml = ["html", "htm"].includes((lang || "").toLowerCase());
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(inner);
+      setCopied(true);
+      toast.success("Code copié");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Impossible de copier");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        {showCopyCode && (
+          <button
+            type="button"
+            data-testid="markdown-copy-code-btn"
+            onClick={handleCopy}
+            className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] em-hover-subtle z-10"
+            style={{ color: copied ? "var(--emo-success-text)" : "var(--emo-text-muted)" }}
+            title="Copier tout le code"
+          >
+            {copied ? <Check size={11} /> : <Copy size={11} />}
+            <span className="hidden sm:inline">{copied ? "Copié" : "Copier"}</span>
+          </button>
+        )}
+        <pre
+          className="font-code text-xs overflow-x-auto rounded-xl p-4 my-2"
+          style={{
+            background: "var(--emo-code-bg)",
+            border: "1px solid var(--emo-border)",
+            boxShadow: "var(--emo-code-inset)",
+          }}
+        >
+          {lang && (
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-em mb-2">{lang}</div>
+          )}
+          <code style={{ color: "var(--emo-code-text)" }}>{inner}</code>
+        </pre>
+      </div>
+      {showCopyCode && isHtml && inner.trim() && (
+        <LiveHtmlPreview path="page.html" title="Aperçu HTML" content={inner} compact={false} />
+      )}
+    </div>
+  );
+};
+
+const RichText = ({ text, showCopyCode = false }) => {
   if (!text) return null;
   const parts = text.split(/(```[\s\S]*?```|!\[[^\]]*\]\([^)]+\))/g);
   return (
@@ -47,20 +102,7 @@ const RichText = ({ text }) => {
           const inner = part.replace(/^```(\w*)\n?/, "").replace(/```$/, "");
           const lang = part.match(/^```(\w+)/)?.[1] || "";
           return (
-            <pre
-              key={i}
-              className="font-code text-xs overflow-x-auto rounded-xl p-4 my-2"
-              style={{
-                background: "var(--emo-code-bg)",
-                border: "1px solid var(--emo-border)",
-                boxShadow: "var(--emo-code-inset)",
-              }}
-            >
-              {lang && (
-                <div className="text-[10px] uppercase tracking-[0.2em] text-muted-em mb-2">{lang}</div>
-              )}
-              <code style={{ color: "var(--emo-code-text)" }}>{inner}</code>
-            </pre>
+            <CodeBlock key={i} inner={inner} lang={lang} showCopyCode={showCopyCode} />
           );
         }
         const imgMatch = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
@@ -179,7 +221,7 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
             color: "var(--emo-text)",
           }}
         >
-          <RichContent text={cleanDisplayText(message.content)} images={message.images} />
+          <RichContent text={cleanDisplayText(message.content)} images={message.images} showCopyCode={showCopyCode} />
         </div>
       </div>
     );
@@ -246,7 +288,7 @@ export const ChatMessage = ({ message, isStreaming, liveHtmlByPath = {}, showCop
           </div>
         )}
         <div className="text-[15px]" style={{ color: "var(--emo-text)" }}>
-          <RichContent text={cleanDisplayText(message.content)} images={message.images} />
+          <RichContent text={cleanDisplayText(message.content)} images={message.images} showCopyCode={showCopyCode} />
         </div>
       </div>
     </div>

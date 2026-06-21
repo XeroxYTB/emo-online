@@ -2515,7 +2515,7 @@ async def chat_stream(
                         if visit_result.get("screenshot_base64"):
                             reply = (
                                 f"**{title}** est ouvert dans le navigateur ci-dessous. "
-                                f"Clique les éléments **[1] [2]…** pour interagir."
+                                f"Clique directement sur la page pour interagir."
                             )
                         else:
                             reply = (
@@ -2573,7 +2573,17 @@ async def chat_stream(
                     tool_set = WEB_TOOLS + BROWSER_CONTROL_TOOLS
                 if is_owner and use_agent_mode:
                     tool_set = tool_set + EMO_SELF_TOOLS
-                tool_set = _tools_for_message(body.content, tool_set)
+                if not use_agent_mode and not resolve_open_site_url(body.content):
+                    if re.search(
+                        r"\b(html|htm|code|fichier|crée|créer|ecris|écris|page web|script)\b",
+                        body.content or "",
+                        re.I,
+                    ):
+                        tool_set = []
+                    else:
+                        tool_set = _tools_for_message(body.content, tool_set)
+                else:
+                    tool_set = _tools_for_message(body.content, tool_set)
                 model_uncensored = is_uncensored_model(provider, model)
                 effective_system = system_msg
                 if open_url and pre_tool_log:

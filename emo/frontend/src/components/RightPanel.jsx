@@ -37,7 +37,7 @@ export default function RightPanel({
   return (
     <aside
       data-testid="right-panel"
-      className="hidden lg:flex w-[min(460px,38vw)] min-w-[360px] flex-shrink-0 h-full flex-col glass-panel"
+      className="hidden md:flex w-[min(460px,38vw)] min-w-[360px] flex-shrink-0 h-full flex-col glass-panel"
       style={{ borderLeft: "1px solid var(--emo-border)", borderRadius: 0 }}
     >
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 em-border-b">
