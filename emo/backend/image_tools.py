@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import logging
 import os
+import re
 import urllib.parse
 
 import httpx
@@ -24,13 +26,151 @@ _HF_ENDPOINTS = (
     "https://api-inference.huggingface.co/models/{model}",
 )
 
+# Strip French/English image-request prefixes from raw chat messages.
+_IMAGE_CMD_VERB_RE = re.compile(
+    r"\b(génère|genere|generate|crée|creer|create|dessine|draw|fais|fabrique)\b",
+    re.I,
+)
+_IMAGE_CMD_NOUN_RE = re.compile(
+    r"\b(logo|image|illustration|photo|avatar|icône|icone|visuel|affiche|poster|bannière|banniere)\b",
+    re.I,
+)
+_VERB_PREFIX_RE = re.compile(
+    r"^(?:génère|genere|generate|crée|creer|create|dessine|dessiner|draw|fais|fait|fabrique|montre)\s*(?:moi\s*)?",
+    re.I,
+)
+_TYPE_DE_PREFIX_RE = re.compile(
+    r"^(?:une?\s+)?(?:image|illustration|photo|avatar|icône|icone|visuel|affiche|poster|bannière|banniere|dessin)\s+"
+    r"(?:de\s+|d[''']|du\s+|d'une?\s+)",
+    re.I,
+)
 
-async def _hf_generate(client: httpx.AsyncClient, model: str, prompt: str) -> dict | None:
+_QUALITY_TAIL = "sharp focus, high detail"
+_NEGATIVE_PROMPT = (
+    "blurry, out of focus, low quality, distorted, deformed, extra limbs, "
+    "random objects, cluttered background, watermark, text overlay, logo, "
+    "cropped, ugly, noisy, oversaturated, abstract, vague, generic"
+)
+_SHORT_EXPANSION = "clearly visible, well-defined subject, centered composition"
+
+
+def _looks_like_user_command(text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _VERB_PREFIX_RE.match(t):
+        return True
+    return bool(_IMAGE_CMD_VERB_RE.search(t) and _IMAGE_CMD_NOUN_RE.search(t))
+
+
+def _extract_subject(raw: str) -> str:
+    """Remove image-request boilerplate; keep user's subject, style, colors."""
+    text = " ".join((raw or "").strip().split())
+    if not text:
+        return ""
+    if not _looks_like_user_command(text):
+        return text
+    text = _VERB_PREFIX_RE.sub("", text).strip()
+    text = _TYPE_DE_PREFIX_RE.sub("", text).strip()
+    return text.strip(" .,:;-")
+
+
+def _expand_short_subject(subject: str) -> str:
+    """Minimal expansion only when the subject is too short for the model."""
+    if len(subject) >= 20:
+        return subject
+    return f"{subject}, {_SHORT_EXPANSION}"
+
+
+def build_image_prompt(
+    raw: str,
+    *,
+    for_pollinations: bool = False,
+) -> dict[str, str]:
+    """
+    Build structured prompts: preserve user intent, minimal quality suffix at end.
+    Returns subject, positive, final_prompt, negative.
+    """
+    subject = _extract_subject(raw)
+    if not subject:
+        subject = " ".join((raw or "").strip().split())
+
+    subject = _expand_short_subject(subject)
+    positive = f"Exact depiction of: {subject}"
+
+    if for_pollinations:
+        # enhance=true on Pollinations already boosts quality — avoid double dilution.
+        final = positive
+    else:
+        final = f"{positive}, {_QUALITY_TAIL}"
+
+    return {
+        "subject": subject,
+        "positive": positive,
+        "final_prompt": final[:2000],
+        "negative": _NEGATIVE_PROMPT,
+    }
+
+
+def _seed_from_prompt(prompt: str, seed: int | None) -> int:
+    if seed is not None:
+        return max(0, int(seed))
+    digest = hashlib.md5(prompt.encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % 2_147_483_647
+
+
+def _parse_size(size: str) -> tuple[int, int]:
+    if size in _VALID_SIZES:
+        w, h = size.split("x")
+        return int(w), int(h)
+    return 1024, 1024
+
+
+def _hf_parameters(model: str, width: int, height: int, seed: int) -> dict:
+    if "flux" in model.lower():
+        return {
+            "width": width,
+            "height": height,
+            "num_inference_steps": 4,
+            "guidance_scale": 0.0,
+            "seed": seed,
+        }
+    if "xl" in model.lower():
+        return {
+            "width": width,
+            "height": height,
+            "num_inference_steps": 30,
+            "guidance_scale": 7.5,
+            "negative_prompt": _NEGATIVE_PROMPT,
+            "seed": seed,
+        }
+    return {
+        "width": width,
+        "height": height,
+        "num_inference_steps": 25,
+        "guidance_scale": 7.0,
+        "negative_prompt": _NEGATIVE_PROMPT,
+        "seed": seed,
+    }
+
+
+async def _hf_generate(
+    client: httpx.AsyncClient,
+    model: str,
+    final_prompt: str,
+    *,
+    width: int,
+    height: int,
+    seed: int,
+) -> dict | None:
     headers = {}
     hf_key = get_api_key("huggingface")
     if hf_key:
         headers["Authorization"] = f"Bearer {hf_key}"
-    body = {"inputs": prompt[:2000]}
+    body = {
+        "inputs": final_prompt,
+        "parameters": _hf_parameters(model, width, height, seed),
+    }
     for base_tpl in _HF_ENDPOINTS:
         url = base_tpl.format(model=model)
         for attempt in range(3):
@@ -43,9 +183,11 @@ async def _hf_generate(client: httpx.AsyncClient, model: str, prompt: str) -> di
                         "ok": True,
                         "image_base64": b64,
                         "mime": ctype,
-                        "prompt": prompt,
+                        "prompt": final_prompt,
+                        "final_prompt": final_prompt,
                         "provider": "huggingface",
                         "model": model,
+                        "seed": seed,
                     }
                 if resp.status_code in (503, 504):
                     await asyncio.sleep(8 + attempt * 6)
@@ -58,14 +200,23 @@ async def _hf_generate(client: httpx.AsyncClient, model: str, prompt: str) -> di
     return None
 
 
-async def _pollinations_generate(client: httpx.AsyncClient, prompt: str) -> dict | None:
-    """Génération gratuite via Pollinations — prompt enrichi pour meilleure qualité."""
-    enhanced = (
-        f"{prompt[:800]}, professional quality, highly detailed, "
-        "studio lighting, sharp focus, 8k, masterpiece"
+async def _pollinations_generate(
+    client: httpx.AsyncClient,
+    built: dict[str, str],
+    *,
+    width: int,
+    height: int,
+    seed: int,
+) -> dict | None:
+    """Génération gratuite via Pollinations — sujet préservé, enhance=true côté API."""
+    final = built["final_prompt"]
+    q = urllib.parse.quote(final)
+    neg = urllib.parse.quote(built["negative"])
+    url = (
+        f"https://image.pollinations.ai/prompt/{q}"
+        f"?width={width}&height={height}&nologo=true&enhance=true&model=flux"
+        f"&seed={seed}&negative_prompt={neg}&guidance_scale=7.5"
     )
-    q = urllib.parse.quote(enhanced)
-    url = f"https://image.pollinations.ai/prompt/{q}?width=1024&height=1024&nologo=true&enhance=true&model=flux"
     try:
         resp = await client.get(url, follow_redirects=True)
         ctype = (resp.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
@@ -75,15 +226,18 @@ async def _pollinations_generate(client: httpx.AsyncClient, prompt: str) -> dict
                 "ok": True,
                 "image_base64": b64,
                 "mime": ctype,
-                "prompt": prompt,
+                "prompt": final,
+                "final_prompt": final,
+                "subject": built["subject"],
                 "provider": "pollinations",
+                "seed": seed,
             }
     except Exception as exc:
         logger.warning("Pollinations image failed: %s", exc)
     return None
 
 
-async def _openai_generate(prompt: str, size: str) -> dict | None:
+async def _openai_generate(prompt: str, size: str, *, final_prompt: str, seed: int) -> dict | None:
     if os.environ.get("EMO_ALLOW_PAID_IMAGE_GEN", "").lower() not in ("1", "true", "yes"):
         return None
     openai_key = get_api_key("openai")
@@ -99,7 +253,7 @@ async def _openai_generate(prompt: str, size: str) -> dict | None:
                 },
                 json={
                     "model": "dall-e-3",
-                    "prompt": prompt[:4000],
+                    "prompt": final_prompt[:4000],
                     "n": 1,
                     "size": size,
                     "response_format": "b64_json",
@@ -113,34 +267,68 @@ async def _openai_generate(prompt: str, size: str) -> dict | None:
                         "image_base64": b64,
                         "mime": "image/png",
                         "prompt": prompt,
+                        "final_prompt": final_prompt,
                         "provider": "openai",
+                        "seed": seed,
                     }
     except Exception as exc:
         logger.warning("OpenAI image generation failed: %s", exc)
     return None
 
 
-async def generate_image(prompt: str, size: str = "1024x1024") -> dict:
+async def generate_image(
+    prompt: str,
+    size: str = "1024x1024",
+    *,
+    seed: int | None = None,
+) -> dict:
     """Generate an image — gratuit en priorité (HF + Pollinations)."""
-    prompt = (prompt or "").strip()
-    if not prompt:
+    raw = (prompt or "").strip()
+    if not raw:
         return {"ok": False, "error": "Prompt vide."}
 
     size = size if size in _VALID_SIZES else "1024x1024"
-    last_error = ""
+    width, height = _parse_size(size)
+
+    built_hf = build_image_prompt(raw, for_pollinations=False)
+    built_poll = build_image_prompt(raw, for_pollinations=True)
+    seed_val = _seed_from_prompt(built_hf["final_prompt"], seed)
+
+    logger.info(
+        "Image gen subject=%r final_hf=%r",
+        built_hf["subject"][:120],
+        built_hf["final_prompt"][:200],
+    )
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         for model in _HF_MODELS:
-            hit = await _hf_generate(client, model, prompt)
+            hit = await _hf_generate(
+                client,
+                model,
+                built_hf["final_prompt"],
+                width=width,
+                height=height,
+                seed=seed_val,
+            )
             if hit:
+                hit["subject"] = built_hf["subject"]
+                hit["negative_prompt"] = built_hf["negative"]
                 return hit
 
-        hit = await _pollinations_generate(client, prompt)
+        hit = await _pollinations_generate(
+            client,
+            built_poll,
+            width=width,
+            height=height,
+            seed=seed_val,
+        )
         if hit:
+            hit["negative_prompt"] = built_poll["negative"]
             return hit
 
-    hit = await _openai_generate(prompt, size)
+    hit = await _openai_generate(raw, size, final_prompt=built_hf["final_prompt"], seed=seed_val)
     if hit:
+        hit["subject"] = built_hf["subject"]
         return hit
 
     return {
@@ -149,7 +337,8 @@ async def generate_image(prompt: str, size: str = "1024x1024") -> dict:
             "Génération d'image indisponible pour le moment. "
             "Les serveurs gratuits sont peut‑être occupés — réessayez dans 1 minute."
         ),
-        "detail": last_error or "hf+pollinations",
+        "final_prompt": built_hf["final_prompt"],
+        "subject": built_hf["subject"],
     }
 
 
@@ -159,18 +348,28 @@ GENERATE_IMAGE_TOOL = {
         "name": "generate_image",
         "description": (
             "Génère une image gratuitement (HF / Pollinations). "
-            "Utilise quand l'utilisateur demande de créer, dessiner ou générer une image ou logo."
+            "Utilise quand l'utilisateur demande de créer, dessiner ou générer une image ou logo. "
+            "IMPORTANT: le prompt doit reprendre fidèlement le sujet, style, couleurs et composition "
+            "demandés par l'utilisateur — pas de termes génériques (masterpiece, 8k, professional). "
+            "Exemple: user « chat rouge sur canapé bleu style cartoon » → prompt « chat rouge sur canapé bleu, style cartoon »."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "prompt": {
                     "type": "string",
-                    "description": "Description détaillée de l'image à générer (style, sujet, couleurs).",
+                    "description": (
+                        "Description précise de l'image: sujet, style, couleurs, composition. "
+                        "Reprendre les mots exacts de l'utilisateur, sans reformulation vague."
+                    ),
                 },
                 "size": {
                     "type": "string",
                     "description": "Taille: 1024x1024 (défaut), 1792x1024 (paysage), 1024x1792 (portrait).",
+                },
+                "seed": {
+                    "type": "integer",
+                    "description": "Seed optionnel pour reproduire la même image.",
                 },
             },
             "required": ["prompt"],

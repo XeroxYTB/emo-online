@@ -98,12 +98,11 @@ export default function ProfileDrawer({
       <div
         data-testid="profile-overlay"
         onClick={onClose}
-        className="fixed inset-0 z-40"
-        style={{ background: "var(--emo-overlay)", backdropFilter: "blur(6px)" }}
+        className="emo-drawer-overlay emo-profile-overlay"
       />
       <aside
         data-testid="profile-drawer"
-        className="fixed z-50 flex flex-col emo-drawer emo-profile-drawer overflow-hidden"
+        className="emo-drawer emo-profile-drawer flex flex-col overflow-hidden"
         style={{
           background: "var(--emo-drawer-bg)",
           borderLeft: "1px solid var(--emo-border)",

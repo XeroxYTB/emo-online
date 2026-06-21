@@ -21,6 +21,10 @@ import { mapImageClickToViewport } from "../lib/browserClickCoords";
 import { formatApiError } from "../lib/api";
 import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
 import { isYouTubeUrl, youtubeEmbedUrl } from "../lib/sitePreview";
+import {
+  prefersTouchKeyboard,
+  useVisualViewportKeyboard,
+} from "../lib/useVisualViewportKeyboard";
 
 const SPECIAL_KEYS = new Set([
   "Enter", "Tab", "Escape", "Backspace", "Delete",
@@ -72,7 +76,10 @@ export default function InteractiveBrowser({
   const sessionId = sessionIdProp || frame?.session_id || "default";
   const imgRef = useRef(null);
   const containerRef = useRef(null);
+  const browserRootRef = useRef(null);
+  const mobileInputRef = useRef(null);
   const urlInputRef = useRef(null);
+  const touchKeyboardRef = useRef(prefersTouchKeyboard());
   const scrollAccumRef = useRef(0);
   const scrollTimerRef = useRef(null);
   const scrollPendingRef = useRef(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Activity, FolderTree, Bot, X } from "lucide-react";
 import FileExplorer from "./FileExplorer";
 import AgentSettingsPanel from "./AgentSettingsPanel";
@@ -24,14 +24,11 @@ export default function RightPanel({
   onBrowserFrameUpdate,
   mobileSheet = false,
 }) {
-  const [tab, setTab] = useState(activeTab || "activity");
-
-  useEffect(() => {
-    if (activeTab && activeTab !== tab) setTab(activeTab);
-  }, [activeTab, tab]);
+  const [fallbackTab, setFallbackTab] = useState("activity");
+  const tab = activeTab ?? fallbackTab;
 
   const selectTab = (id) => {
-    setTab(id);
+    if (activeTab == null) setFallbackTab(id);
     onTabChange?.(id);
   };
 
@@ -49,17 +46,19 @@ export default function RightPanel({
       }}
     >
       <div className="emo-panel-tabs flex-shrink-0">
-        <div className="flex items-center gap-1 flex-1">
+        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto scrollbar-thin">
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = t.id === tab;
             return (
               <button
                 key={t.id}
+                type="button"
                 data-testid={`right-tab-${t.id}`}
                 onClick={() => selectTab(t.id)}
-                className="emo-panel-tab"
+                className="emo-panel-tab flex-shrink-0"
                 data-active={active ? "true" : "false"}
+                aria-selected={active}
               >
                 <Icon size={13} style={{ color: active ? "var(--mode-color)" : "currentColor" }} />
                 {t.label}
@@ -68,14 +67,18 @@ export default function RightPanel({
           })}
         </div>
         {onClose && (
-          <button onClick={onClose} className="emo-icon-btn ml-1" data-testid="right-panel-close">
+          <button type="button" onClick={onClose} className="emo-icon-btn ml-1 flex-shrink-0" data-testid="right-panel-close">
             <X size={14} />
           </button>
         )}
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        {tab === "activity" && (
+      <div className="emo-panel-tab-stack">
+        <div
+          className="emo-panel-tab-pane"
+          data-active={tab === "activity" ? "true" : "false"}
+          aria-hidden={tab !== "activity"}
+        >
           <ActivityTab
             tools={tools}
             agentOnline={agentOnline}
@@ -83,14 +86,24 @@ export default function RightPanel({
             reflectNotes={reflectNotes}
             onBrowserFrameUpdate={onBrowserFrameUpdate}
           />
-        )}
-        {tab === "files" && <FileExplorer agentOnline={agentOnline} externalPreview={filePreview} />}
-        {tab === "agent" && (
+        </div>
+        <div
+          className="emo-panel-tab-pane"
+          data-active={tab === "files" ? "true" : "false"}
+          aria-hidden={tab !== "files"}
+        >
+          <FileExplorer agentOnline={agentOnline} externalPreview={filePreview} />
+        </div>
+        <div
+          className="emo-panel-tab-pane"
+          data-active={tab === "agent" ? "true" : "false"}
+          aria-hidden={tab !== "agent"}
+        >
           <div className="p-4 overflow-y-auto h-full scrollbar-thin space-y-4">
             <AgentSettingsPanel agentOnline={agentOnline} onRefreshStatus={onRefreshStatus} />
             <AgentPermissionsPanel agentOnline={agentOnline} />
           </div>
-        )}
+        </div>
       </div>
     </aside>
   );

@@ -37,11 +37,24 @@
   --emo-shadow-float: 0 12px 40px rgba(0, 0, 0, 0.15);
 
   --emo-transition: 0.15s ease;
-  --emo-transition-slow: 0.28s ease;
+  --emo-transition-slow: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  --emo-transition-panel: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+  --emo-z-base: 0;
+  --emo-z-sticky: 10;
+  --emo-z-header: 20;
+  --emo-z-dropdown: 30;
+  --emo-z-overlay: 40;
+  --emo-z-drawer: 50;
+  --emo-z-profile: 55;
+  --emo-z-modal: 60;
+  --emo-z-toast: 70;
 
   --emo-touch-min: 2.75rem;
   --emo-safe-top: env(safe-area-inset-top, 0px);
   --emo-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --emo-keyboard-inset: 0px;
+  --emo-mobile-kb-inset: 0px;
   --emo-safe-left: env(safe-area-inset-left, 0px);
   --emo-safe-right: env(safe-area-inset-right, 0px);
 }
@@ -706,9 +719,13 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 
 /* ─── Profile drawer ────────────────────────────────────────── */
 .emo-drawer {
+  position: fixed;
+  z-index: var(--emo-z-profile);
   border-top-left-radius: var(--emo-radius-2xl);
   border-bottom-left-radius: var(--emo-radius-2xl);
-  animation: slideInRight var(--emo-transition-slow);
+  transform: translate3d(0, 0, 0);
+  animation: emoSlideInRight var(--emo-transition-slow) both;
+  will-change: transform;
 }
 
 .emo-settings-layout {
@@ -876,6 +893,33 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
 
 .emo-browser-viewport[data-focused="true"] {
   box-shadow: inset 0 0 0 2px var(--emo-accent);
+}
+
+.emo-browser-keyboard-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  opacity: 0;
+  z-index: 4;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  pointer-events: none;
+  font-size: 16px;
+  line-height: 1;
+  -webkit-text-fill-color: transparent;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.emo-browser[data-keyboard-open="true"] .emo-browser-screenshot {
+  max-height: calc(var(--emo-browser-screenshot-max, 520px) - min(var(--emo-keyboard-inset, 0px), 240px));
 }
 
 .emo-browser-screenshot {
@@ -1117,6 +1161,40 @@ html.theme-light .border-amber-500\/30 { border-color: var(--emo-warning-border)
   animation: msgIn 0.25s ease;
 }
 
+@keyframes emo-image-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes emo-image-reveal {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes emo-sparkle-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.92) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.08) rotate(8deg); }
+}
+
+.emo-image-gen-placeholder {
+  background: linear-gradient(
+    110deg,
+    var(--emo-preview-bg) 0%,
+    var(--emo-accent-soft, rgba(139, 92, 246, 0.12)) 35%,
+    var(--emo-preview-bg) 70%
+  );
+  background-size: 200% 100%;
+  animation: emo-image-shimmer 2s ease-in-out infinite;
+}
+
+.emo-image-gen-sparkles {
+  animation: emo-sparkle-pulse 1.6s ease-in-out infinite;
+}
+
+.emo-image-reveal {
+  animation: emo-image-reveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 .mode-normal { --mode-color: #8b5cf6; --mode-glow: rgba(139, 92, 246, 0.2); }
 .mode-tech { --mode-color: #06b6d4; --mode-glow: rgba(6, 182, 212, 0.2); }
 .mode-creatif { --mode-color: #ec4899; --mode-glow: rgba(236, 72, 153, 0.2); }
@@ -1305,11 +1383,16 @@ textarea, input { font-family: inherit; }
 .emo-drawer-overlay {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: var(--emo-z-overlay);
   background: var(--emo-overlay);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  animation: overlayIn 0.2s ease;
+  animation: emoOverlayIn var(--emo-transition-slow) both;
+  will-change: opacity;
+}
+
+.emo-profile-overlay {
+  z-index: var(--emo-z-overlay);
 }
 
 .emo-sidebar-drawer {
@@ -1317,13 +1400,16 @@ textarea, input { font-family: inherit; }
   left: 0;
   top: 0;
   bottom: 0;
-  z-index: 50;
+  z-index: var(--emo-z-drawer);
   width: min(18rem, 85vw);
   max-width: 85vw;
+  transform: translate3d(0, 0, 0);
   box-shadow: var(--emo-shadow-float);
-  animation: slideInLeft var(--emo-transition-slow);
+  animation: emoSlideInLeft var(--emo-transition-slow) both;
   padding-top: var(--emo-safe-top);
   padding-bottom: var(--emo-safe-bottom);
+  overflow: hidden;
+  will-change: transform;
 }
 
 .emo-sidebar-drawer .emo-sidebar {
@@ -1336,7 +1422,7 @@ textarea, input { font-family: inherit; }
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 50;
+  z-index: var(--emo-z-drawer);
   display: flex;
   flex-direction: column;
   max-height: min(88dvh, calc(100dvh - var(--emo-safe-top) - 1rem));
@@ -1346,8 +1432,10 @@ textarea, input { font-family: inherit; }
   border-top-left-radius: var(--emo-radius-2xl);
   border-top-right-radius: var(--emo-radius-2xl);
   box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.28);
-  animation: slideUpSheet var(--emo-transition-slow);
+  transform: translate3d(0, 0, 0);
+  animation: emoSlideInUp var(--emo-transition-slow) both;
   overflow: hidden;
+  will-change: transform;
 }
 
 .emo-bottom-sheet-handle {
@@ -1521,7 +1609,7 @@ textarea, input { font-family: inherit; }
     border-radius: 0;
     padding-top: var(--emo-safe-top);
     padding-bottom: var(--emo-safe-bottom);
-    animation: slideInRight var(--emo-transition-slow);
+    animation: emoSlideInRight var(--emo-transition-slow) both;
   }
 
   .emo-settings-content {
@@ -1545,8 +1633,28 @@ textarea, input { font-family: inherit; }
     min-height: var(--emo-touch-min);
   }
 
-  .emo-browser-viewport img {
-    max-height: min(52dvh, 420px) !important;
+  .emo-browser-viewport img,
+  .emo-browser-screenshot {
+    --emo-browser-screenshot-max: min(52dvh, 420px);
+    max-height: var(--emo-browser-screenshot-max) !important;
+  }
+
+  .emo-browser[data-keyboard-open="true"] .emo-browser-viewport img,
+  .emo-browser[data-keyboard-open="true"] .emo-browser-screenshot {
+    max-height: calc(var(--emo-browser-screenshot-max, min(52dvh, 420px)) - min(var(--emo-keyboard-inset, 0px), 45dvh)) !important;
+  }
+
+  body.emo-mobile-keyboard-open:not(.emo-browser-sheet-open) .emo-chat-composer-wrap {
+    transform: translateY(calc(-1 * var(--emo-mobile-kb-inset, 0px)));
+    transition: transform 0.15s ease-out;
+  }
+
+  body.emo-mobile-keyboard-open.emo-browser-sheet-open .emo-bottom-sheet {
+    max-height: calc(100dvh - var(--emo-mobile-kb-inset, 0px) - var(--emo-safe-top) - 0.5rem);
+  }
+
+  body.emo-mobile-keyboard-open.emo-browser-sheet-open .emo-right-panel-sheet {
+    min-height: 0;
   }
 
   .emo-browser-status {

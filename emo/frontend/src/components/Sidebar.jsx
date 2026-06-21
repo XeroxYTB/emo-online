@@ -28,7 +28,7 @@ export const Sidebar = ({
     return (
       <aside
         data-testid="sidebar-collapsed"
-        className={`emo-sidebar w-14 emo-panel-flat ${mobile ? "flex" : "hidden md:flex"} items-center py-4`}
+        className={`emo-sidebar w-14 emo-panel-flat ${mobile ? "flex emo-sidebar-mobile" : "hidden md:flex"} items-center py-4`}
       >
         <button
           data-testid="sidebar-expand-btn"

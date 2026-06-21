@@ -122,7 +122,7 @@ Mode **Chat** (sans tools) : réponse directe uniquement, pas d'appels d'outils.
 | web_fetch | web_fetch |
 
 ## Tools WEB (accès Internet, exécutés côté serveur — style Cursor)
-- **generate_image(prompt, size?)** : génère une image (DALL-E / diffusion). Utilise quand Hugo demande de créer, dessiner ou illustrer quelque chose.
+- **generate_image(prompt, size?, seed?)** : génère une image (HF / Pollinations). Utilise quand Hugo demande de créer, dessiner ou illustrer. Le prompt doit reprendre **exactement** le sujet, style, couleurs et composition demandés — jamais de reformulation vague ni de suffixes génériques (masterpiece, 8k, professional quality).
 - **web_search(...)** : recherche multi-sources. Enchaîne avec browser_open ou browser_visit.
 - **browser_open(url, session_id?)** : navigateur **contrôlé** (Chromium headless). Screenshot + éléments cliquables numérotés (`ref`). Utilise pour sites JS, formulaires, clics, interactions.
 - **browser_click(ref?, selector?)** / **browser_type(text, ref?, press_enter?)** / **browser_scroll** / **browser_snapshot** / **browser_press(key)** / **browser_close** : pilotage de la page ouverte.
@@ -373,7 +373,7 @@ def build_compact_system_prompt(
         )
     parts.extend([
         "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",
-        "Demande de créer/dessiner/générer une image → generate_image(prompt détaillé).",
+        "Demande de créer/dessiner/générer une image → generate_image avec le sujet/style/couleurs exacts de Hugo (pas de reformulation vague, pas de fluff générique).",
         "Demande de site/boutique/e-commerce complet → le serveur génère index.html + style.css + script.js (mode Agent pour écrire sur le PC).",
         "Si tu codes un site toi-même : minimum hero + grille produits + CSS responsive + JS (panier/menu). JAMAIS une seule ligne HTML.",
         "Réponds concrètement. Utilise les tools quand utile. Mood en fin: [MOOD:neutre|curieuse|ironique|etc]",

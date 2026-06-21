@@ -2981,14 +2981,7 @@ async def chat_stream(
                         "user_id": user.user_id,
                         "role": "emo", "content": reply,
                         "mode": mode, "mood": "neutre", "verified": None,
-                        "tool_calls": [
-                            {
-                                "name": t["name"],
-                                "arguments": t["arguments"],
-                                "result_summary": _summarize_result(t["result"]),
-                            }
-                            for t in pre_tool_log
-                        ],
+                        "tool_calls": [_persist_tool_call(t) for t in pre_tool_log],
                         "created_at": now_done,
                     }
                     await db.messages.insert_one(assistant_msg)
@@ -3185,10 +3178,7 @@ async def chat_stream(
                         "user_id": user.user_id,
                         "role": "emo", "content": clean,
                         "mode": mode, "mood": mood, "verified": verified,
-                        "tool_calls": [
-                            {"name": t["name"], "arguments": t["arguments"], "result_summary": _summarize_result(t["result"])}
-                            for t in tool_call_log
-                        ],
+                        "tool_calls": [_persist_tool_call(t) for t in tool_call_log],
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
                     await db.messages.insert_one(assistant_msg)
@@ -3310,7 +3300,10 @@ def _persist_tool_call(t: dict) -> dict:
             "mime": result.get("mime") or "image/png",
             "image_base64": result["image_base64"],
             "prompt": result.get("prompt") or entry["arguments"].get("prompt"),
+            "final_prompt": result.get("final_prompt") or result.get("prompt"),
+            "subject": result.get("subject"),
             "provider": result.get("provider"),
+            "seed": result.get("seed"),
         }
     return entry
 
@@ -3322,7 +3315,8 @@ def _summarize_result(result: dict) -> str:
         return f"erreur: {result.get('error', '')[:200]}"
     if result.get("image_base64") or result.get("has_image"):
         prov = result.get("provider") or "image"
-        return f"image générée ({prov})"
+        fp = str(result.get("final_prompt") or result.get("prompt") or "")[:120]
+        return f"image générée ({prov}) — {fp}" if fp else f"image générée ({prov})"
     if "exit_code" in result:
         return f"exit={result['exit_code']}"
     if "content" in result:
@@ -3337,9 +3331,6 @@ def _summarize_result(result: dict) -> str:
         if "dirs" in result:
             return f"{len(result['files'])} files, {len(result['dirs'])} dirs"
         return f"{len(result['files'])} files"
-    if "image_base64" in result and result.get("ok"):
-        fp = str(result.get("final_prompt") or result.get("prompt") or "")[:120]
-        return f"image ok — {fp}" if fp else "image ok"
     return "ok"
 
 
