@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, saveSessionToken, authRequest, formatApiError, wakeBackend, getSessionToken } from "../lib/api";
+import { http, saveSessionToken, authRequest, formatApiError, wakeBackend, getSessionToken, isApiReachable } from "../lib/api";
 import { AppTopBar, EmoLogo } from "../components/EmoLogo";
 import GoogleSignInButton, { getGoogleClientId } from "../components/GoogleSignInButton";
 import { toast } from "sonner";
@@ -32,28 +32,33 @@ export default function Login() {
     return warm;
   }, []);
 
+  const ensureApiReady = useCallback(async () => {
+    if (isApiReachable()) return { ok: true };
+    return wakeBackend({ maxWaitMs: 15000 }).catch(() => ({ ok: false }));
+  }, []);
+
   const verifyGoogleCredential = useCallback(async (credential) => {
     setGoogleBusy(true);
     try {
-      const warm = await wakeBackend({ maxWaitMs: 35000 });
+      const warm = await ensureApiReady();
       if (!warm?.ok) {
         setApiDown(true);
         toast.error("API injoignable. Le serveur HF démarre — réessayez dans 1–2 min.");
         return;
       }
       const res = await authRequest(
-        () => http.post("/auth/google/verify", { credential }, { timeout: 45000 }),
-        { maxAttempts: 8 }
+        () => http.post("/auth/google/verify", { credential }, { timeout: 20000, _emoMaxRetries: 1 }),
+        { maxAttempts: 3 }
       );
       if (res.data?.session_token) saveSessionToken(res.data.session_token);
       navigate("/chat", { replace: true, state: { user: res.data } });
     } catch (err) {
-      setApiDown(true);
+      if (!err?.response) setApiDown(true);
       toast.error(formatApiError(err, "Connexion Google impossible."));
     } finally {
       setGoogleBusy(false);
     }
-  }, [navigate]);
+  }, [navigate, ensureApiReady]);
 
   useEffect(() => {
     if (bootStarted.current) return;
@@ -61,7 +66,7 @@ export default function Login() {
 
     (async () => {
       if (!getSessionToken()) {
-        const warm = await wakeBackend({ maxWaitMs: 35000 }).catch(() => ({ ok: false }));
+        const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
         setApiDown(!warm?.ok);
         setApiWaking(!!warm?.waking);
         return;
@@ -70,7 +75,7 @@ export default function Login() {
         await http.get("/auth/me", { timeout: 12000 });
         navigate("/chat", { replace: true });
       } catch (_) {
-        const warm = await wakeBackend({ maxWaitMs: 35000 }).catch(() => ({ ok: false }));
+        const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
         setApiDown(!warm?.ok);
         setApiWaking(!!warm?.waking);
       }
@@ -93,7 +98,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const warm = await wakeBackend({ maxWaitMs: 35000 });
+      const warm = await ensureApiReady();
       if (!warm?.ok) {
         setApiDown(true);
         toast.error("API injoignable. Le serveur HF démarre — réessayez dans 1–2 min.");
@@ -101,21 +106,21 @@ export default function Login() {
       }
       if (mode === "signup") {
         const res = await authRequest(
-          () => http.post("/auth/signup", { email, password, name }, { timeout: 45000 }),
-          { maxAttempts: 8 }
+          () => http.post("/auth/signup", { email, password, name }, { timeout: 20000, _emoMaxRetries: 1 }),
+          { maxAttempts: 3 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       } else {
         const res = await authRequest(
-          () => http.post("/auth/login", { email, password }, { timeout: 45000 }),
-          { maxAttempts: 8 }
+          () => http.post("/auth/login", { email, password }, { timeout: 20000, _emoMaxRetries: 1 }),
+          { maxAttempts: 3 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       }
       setApiDown(false);
       navigate("/chat", { replace: true });
     } catch (err) {
-      setApiDown(true);
+      if (!err?.response) setApiDown(true);
       toast.error(formatApiError(err, "Identifiants incorrects"));
     } finally {
       setLoading(false);

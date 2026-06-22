@@ -16,6 +16,7 @@ from typing import Optional, List
 import io
 import zipfile
 import httpx
+import bcrypt
 from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, BackgroundTasks, Query, Body
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse, RedirectResponse
@@ -137,6 +138,9 @@ def _cors_origins() -> list[str]:
         "http://localhost:8010",
         "http://127.0.0.1:17841",
         "http://localhost:17841",
+        "https://xeroxytb.com",
+        "https://www.xeroxytb.com",
+        "https://xeroxytb.github.io",
     ]
 
 
@@ -230,6 +234,50 @@ def s(key: str):
 app = FastAPI(title="Émo API")
 api = APIRouter(prefix="/api")
 
+async def _ensure_admin_password_users() -> None:
+    """Ensure admin emails can log in with password (seed doc passwords if missing)."""
+    seeds = [
+        ("hugo@example.com", "emo-test-2026", "Hugo"),
+        ("huglostalatac@gmail.com", "emo2026", "Hugo"),
+    ]
+    for email, password, name in seeds:
+        if email.lower() not in ADMIN_EMAILS:
+            continue
+        try:
+            existing = await db.users.find_one({"email": email}, {"_id": 0})
+            pwd_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            if existing:
+                if existing.get("password_hash"):
+                    continue
+                await db.users.update_one(
+                    {"email": email},
+                    {"$set": {"password_hash": pwd_hash, "auth_provider": existing.get("auth_provider") or "password"}},
+                )
+                user_id = existing["user_id"]
+                logger.info("Admin password set for %s", email)
+            else:
+                doc = make_user_doc(email, name, None, "password")
+                doc["password_hash"] = pwd_hash
+                await db.users.insert_one(doc)
+                user_id = doc["user_id"]
+                logger.info("Admin user created: %s", email)
+            await db.licenses.update_one(
+                {"user_id": user_id},
+                {
+                    "$set": {
+                        "paid": True,
+                        "status": "active",
+                        "interval": "lifetime",
+                        "paid_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "$setOnInsert": {"user_id": user_id, "daily_count": 0, "daily_day": ""},
+                },
+                upsert=True,
+            )
+        except Exception as exc:
+            logger.warning("Admin seed failed for %s: %s", email, exc)
+
+
 @app.on_event("startup")
 async def _settings_startup():
     async def _boot():
@@ -248,6 +296,7 @@ async def _settings_startup():
             asyncio.create_task(refresh_probe_cache())
         if api_key_available("huggingface"):
             asyncio.create_task(refresh_hf_catalog())
+        await _ensure_admin_password_users()
 
     asyncio.create_task(_boot())
 

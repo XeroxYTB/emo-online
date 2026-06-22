@@ -19,7 +19,12 @@ export function getApiBase() {
 /** @deprecated Préférer getApiBase() — suit le backend actif après wake. */
 export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
-const SESSION_KEY = "emo_session_token";
+/** Dernière sonde API réussie (évite wake inutile avant login). */
+let apiReachable = false;
+
+export function isApiReachable() {
+  return apiReachable;
+}
 const RETRY_STATUSES = new Set([429, 502, 503, 504]);
 const AUTH_MAX_ATTEMPTS = 8;
 
@@ -28,7 +33,7 @@ function sleep(ms) {
 }
 
 function isRetriableStatus(status) {
-  return !status || RETRY_STATUSES.has(status);
+  return Boolean(status && RETRY_STATUSES.has(status));
 }
 
 export function formatApiError(err, fallback = "Erreur réseau") {
@@ -45,9 +50,9 @@ export function formatApiError(err, fallback = "Erreur réseau") {
   return err?.message || fallback;
 }
 
-/** Requêtes auth avec retries (HF cold start / 429). */
+/** Requêtes auth avec retries (HF cold start / 429 uniquement). */
 export async function authRequest(requestFn, options = {}) {
-  const maxAttempts = options.maxAttempts ?? AUTH_MAX_ATTEMPTS;
+  const maxAttempts = options.maxAttempts ?? 4;
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
@@ -55,9 +60,9 @@ export async function authRequest(requestFn, options = {}) {
     } catch (err) {
       lastErr = err;
       const status = err?.response?.status;
-      if (!isRetriableStatus(status) && err?.response) break;
+      if (!status || !isRetriableStatus(status)) break;
       if (attempt >= maxAttempts - 1) break;
-      await sleep(2000 + attempt * 1500);
+      await sleep(status === 429 ? 2500 + attempt * 1200 : 1200);
     }
   }
   throw lastErr;
@@ -88,10 +93,13 @@ async function probePing(base, timeoutMs = 8000) {
     });
     if (r.ok) {
       const data = await r.json().catch(() => ({}));
+      apiReachable = true;
       return { base: base || "same-origin", google: !!data.google, waking: false };
     }
+    // HF cold start / rate limit : le serveur répond quand même — ne pas bloquer le login 90s
     if (RETRY_STATUSES.has(r.status) || r.status === 429) {
       if (base) activeBase = base;
+      apiReachable = true;
       return { base: base || "same-origin", google: false, waking: true };
     }
     return null;
@@ -162,7 +170,7 @@ http.interceptors.response.use(
     const retries = cfg._emoRetryCount || 0;
     const maxRetries = cfg._emoMaxRetries ?? 4;
     const skipRetry = cfg._emoSkipRetry === true;
-    const canRetry = !skipRetry && retries < maxRetries && isRetriableStatus(status);
+    const canRetry = !skipRetry && retries < maxRetries && status && isRetriableStatus(status);
     if (canRetry) {
       const bases = backendCandidates();
       const current = getActiveBase();
