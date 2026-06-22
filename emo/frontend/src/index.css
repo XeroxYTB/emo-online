@@ -1635,6 +1635,15 @@ textarea, input { font-family: inherit; }
     max-width: 100vw;
   }
 
+  .emo-app-shell > aside.emo-sidebar:not(.emo-sidebar-mobile) {
+    display: none !important;
+  }
+
+  .emo-chat-main {
+    width: 100%;
+    max-width: 100vw;
+  }
+
   .emo-icon-btn {
     width: var(--emo-touch-min);
     height: var(--emo-touch-min);
@@ -1693,31 +1702,20 @@ textarea, input { font-family: inherit; }
   }
 
   .emo-composer-toolbar-inner {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "segment segment"
-      "mode model";
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--emo-space-2);
-    align-items: stretch;
+    align-items: center;
   }
 
   .emo-composer-segment {
-    grid-area: segment;
-    justify-self: start;
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .emo-composer-picker-mode {
-    grid-area: mode;
-    justify-self: start;
+    flex: 1 1 100%;
     min-width: 0;
   }
 
+  .emo-composer-picker-mode,
   .emo-composer-picker-model {
-    grid-area: model;
-    justify-self: end;
+    flex: 1 1 calc(50% - var(--emo-space-1));
     min-width: 0;
   }
 

@@ -905,19 +905,21 @@ export default function Chat() {
       className={`mode-${mode} emo-app-shell`}
       data-right-panel-open={rightOpen && !mobileLayout ? "true" : "false"}
     >
-      <Sidebar
-        conversations={conversations}
-        activeId={activeId}
-        onSelect={setActiveId}
-        onNew={handleNew}
-        onRename={handleRename}
-        onDelete={handleDelete}
-        user={user}
-        onLogout={handleLogout}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onOpenProfile={openProfile}
-      />
+      {!mobileLayout && (
+        <Sidebar
+          conversations={conversations}
+          activeId={activeId}
+          onSelect={setActiveId}
+          onNew={handleNew}
+          onRename={handleRename}
+          onDelete={handleDelete}
+          user={user}
+          onLogout={handleLogout}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onOpenProfile={openProfile}
+        />
+      )}
 
       <main className="emo-chat-main">
         <header data-testid="chat-header" className="emo-chat-header">

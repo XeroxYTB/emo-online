@@ -14,6 +14,11 @@ function hasValidScreenshot(data) {
   return b64.length > 500;
 }
 
+/** True when base64 payload is displayable (not a UI placeholder). */
+function isUsableImageBase64(b64) {
+  return b64 && typeof b64 === "string" && !b64.startsWith("[") && b64.length > 100;
+}
+
 /** Resolve relative API image paths to absolute URLs. */
 function resolveImageUrl(url) {
   if (!url || typeof url !== "string") return null;
@@ -31,26 +36,32 @@ function resolveImageUrl(url) {
 export function buildImagePreviewSrc(input) {
   if (!input || typeof input !== "object") return null;
   const { src, image_base64, image_url, mime = "image/png" } = input;
+  const b64 = image_base64;
+  if (isUsableImageBase64(b64)) {
+    return `data:${mime || "image/png"};base64,${b64}`;
+  }
   const fromUrl = resolveImageUrl(image_url);
   if (fromUrl) return fromUrl;
   const fromSrc = resolveImageUrl(src);
   if (fromSrc) return fromSrc;
-  const b64 = image_base64;
-  if (b64 && typeof b64 === "string" && !b64.startsWith("[") && b64.length > 100) {
-    return `data:${mime || "image/png"};base64,${b64}`;
-  }
   return null;
 }
 
-/** Prefer URL for display; keep inline base64 as reload / fallback. */
+/** Pair display src + alternate (URL ↔ base64) for resilient previews. */
 export function buildImagePreviewPair(input) {
   if (!input || typeof input !== "object") return { src: null, fallbackSrc: null };
-  const { src: rawSrc, image_base64, mime = "image/png" } = input;
+  const { src: rawSrc, image_base64, image_url, mime = "image/png" } = input;
   const main = buildImagePreviewSrc(input);
+  if (!main) return { src: null, fallbackSrc: null };
+  const fromUrl = resolveImageUrl(image_url);
+  const dataUrl = isUsableImageBase64(image_base64)
+    ? `data:${mime || "image/png"};base64,${image_base64}`
+    : null;
   let fallbackSrc = null;
-  const b64 = image_base64;
-  if (b64 && typeof b64 === "string" && !b64.startsWith("[") && b64.length > 100) {
-    fallbackSrc = `data:${mime || "image/png"};base64,${b64}`;
+  if (main === dataUrl && fromUrl) {
+    fallbackSrc = fromUrl;
+  } else if (main === fromUrl && dataUrl) {
+    fallbackSrc = dataUrl;
   } else if (rawSrc && typeof rawSrc === "string" && rawSrc.startsWith("data:") && rawSrc !== main) {
     fallbackSrc = resolveImageUrl(rawSrc);
   }

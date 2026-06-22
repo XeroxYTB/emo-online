@@ -2674,13 +2674,17 @@ def _image_sse_payload(tc_id: str, result: dict, *, title: str = "") -> Optional
     mime = result.get("mime") or "image/png"
     prompt = title or result.get("subject") or result.get("prompt") or "Image générée"
     if url:
-        return {
+        payload = {
             "type": "image",
             "id": tc_id,
             "image_url": url,
             "mime": mime,
             "title": str(prompt)[:80],
         }
+        b64 = result.get("image_base64")
+        if b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("["):
+            payload["image_base64"] = b64
+        return payload
     b64 = result.get("image_base64")
     if b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("["):
         return {
