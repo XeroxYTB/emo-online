@@ -87,7 +87,7 @@ async function probePing(base, timeoutMs = 8000) {
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(url, {
-      credentials: "include",
+      credentials: "omit",
       cache: "no-store",
       signal: ctrl.signal,
     });
@@ -158,7 +158,7 @@ export async function apiPostJson(path, data, options = {}) {
   try {
     const res = await fetch(`${base}/api${path}`, {
       method: "POST",
-      credentials: "include",
+      credentials: "omit",
       headers,
       body: JSON.stringify(data),
       signal: ctrl.signal,
@@ -187,7 +187,7 @@ export async function apiPostJson(path, data, options = {}) {
 
 export const http = axios.create({
   baseURL: getApiBase(),
-  withCredentials: true,
+  withCredentials: false,
   timeout: 45000,
 });
 
@@ -251,7 +251,7 @@ export async function streamChat({ conversation_id, content, images, image_media
   try {
     resp = await _fetchWithFallback("/chat/stream", {
       method: "POST",
-      credentials: "include",
+      credentials: "omit",
       headers,
       signal,
       body: JSON.stringify({
