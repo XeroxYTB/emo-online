@@ -1074,7 +1074,7 @@ async def admin_list_product_keys(user: User = Depends(get_current_user)):
 @api.get("/generated-image/{image_id}")
 async def get_generated_image(image_id: str, t: str = Query("")):
     """Serve cached generated images (token auth — img tags cannot send Bearer headers)."""
-    entry = _GENERATED_IMAGES.get(image_id)
+    entry = await _load_generated_image_entry(image_id)
     if not entry:
         raise HTTPException(status_code=404, detail="Image introuvable")
     expected = _image_access_token(entry["user_id"], image_id)
@@ -2645,7 +2645,47 @@ def _image_access_token(user_id: str, image_id: str) -> str:
     return hashlib.sha256(f"{user_id}:{image_id}:{secret}".encode()).hexdigest()[:32]
 
 
-def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
+async def _persist_generated_image_db(image_id: str, user_id: str, b64: str, mime: str) -> None:
+    """Persist generated image bytes — survives HF worker restarts / multi-worker routing."""
+    try:
+        await db.generated_images.update_one(
+            {"image_id": image_id},
+            {
+                "$set": {
+                    "image_id": image_id,
+                    "user_id": user_id,
+                    "b64": b64,
+                    "mime": mime or "image/png",
+                    "ts": time.time(),
+                }
+            },
+            upsert=True,
+        )
+    except Exception as exc:
+        logger.warning("generated image db persist failed: %s", exc)
+
+
+async def _load_generated_image_entry(image_id: str) -> Optional[dict]:
+    entry = _GENERATED_IMAGES.get(image_id)
+    if entry:
+        return entry
+    try:
+        doc = await db.generated_images.find_one({"image_id": image_id})
+        if doc and doc.get("b64"):
+            entry = {
+                "user_id": doc["user_id"],
+                "mime": doc.get("mime") or "image/png",
+                "b64": doc["b64"],
+                "ts": doc.get("ts", 0),
+            }
+            _GENERATED_IMAGES[image_id] = entry
+            return entry
+    except Exception as exc:
+        logger.warning("generated image db load failed: %s", exc)
+    return None
+
+
+async def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
     """Attach a fetchable image_url so the UI does not depend on huge SSE payloads."""
     if not result.get("ok"):
         return result
@@ -2655,12 +2695,14 @@ def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
     out = dict(result)
     _prune_generated_images()
     image_id = f"img_{(tc_id or uuid.uuid4().hex)[:20]}"
+    mime = out.get("mime") or "image/png"
     _GENERATED_IMAGES[image_id] = {
         "user_id": user_id,
-        "mime": out.get("mime") or "image/png",
+        "mime": mime,
         "b64": b64,
         "ts": time.time(),
     }
+    await _persist_generated_image_db(image_id, user_id, b64, mime)
     token = _image_access_token(user_id, image_id)
     out["image_url"] = f"/generated-image/{image_id}?t={token}"
     return out
@@ -2674,17 +2716,13 @@ def _image_sse_payload(tc_id: str, result: dict, *, title: str = "") -> Optional
     mime = result.get("mime") or "image/png"
     prompt = title or result.get("subject") or result.get("prompt") or "Image générée"
     if url:
-        payload = {
+        return {
             "type": "image",
             "id": tc_id,
             "image_url": url,
             "mime": mime,
             "title": str(prompt)[:80],
         }
-        b64 = result.get("image_base64")
-        if b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("["):
-            payload["image_base64"] = b64
-        return payload
     b64 = result.get("image_base64")
     if b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("["):
         return {
@@ -3005,7 +3043,7 @@ async def chat_stream(
                     )
                 except asyncio.TimeoutError:
                     gen_result = {"ok": False, "error": "Génération d'image timeout (120s)."}
-                gen_result = _prepare_image_delivery(user.user_id, tc_id, gen_result)
+                gen_result = await _prepare_image_delivery(user.user_id, tc_id, gen_result)
                 pre_tool_log = [{
                     "id": tc_id, "name": "generate_image",
                     "arguments": {"prompt": body.content.strip()[:4000]},
@@ -3371,7 +3409,7 @@ async def chat_stream(
                             except asyncio.TimeoutError:
                                 result = {"ok": False, "error": "Outil timeout (75s) — réessaie ou simplifie la requête."}
                             if tc.name == "generate_image":
-                                result = _prepare_image_delivery(user.user_id, tc.id, result)
+                                result = await _prepare_image_delivery(user.user_id, tc.id, result)
                             tool_call_log.append({
                                 "id": tc.id, "name": tc.name,
                                 "arguments": tc.arguments, "result": result,

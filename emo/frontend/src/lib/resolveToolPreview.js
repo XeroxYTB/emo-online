@@ -35,15 +35,17 @@ function resolveImageUrl(url) {
 /** Build a displayable image src from SSE / tool result fields. */
 export function buildImagePreviewSrc(input) {
   if (!input || typeof input !== "object") return null;
-  const { src, image_base64, image_url, mime = "image/png" } = input;
+  const { src: directSrc, image_base64, image_url, mime = "image/png" } = input;
+  if (directSrc && typeof directSrc === "string") {
+    const fromDirect = resolveImageUrl(directSrc);
+    if (fromDirect) return fromDirect;
+  }
   const b64 = image_base64;
   if (isUsableImageBase64(b64)) {
     return `data:${mime || "image/png"};base64,${b64}`;
   }
   const fromUrl = resolveImageUrl(image_url);
   if (fromUrl) return fromUrl;
-  const fromSrc = resolveImageUrl(src);
-  if (fromSrc) return fromSrc;
   return null;
 }
 

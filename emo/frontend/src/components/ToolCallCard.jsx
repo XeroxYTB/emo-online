@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import { hasToolPreview, buildImagePreviewSrc } from "../lib/resolveToolPreview";
+import { hasToolPreview, buildImagePreviewSrc, buildImagePreviewPair } from "../lib/resolveToolPreview";
 import { getFileContentFromToolEvent, isCopyableFileToolEvent } from "../lib/filePreview";
 import ChatPreviewBubble from "./ChatPreviewBubble";
 import ImageGeneratingPlaceholder from "./ImageGeneratingPlaceholder";
@@ -68,9 +68,9 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   const [open, setOpen] = useState(event.state !== "done");
   const [copied, setCopied] = useState(false);
   const isImageGen = event.tool === "generate_image";
-  const imagePreviewSrc = event.inlinePreview?.type === "image"
-    ? buildImagePreviewSrc(event.inlinePreview)
-    : (event.result ? buildImagePreviewSrc(event.result) : null);
+  const { src: imagePreviewSrc } = event.inlinePreview?.type === "image"
+    ? buildImagePreviewPair(event.inlinePreview)
+    : buildImagePreviewPair(event.result || {});
   const canPreview = hasToolPreview(event) || Boolean(isImageGen && imagePreviewSrc) || Boolean(
     event.args?.url && [
       "browser_visit", "browser_open", "web_fetch",

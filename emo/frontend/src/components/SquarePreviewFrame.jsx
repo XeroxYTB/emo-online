@@ -73,42 +73,90 @@ function ImagePreviewActions({ src }) {
 }
 
 function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = false }) {
-  const [current, setCurrent] = useState(src);
+  const [current, setCurrent] = useState(null);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!src || src.includes("[image:") || src.endsWith("base64,")) {
-      setCurrent(src);
+    let objectUrl = null;
+    let cancelled = false;
+
+    const applySrc = (next) => {
+      if (cancelled) return;
+      setCurrent(next);
+      setFailed(false);
+      setLoaded(false);
+    };
+
+    const fail = () => {
+      if (cancelled) return;
       setFailed(true);
       setLoaded(false);
-      return;
+    };
+
+    if (!src || src.includes("[image:") || src.endsWith("base64,")) {
+      fail();
+      return () => {};
     }
-    setCurrent(src);
-    setFailed(false);
-    setLoaded(false);
+
+    (async () => {
+      if (src.startsWith("data:") || src.startsWith("blob:")) {
+        applySrc(src);
+        return;
+      }
+      if (src.startsWith("http://") || src.startsWith("https://")) {
+        try {
+          const resp = await fetch(src, { mode: "cors", credentials: "omit" });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const blob = await resp.blob();
+          if (cancelled) return;
+          objectUrl = URL.createObjectURL(blob);
+          applySrc(objectUrl);
+          return;
+        } catch {
+          if (fallbackSrc && fallbackSrc !== src) {
+            applySrc(fallbackSrc);
+            return;
+          }
+          fail();
+          return;
+        }
+      }
+      applySrc(src);
+    })();
 
     const timer = setTimeout(() => {
       setLoaded((wasLoaded) => {
         if (wasLoaded) return true;
         if (fallbackSrc && fallbackSrc !== src) {
-          setCurrent(fallbackSrc);
-          setFailed(false);
+          applySrc(fallbackSrc);
           return false;
         }
-        setFailed(true);
+        fail();
         return false;
       });
-    }, 25000);
+    }, 30000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [src, fallbackSrc]);
 
-  if (!current || failed) {
+  if (failed) {
     return (
       <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-em p-4 text-center ${className || ""}`}>
         <ImageIcon size={28} className="opacity-40" />
-        <span className="text-[11px] opacity-70">{failed ? "Image indisponible" : (alt || "Aperçu")}</span>
+        <span className="text-[11px] opacity-70">Image indisponible</span>
+      </div>
+    );
+  }
+
+  if (!current) {
+    return (
+      <div className={`absolute inset-0 ${className || ""}`}>
+        <div className="emo-image-gen-placeholder absolute inset-0" aria-hidden />
       </div>
     );
   }
