@@ -87,7 +87,22 @@ function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = f
     setCurrent(src);
     setFailed(false);
     setLoaded(false);
-  }, [src]);
+
+    const timer = setTimeout(() => {
+      setLoaded((wasLoaded) => {
+        if (wasLoaded) return true;
+        if (fallbackSrc && fallbackSrc !== src) {
+          setCurrent(fallbackSrc);
+          setFailed(false);
+          return false;
+        }
+        setFailed(true);
+        return false;
+      });
+    }, 25000);
+
+    return () => clearTimeout(timer);
+  }, [src, fallbackSrc]);
 
   if (!current || failed) {
     return (
@@ -108,7 +123,6 @@ function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = f
         alt={alt || "Aperçu"}
         className={`${className || ""} ${loaded ? "emo-image-reveal" : "opacity-0"}`}
         style={style}
-        crossOrigin={showActions && current?.startsWith("http") ? "anonymous" : undefined}
         onLoad={() => setLoaded(true)}
         onError={() => {
           if (fallbackSrc && current !== fallbackSrc) {

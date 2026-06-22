@@ -42,6 +42,22 @@ export function buildImagePreviewSrc(input) {
   return null;
 }
 
+/** Prefer URL for display; keep inline base64 as reload / fallback. */
+export function buildImagePreviewPair(input) {
+  if (!input || typeof input !== "object") return { src: null, fallbackSrc: null };
+  const { src: rawSrc, image_base64, mime = "image/png" } = input;
+  const main = buildImagePreviewSrc(input);
+  let fallbackSrc = null;
+  const b64 = image_base64;
+  if (b64 && typeof b64 === "string" && !b64.startsWith("[") && b64.length > 100) {
+    fallbackSrc = `data:${mime || "image/png"};base64,${b64}`;
+  } else if (rawSrc && typeof rawSrc === "string" && rawSrc.startsWith("data:") && rawSrc !== main) {
+    fallbackSrc = resolveImageUrl(rawSrc);
+  }
+  if (fallbackSrc === main) fallbackSrc = null;
+  return { src: main, fallbackSrc };
+}
+
 /** Détecte si un événement tool peut afficher un aperçu visuel. */
 export function hasToolPreview(event) {
   return Boolean(resolveToolPreview(event));

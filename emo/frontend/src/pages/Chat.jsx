@@ -14,7 +14,7 @@ import ProfileDrawer from "../components/ProfileDrawer";
 import FeedbackPrompt from "../components/FeedbackPrompt";
 import { cleanDisplayText } from "../lib/messageClean";
 import { isHtmlPath, normalizeFilePath } from "../lib/filePreview";
-import { buildImagePreviewSrc } from "../lib/resolveToolPreview";
+import { buildImagePreviewSrc, buildImagePreviewPair } from "../lib/resolveToolPreview";
 import { useVisualViewportKeyboard } from "../lib/useVisualViewportKeyboard";
 
 const MODE_LABELS = { tech: "Tech", creatif: "Créatif", brutal: "Brutal" };
@@ -668,12 +668,16 @@ export default function Chat() {
                     results: (evt.result.results || []).slice(0, 8),
                   };
                 } else if (tool === "generate_image" && evt.result?.ok !== false) {
-                  const src = buildImagePreviewSrc(evt.result);
+                  const { src, fallbackSrc } = buildImagePreviewPair(evt.result);
                   if (src) {
                     turnTools[i].inlinePreview = {
                       type: "image",
                       src,
+                      image_url: evt.result.image_url,
+                      image_base64: evt.result.image_base64,
+                      mime: evt.result.mime,
                       title: args.prompt || evt.result.prompt || evt.result.subject || "Image générée",
+                      fallbackSrc,
                     };
                   }
                 } else if (BROWSER_PREVIEW_TOOLS.includes(tool)) {
@@ -732,13 +736,17 @@ export default function Chat() {
             const note = { id: `rn_${Date.now()}`, ...evt };
             setReflectNotes((prev) => [note, ...prev].slice(0, 12));
           } else if (evt.type === "image") {
-            const src = buildImagePreviewSrc(evt);
+            const { src, fallbackSrc } = buildImagePreviewPair(evt);
             if (!src) return;
             const preview = {
               type: "image",
               src,
+              image_url: evt.image_url,
+              image_base64: evt.image_base64,
+              mime: evt.mime,
               title: evt.title || "Image générée",
               toolId: evt.id,
+              fallbackSrc,
             };
             const i = evt.id ? turnTools.findIndex((t) => t.id === evt.id) : -1;
             if (i >= 0) {

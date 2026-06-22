@@ -6,7 +6,7 @@ import SearchResultPreview from "./SearchResultPreview";
 import InteractiveBrowser from "./InteractiveBrowser";
 import ErrorBoundary from "./ErrorBoundary";
 import LiveHtmlPreview from "./LiveHtmlPreview";
-import { resolveToolPreview } from "../lib/resolveToolPreview";
+import { resolveToolPreview, buildImagePreviewPair } from "../lib/resolveToolPreview";
 import { normalizeFilePath } from "../lib/filePreview";
 
 /** Bulle d'aperçu dans le chat — navigateur interactif inline pour les sites web. */
@@ -14,6 +14,13 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
   const data = resolveToolPreview(event);
   const [copied, setCopied] = useState(false);
   if (!data) return null;
+
+  const imageFallback = data.kind === "image"
+    ? (
+      event?.inlinePreview?.fallbackSrc
+      || buildImagePreviewPair(event?.inlinePreview || event?.result || {}).fallbackSrc
+    )
+    : null;
 
   const liveHtmlContent =
     data.kind === "html" && data.path
@@ -131,6 +138,7 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
           <SquarePreviewFrame
             kind="image"
             src={data.src}
+            imageFallback={imageFallback}
             title={data.title}
             subtitle={data.path}
             testId="bubble-image-preview"

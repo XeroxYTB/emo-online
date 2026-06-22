@@ -1088,7 +1088,10 @@ async def get_generated_image(image_id: str, t: str = Query("")):
     return Response(
         content=raw,
         media_type=entry.get("mime") or "image/png",
-        headers={"Cache-Control": "private, max-age=3600"},
+        headers={
+            "Cache-Control": "private, max-age=3600",
+            "Access-Control-Allow-Origin": "*",
+        },
     )
 
 
@@ -2649,9 +2652,6 @@ def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dict:
     if not b64 or not isinstance(b64, str) or b64.startswith("["):
         return result
     out = dict(result)
-    ext_url = out.get("image_url")
-    if ext_url and str(ext_url).startswith("http"):
-        return out
     _prune_generated_images()
     image_id = f"img_{(tc_id or uuid.uuid4().hex)[:20]}"
     _GENERATED_IMAGES[image_id] = {
@@ -3000,6 +3000,7 @@ async def chat_stream(
                     )
                 except asyncio.TimeoutError:
                     gen_result = {"ok": False, "error": "Génération d'image timeout (120s)."}
+                gen_result = _prepare_image_delivery(user.user_id, tc_id, gen_result)
                 pre_tool_log = [{
                     "id": tc_id, "name": "generate_image",
                     "arguments": {"prompt": body.content.strip()[:4000]},
@@ -3010,17 +3011,15 @@ async def chat_stream(
                     "id": tc_id, "name": "generate_image",
                     "result": _shrink_for_ui(gen_result),
                 })
-                if gen_result.get("ok") and gen_result.get("image_base64"):
-                    mime = gen_result.get("mime") or "image/png"
+                img_evt = _image_sse_payload(
+                    tc_id,
+                    gen_result,
+                    title=str(gen_result.get("subject") or body.content.strip()),
+                )
+                if img_evt:
+                    yield _sse(img_evt)
+                if gen_result.get("ok") and (gen_result.get("image_url") or gen_result.get("image_base64")):
                     final_prompt = str(gen_result.get("final_prompt") or gen_result.get("prompt") or "")
-                    yield _sse({
-                        "type": "image",
-                        "id": tc_id,
-                        "src": f"data:{mime};base64,{gen_result['image_base64']}",
-                        "image_base64": gen_result["image_base64"],
-                        "mime": mime,
-                        "title": (gen_result.get("subject") or body.content.strip())[:80],
-                    })
                     clean = "Voici l'image générée."
                     if final_prompt:
                         clean += f"\n\nPrompt envoyé : {final_prompt[:600]}"
