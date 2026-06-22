@@ -142,6 +142,49 @@ export function getSessionToken() {
   try { return localStorage.getItem(SESSION_KEY) || ""; } catch (_) { return ""; }
 }
 
+/** POST JSON via fetch — plus fiable que axios pour l'auth cross-origin (HF). */
+export async function apiPostJson(path, data, options = {}) {
+  const timeout = options.timeout ?? 20000;
+  const base = getActiveBase() || BACKEND_URL;
+  if (!base) throw new Error("API non configurée");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  const token = getSessionToken();
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+    headers["X-Emo-Session"] = token;
+  }
+  try {
+    const res = await fetch(`${base}/api${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify(data),
+      signal: ctrl.signal,
+    });
+    activeBase = base;
+    apiReachable = true;
+    let json = {};
+    try { json = await res.json(); } catch (_) {}
+    if (!res.ok) {
+      const err = new Error(typeof json.detail === "string" ? json.detail : "Erreur API");
+      err.response = { status: res.status, data: json };
+      throw err;
+    }
+    return { data: json, status: res.status };
+  } catch (e) {
+    if (e?.name === "AbortError") {
+      const err = new Error("Délai dépassé — le serveur HF est lent.");
+      err.response = null;
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const http = axios.create({
   baseURL: getApiBase(),
   withCredentials: true,

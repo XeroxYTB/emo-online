@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, saveSessionToken, authRequest, formatApiError, wakeBackend, getSessionToken, isApiReachable } from "../lib/api";
+import { http, saveSessionToken, authRequest, formatApiError, wakeBackend, getSessionToken, isApiReachable, apiPostJson } from "../lib/api";
 import { AppTopBar, EmoLogo } from "../components/EmoLogo";
 import GoogleSignInButton, { getGoogleClientId } from "../components/GoogleSignInButton";
 import { toast } from "sonner";
@@ -105,16 +105,10 @@ export default function Login() {
         return;
       }
       if (mode === "signup") {
-        const res = await authRequest(
-          () => http.post("/auth/signup", { email, password, name }, { timeout: 20000, _emoMaxRetries: 1 }),
-          { maxAttempts: 3 }
-        );
+        const res = await apiPostJson("/auth/signup", { email, password, name });
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       } else {
-        const res = await authRequest(
-          () => http.post("/auth/login", { email, password }, { timeout: 20000, _emoMaxRetries: 1 }),
-          { maxAttempts: 3 }
-        );
+        const res = await apiPostJson("/auth/login", { email, password });
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       }
       setApiDown(false);
