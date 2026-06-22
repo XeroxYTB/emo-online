@@ -40,7 +40,7 @@ export function formatApiError(err, fallback = "Erreur réseau") {
   }
   if (typeof detail === "string") return detail;
   if (!err?.response) {
-    return "API injoignable. Le serveur HF est peut‑être bloqué (429). Réessayez dans 2 minutes.";
+    return "API injoignable. Le serveur HF démarre peut‑être — attendez 1 min puis réessayez.";
   }
   return err?.message || fallback;
 }
@@ -90,8 +90,8 @@ async function probePing(base, timeoutMs = 8000) {
       const data = await r.json().catch(() => ({}));
       return { base: base || "same-origin", google: !!data.google, waking: false };
     }
-    // HF cold start / rate limit : le serveur répond quand même — ne pas bloquer le login 90s
     if (RETRY_STATUSES.has(r.status) || r.status === 429) {
+      if (base) activeBase = base;
       return { base: base || "same-origin", google: false, waking: true };
     }
     return null;
@@ -178,7 +178,7 @@ http.interceptors.response.use(
     if (status === 429) {
       err.message = "API saturée (Hugging Face). Attendez 2 min puis réessayez.";
     } else if (!err.response) {
-      err.message = "API injoignable. Le serveur HF est peut‑être bloqué (429). Réessayez dans 2 minutes.";
+      err.message = "API injoignable. Le serveur HF démarre peut‑être — attendez 1 min puis réessayez.";
     }
     return Promise.reject(err);
   }

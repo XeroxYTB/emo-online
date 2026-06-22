@@ -35,7 +35,6 @@ jobs:
           CI: false
           DISABLE_ESLINT_PLUGIN: true
           REACT_APP_BACKEND_URL: https://xroxx-emo-online-api.hf.space
-          REACT_APP_BACKEND_FALLBACK_URL: https://emo-online-xeroxytb.fly.dev
           REACT_APP_GOOGLE_CLIENT_ID: 791552572109-va37rj7pooi3opca3bqe61h15ka8gob9.apps.googleusercontent.com
         run: |
           npm ci --legacy-peer-deps || npm install

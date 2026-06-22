@@ -16,20 +16,34 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [apiDown, setApiDown] = useState(false);
+  const [apiWaking, setApiWaking] = useState(false);
   const bootStarted = useRef(false);
+
+  const retryApiConnection = useCallback(async () => {
+    setApiWaking(true);
+    const warm = await wakeBackend({ maxWaitMs: 35000 }).catch(() => ({ ok: false }));
+    setApiWaking(false);
+    setApiDown(!warm?.ok);
+    if (warm?.ok) {
+      toast.success(warm.waking ? "Serveur HF occupé — vous pouvez vous connecter." : "API connectée.");
+    } else {
+      toast.error("API toujours injoignable. Réessayez dans 1–2 min.");
+    }
+    return warm;
+  }, []);
 
   const verifyGoogleCredential = useCallback(async (credential) => {
     setGoogleBusy(true);
     try {
-      const warm = await wakeBackend({ maxWaitMs: 25000 });
+      const warm = await wakeBackend({ maxWaitMs: 35000 });
       if (!warm?.ok) {
         setApiDown(true);
         toast.error("API injoignable. Le serveur HF démarre — réessayez dans 1–2 min.");
         return;
       }
       const res = await authRequest(
-        () => http.post("/auth/google/verify", { credential }, { timeout: 30000, _emoSkipRetry: true, _emoMaxRetries: 0 }),
-        { maxAttempts: 3 }
+        () => http.post("/auth/google/verify", { credential }, { timeout: 45000 }),
+        { maxAttempts: 8 }
       );
       if (res.data?.session_token) saveSessionToken(res.data.session_token);
       navigate("/chat", { replace: true, state: { user: res.data } });
@@ -47,16 +61,18 @@ export default function Login() {
 
     (async () => {
       if (!getSessionToken()) {
-        const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
+        const warm = await wakeBackend({ maxWaitMs: 35000 }).catch(() => ({ ok: false }));
         setApiDown(!warm?.ok);
+        setApiWaking(!!warm?.waking);
         return;
       }
       try {
-        await http.get("/auth/me", { timeout: 8000, _emoSkipRetry: true, _emoMaxRetries: 0 });
+        await http.get("/auth/me", { timeout: 12000 });
         navigate("/chat", { replace: true });
       } catch (_) {
-        const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
+        const warm = await wakeBackend({ maxWaitMs: 35000 }).catch(() => ({ ok: false }));
         setApiDown(!warm?.ok);
+        setApiWaking(!!warm?.waking);
       }
     })();
   }, [navigate]);
@@ -77,7 +93,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const warm = await wakeBackend({ maxWaitMs: 25000 });
+      const warm = await wakeBackend({ maxWaitMs: 35000 });
       if (!warm?.ok) {
         setApiDown(true);
         toast.error("API injoignable. Le serveur HF démarre — réessayez dans 1–2 min.");
@@ -85,14 +101,14 @@ export default function Login() {
       }
       if (mode === "signup") {
         const res = await authRequest(
-          () => http.post("/auth/signup", { email, password, name }, { timeout: 30000, _emoSkipRetry: true, _emoMaxRetries: 0 }),
-          { maxAttempts: 3 }
+          () => http.post("/auth/signup", { email, password, name }, { timeout: 45000 }),
+          { maxAttempts: 8 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       } else {
         const res = await authRequest(
-          () => http.post("/auth/login", { email, password }, { timeout: 30000, _emoSkipRetry: true, _emoMaxRetries: 0 }),
-          { maxAttempts: 3 }
+          () => http.post("/auth/login", { email, password }, { timeout: 45000 }),
+          { maxAttempts: 8 }
         );
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
       }
@@ -134,9 +150,22 @@ export default function Login() {
             </div>
 
             {apiDown && (
-              <p className="mb-4 text-xs rounded-xl px-3 py-2.5 emo-alert-warning">
-                Serveur HF en démarrage ou injoignable. Attendez 1–3 min puis réessayez (Ctrl+F5).
-              </p>
+              <div className="mb-4 text-xs rounded-xl px-3 py-2.5 emo-alert-warning space-y-2">
+                <p>
+                  {apiWaking
+                    ? "Serveur HF occupé (limite de requêtes). Connexion possible — réessayez."
+                    : "Serveur HF en démarrage ou injoignable. Attendez 1–3 min puis réessayez."}
+                </p>
+                <button
+                  type="button"
+                  onClick={retryApiConnection}
+                  disabled={apiWaking}
+                  className="text-xs font-medium underline"
+                  style={{ color: "var(--emo-accent)" }}
+                >
+                  {apiWaking ? "Connexion…" : "Réessayer la connexion API"}
+                </button>
+              </div>
             )}
 
             <GoogleSignInButton
