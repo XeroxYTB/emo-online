@@ -37,6 +37,16 @@ def _today_key() -> str:
 
 
 def _smoke_test(overrides: dict[str, str]) -> tuple[bool, str]:
+    # La section core_identity modifiée doit elle-même porter l'identité Émo,
+    # pas seulement s'appuyer sur les autres sections du prompt pour la masquer.
+    custom_core = overrides.get("core_identity")
+    if custom_core is not None:
+        upper = custom_core.upper()
+        if "ÉMO" not in upper and "EMO" not in upper:
+            return False, "core_identity doit contenir l'identité Émo — refusé."
+        if len(custom_core.strip()) < 200:
+            return False, "core_identity trop court pour être valide — refusé."
+
     try:
         prompt = build_system_prompt(
             "tech",

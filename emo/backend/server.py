@@ -2489,7 +2489,6 @@ def _strip_llm_artifacts(text: str) -> str:
     clean = _VERIFIED_TAG_RE.sub("", clean)
     clean = _LEAKED_PREFIX_RE.sub("", clean.strip())
     clean = re.sub(r"^\s*Émo\s*", "", clean, flags=re.IGNORECASE)
-    clean = re.sub(r"^\s*[A-Za-zéèê]{4,20}\s+(?=[A-ZÀ-Ü\"«])", "", clean)
     clean = re.sub(r"\n{3,}", "\n\n", clean)
     return clean.strip()
 
