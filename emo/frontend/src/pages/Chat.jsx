@@ -839,6 +839,14 @@ export default function Chat() {
           } else if (evt.type === "cancelled") {
             setStreamingMsg(null);
             setStreamingTools([]);
+          } else if (evt.type === "auth_error") {
+            // Session invalide : on sort de l'état de streaming et on renvoie au login.
+            setStreamingMsg(null);
+            setStreamingTools([]);
+            setUser(null);
+            setAuthState("expired");
+            toast.error("Session expirée. Veuillez vous reconnecter.");
+            setTimeout(() => navigate("/login", { replace: true }), 800);
           }
         },
       });

@@ -231,6 +231,22 @@ http.interceptors.response.use(
     } else if (!err.response) {
       err.message = "API injoignable. Le serveur HF démarre peut‑être — attendez 1 min puis réessayez.";
     }
+    // Session invalide/expirée sur un appel authentifié : on purge le token
+    // et on renvoie au login, sinon l'app reste dans un état « phantom » où
+    // chaque action échoue silencieusement (création de conversation, etc.).
+    // On ignore les endpoints d'auth eux-mêmes (login/signup), qui renvoient
+    // légitimement 401 sur un mauvais mot de passe.
+    if (status === 401 && typeof window !== "undefined") {
+      const url = cfg.url || "";
+      const isAuthEndpoint = /\/auth\/(login|signup|google)/.test(url);
+      if (!isAuthEndpoint && getSessionToken()) {
+        clearSessionToken();
+        const cur = window.location.pathname || "";
+        if (cur && cur !== "/login") {
+          window.location.replace(`${process.env.PUBLIC_URL || ""}/login`.replace(/\/+/g, "/") || "/login");
+        }
+      }
+    }
     return Promise.reject(err);
   }
 );
@@ -274,6 +290,13 @@ export async function streamChat({ conversation_id, content, images, image_media
   }
   if (resp.status === 429) {
     finish({ type: "error", content: "Service saturé. Réessayez." });
+    return;
+  }
+  if (resp.status === 401 || resp.status === 403) {
+    // Token invalide/expiré : on purge la session pour forcer le re-login,
+    // sinon chaque message échoue silencieusement (effet « phantom »).
+    clearSessionToken();
+    finish({ type: "auth_error", content: "Session expirée — reconnectez-vous." });
     return;
   }
   if (!resp.ok) {

@@ -9,6 +9,5 @@ export function cleanDisplayText(text) {
     .replace(/<MOOD:[^>]*>/gi, "")
     .replace(/^(?:Slt\s*)?Émo\s*[A-Za-zéèê]+\s*/i, "")
     .replace(/^\s*Émo\s*/i, "")
-    .replace(/^\s*[A-Za-zéèê]{4,20}\s+(?=[A-ZÀ-Ü"«])/u, "")
     .trim();
 }

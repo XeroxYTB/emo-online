@@ -3898,7 +3898,7 @@ async def ping():
             p: conn_accounts.is_provider_configured(p) for p in conn_accounts.PROVIDER_IDS
         },
         "service": "emo-online",
-        "build": "2026-06-22a",
+        "build": "2026-06-27a",
     }
 
 
