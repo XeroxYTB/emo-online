@@ -99,31 +99,12 @@ function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = f
       return () => {};
     }
 
-    (async () => {
-      if (src.startsWith("data:") || src.startsWith("blob:")) {
-        applySrc(src);
-        return;
-      }
-      if (src.startsWith("http://") || src.startsWith("https://")) {
-        try {
-          const resp = await fetch(src, { mode: "cors", credentials: "omit" });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const blob = await resp.blob();
-          if (cancelled) return;
-          objectUrl = URL.createObjectURL(blob);
-          applySrc(objectUrl);
-          return;
-        } catch {
-          if (fallbackSrc && fallbackSrc !== src) {
-            applySrc(fallbackSrc);
-            return;
-          }
-          fail();
-          return;
-        }
-      }
+    // Use direct <img src> for http(s) — avoids CORS fetch failures on /generated-image URLs.
+    if (src.startsWith("data:") || src.startsWith("blob:") || src.startsWith("http://") || src.startsWith("https://")) {
       applySrc(src);
-    })();
+    } else {
+      applySrc(src);
+    }
 
     const timer = setTimeout(() => {
       setLoaded((wasLoaded) => {

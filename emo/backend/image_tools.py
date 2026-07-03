@@ -40,8 +40,11 @@ _VERB_PREFIX_RE = re.compile(
     re.I,
 )
 _TYPE_DE_PREFIX_RE = re.compile(
-    r"^(?:une?\s+)?(?:image|illustration|photo|avatar|icône|icone|visuel|affiche|poster|bannière|banniere|dessin)\s+"
-    r"(?:de\s+|d[''']|du\s+|d'une?\s+)",
+    r"^(?:une?\s+)?(?:image|illustration|photo|avatar|icône|icone|visuel|affiche|poster|bannière|banniere|dessin)"
+    r"(?:"
+    r"\s+(?:de\s+|d[''']|du\s+|d'une?\s+|avec\s+)"
+    r"|:\s*"
+    r")",
     re.I,
 )
 
@@ -415,9 +418,10 @@ GENERATE_IMAGE_TOOL = {
         "description": (
             "Génère une image gratuitement (HF / Pollinations). "
             "Utilise quand l'utilisateur demande de créer, dessiner ou générer une image ou logo. "
-            "IMPORTANT: le prompt doit reprendre fidèlement le sujet, style, couleurs et composition "
-            "demandés par l'utilisateur — pas de termes génériques (masterpiece, 8k, professional). "
-            "Exemple: user « chat rouge sur canapé bleu style cartoon » → prompt « chat rouge sur canapé bleu, style cartoon »."
+            "IMPORTANT: le prompt doit reprendre fidèlement le sujet, style, couleurs, texte et composition "
+            "demandés — pas de termes génériques (masterpiece, 8k, professional). "
+            "Pour texte dans l'image: recopie le mot exact entre guillemets. "
+            "Exemple: « chat rouge sur canapé bleu style cartoon » → « chat rouge sur canapé bleu, style cartoon »."
         ),
         "parameters": {
             "type": "object",
