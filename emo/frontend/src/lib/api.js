@@ -240,8 +240,18 @@ http.interceptors.response.use(
     // légitimement 401 sur un mauvais mot de passe.
     if (status === 401 && typeof window !== "undefined") {
       const url = cfg.url || "";
-      const isAuthEndpoint = /\/auth\/(login|signup|google)/.test(url);
-      if (!isAuthEndpoint && getSessionToken()) {
+      const isAuthEndpoint = /\/auth\/(login|signup|google|me)/.test(url);
+      const reqToken = (
+        (cfg.headers?.Authorization || "").replace(/^Bearer\s+/i, "").trim()
+        || cfg.headers?.["X-Emo-Session"]
+        || ""
+      );
+      const current = getSessionToken();
+      // Ignore stale /auth/me responses that raced with a fresh login.
+      if (reqToken && current && reqToken !== current) {
+        return Promise.reject(err);
+      }
+      if (!isAuthEndpoint && current) {
         clearSessionToken();
         const cur = window.location.pathname || "";
         if (cur && cur !== "/login") {

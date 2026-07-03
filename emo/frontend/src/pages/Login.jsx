@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, saveSessionToken, authRequest, formatApiError, wakeBackend, getSessionToken, isApiReachable, apiPostJson } from "../lib/api";
+import { http, saveSessionToken, clearSessionToken, authRequest, formatApiError, wakeBackend, getSessionToken, isApiReachable, apiPostJson } from "../lib/api";
 import { AppTopBar, EmoLogo } from "../components/EmoLogo";
 import GoogleSignInButton, { getGoogleClientId } from "../components/GoogleSignInButton";
 import { toast } from "sonner";
@@ -47,7 +47,7 @@ export default function Login() {
         return;
       }
       const res = await authRequest(
-        () => http.post("/auth/google/verify", { credential }, { timeout: 20000, _emoMaxRetries: 1 }),
+        () => apiPostJson("/auth/google/verify", { credential }, { timeout: 20000 }),
         { maxAttempts: 3 }
       );
       if (res.data?.session_token) saveSessionToken(res.data.session_token);
@@ -64,6 +64,7 @@ export default function Login() {
     if (bootStarted.current) return;
     bootStarted.current = true;
 
+    const ctrl = new AbortController();
     (async () => {
       if (!getSessionToken()) {
         const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
@@ -72,14 +73,22 @@ export default function Login() {
         return;
       }
       try {
-        await http.get("/auth/me", { timeout: 12000 });
+        await http.get("/auth/me", {
+          timeout: 12000,
+          signal: ctrl.signal,
+          _emoSkipRetry: true,
+          _emoMaxRetries: 0,
+        });
         navigate("/chat", { replace: true });
       } catch (_) {
+        if (ctrl.signal.aborted) return;
+        clearSessionToken();
         const warm = await wakeBackend({ maxWaitMs: 20000 }).catch(() => ({ ok: false }));
         setApiDown(!warm?.ok);
         setApiWaking(!!warm?.waking);
       }
     })();
+    return () => ctrl.abort();
   }, [navigate]);
 
   useEffect(() => {
@@ -104,15 +113,18 @@ export default function Login() {
         toast.error("API injoignable. Le serveur HF démarre — réessayez dans 1–2 min.");
         return;
       }
+      let sessionUser;
       if (mode === "signup") {
         const res = await apiPostJson("/auth/signup", { email, password, name });
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
+        sessionUser = res.data;
       } else {
         const res = await apiPostJson("/auth/login", { email, password });
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
+        sessionUser = res.data;
       }
       setApiDown(false);
-      navigate("/chat", { replace: true });
+      navigate("/chat", { replace: true, state: { user: sessionUser } });
     } catch (err) {
       if (!err?.response) setApiDown(true);
       toast.error(formatApiError(err, "Identifiants incorrects"));

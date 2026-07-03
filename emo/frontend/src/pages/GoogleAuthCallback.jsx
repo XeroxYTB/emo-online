@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { http, saveSessionToken } from "../lib/api";
+import { apiPostJson, saveSessionToken } from "../lib/api";
 import { AppTopBar } from "../components/EmoLogo";
 
 export default function GoogleAuthCallback() {
@@ -25,8 +25,7 @@ export default function GoogleAuthCallback() {
       return;
     }
 
-    http
-      .post("/auth/google/exchange", null, { params: { token } })
+    apiPostJson(`/auth/google/exchange?token=${encodeURIComponent(token)}`, {})
       .then((res) => {
         if (res.data?.session_token) saveSessionToken(res.data.session_token);
         navigate("/chat", { replace: true, state: { user: res.data } });
