@@ -159,7 +159,19 @@ def build_image_prompt(
     }
 
 
-def _seed_from_prompt(prompt: str, seed: int | None) -> int:
+def _is_plausible_image(raw: bytes, ctype: str) -> bool:
+    """Reject empty, tiny, or non-image payloads (HF sometimes returns garbage)."""
+    if not raw or len(raw) < 2000:
+        return False
+    if raw[:2] == b"\xff\xd8":
+        return True
+    if raw[:8] == b"\x89PNG\r\n\x1a\n":
+        return True
+    if raw[:4] == b"RIFF" and len(raw) > 12 and raw[8:12] == b"WEBP":
+        return True
+    return (ctype or "").startswith("image/")
+
+
     if seed is not None:
         return max(0, int(seed))
     digest = hashlib.md5(prompt.encode("utf-8")).hexdigest()
@@ -239,6 +251,9 @@ async def _hf_generate(
                 resp = await client.post(url, headers=headers, json=body)
                 ctype = (resp.headers.get("content-type") or "").split(";")[0].strip()
                 if resp.is_success and ctype.startswith("image/"):
+                    if not _is_plausible_image(resp.content, ctype):
+                        logger.warning("HF image %s: implausible payload (%s bytes)", model, len(resp.content))
+                        continue
                     b64 = base64.b64encode(resp.content).decode("ascii")
                     return {
                         "ok": True,
@@ -282,7 +297,7 @@ async def _pollinations_generate(
     try:
         resp = await client.get(url, follow_redirects=True)
         ctype = (resp.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
-        if resp.is_success and ctype.startswith("image/") and len(resp.content) > 500:
+        if resp.is_success and ctype.startswith("image/") and _is_plausible_image(resp.content, ctype):
             b64 = base64.b64encode(resp.content).decode("ascii")
             return {
                 "ok": True,
