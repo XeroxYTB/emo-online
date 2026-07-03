@@ -36,13 +36,13 @@ function resolveImageUrl(url) {
 export function buildImagePreviewSrc(input) {
   if (!input || typeof input !== "object") return null;
   const { src: directSrc, image_base64, image_url, mime = "image/png" } = input;
-  if (directSrc && typeof directSrc === "string") {
-    const fromDirect = resolveImageUrl(directSrc);
-    if (fromDirect) return fromDirect;
-  }
   const b64 = image_base64;
   if (isUsableImageBase64(b64)) {
     return `data:${mime || "image/png"};base64,${b64}`;
+  }
+  if (directSrc && typeof directSrc === "string") {
+    const fromDirect = resolveImageUrl(directSrc);
+    if (fromDirect) return fromDirect;
   }
   const fromUrl = resolveImageUrl(image_url);
   if (fromUrl) return fromUrl;
@@ -135,8 +135,15 @@ export function resolveToolPreview(event) {
   }
 
   if (preview?.type === "image") {
-    const src = buildImagePreviewSrc(preview);
-    if (src) return { kind: "image", src, title: preview.title || "Image" };
+    const { src, fallbackSrc } = buildImagePreviewPair(preview);
+    if (src) {
+      return {
+        kind: "image",
+        src,
+        fallbackSrc,
+        title: preview.title || "Image",
+      };
+    }
   }
 
   if (!result || result.ok === false) {
@@ -157,11 +164,12 @@ export function resolveToolPreview(event) {
   }
 
   if (tool === "generate_image" && result?.ok) {
-    const src = buildImagePreviewSrc(result);
+    const { src, fallbackSrc } = buildImagePreviewPair(result);
     if (src) {
       return {
         kind: "image",
         src,
+        fallbackSrc,
         title: args.prompt || result.prompt || result.subject || "Image générée",
       };
     }

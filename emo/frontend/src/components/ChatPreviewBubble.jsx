@@ -17,7 +17,8 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
 
   const imageFallback = data.kind === "image"
     ? (
-      event?.inlinePreview?.fallbackSrc
+      data.fallbackSrc
+      || event?.inlinePreview?.fallbackSrc
       || buildImagePreviewPair(event?.inlinePreview || event?.result || {}).fallbackSrc
     )
     : null;

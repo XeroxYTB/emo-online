@@ -159,6 +159,13 @@ def build_image_prompt(
     }
 
 
+def _seed_from_prompt(prompt: str, seed: int | None) -> int:
+    if seed is not None:
+        return max(0, int(seed))
+    digest = hashlib.md5(prompt.encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % 2_147_483_647
+
+
 def _is_plausible_image(raw: bytes, ctype: str) -> bool:
     """Reject empty, tiny, or non-image payloads (HF sometimes returns garbage)."""
     if not raw or len(raw) < 2000:
@@ -170,12 +177,6 @@ def _is_plausible_image(raw: bytes, ctype: str) -> bool:
     if raw[:4] == b"RIFF" and len(raw) > 12 and raw[8:12] == b"WEBP":
         return True
     return (ctype or "").startswith("image/")
-
-
-    if seed is not None:
-        return max(0, int(seed))
-    digest = hashlib.md5(prompt.encode("utf-8")).hexdigest()
-    return int(digest[:8], 16) % 2_147_483_647
 
 
 def _parse_size(size: str) -> tuple[int, int]:

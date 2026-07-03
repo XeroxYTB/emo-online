@@ -1143,6 +1143,28 @@ async def get_generated_image(image_id: str, t: str = Query("")):
     )
 
 
+@api.get("/generated-image/{image_id}/b64")
+async def get_generated_image_b64(image_id: str, t: str = Query("")):
+    """JSON base64 fallback when direct image URL fails (HF multi-worker)."""
+    entry = await _load_generated_image_entry(image_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Image introuvable")
+    expected = _image_access_token(entry["user_id"], image_id)
+    if not t or t != expected:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    b64 = entry.get("b64")
+    if not b64:
+        raise HTTPException(status_code=404, detail="Image vide")
+    return JSONResponse(
+        {
+            "ok": True,
+            "image_base64": b64,
+            "mime": entry.get("mime") or "image/png",
+        },
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
 class FeedbackBody(BaseModel):
     response: str
 
@@ -2750,7 +2772,9 @@ async def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dic
     }
     await _persist_generated_image_db(image_id, user_id, b64, mime)
     token = _image_access_token(user_id, image_id)
-    out["image_url"] = f"/generated-image/{image_id}?t={token}"
+    rel = f"/generated-image/{image_id}?t={token}"
+    public = EMO_PUBLIC_BACKEND_URL.rstrip("/")
+    out["image_url"] = f"{public}/api{rel}" if public.startswith("http") else rel
     return out
 
 
@@ -3586,9 +3610,7 @@ def _shrink_for_ui(result: dict) -> dict:
     b64 = out.get("image_base64")
     if b64 and isinstance(b64, str) and len(b64) > 400:
         out["has_image"] = True
-        # Keep base64 for generate_image so UI works when /generated-image 404s on HF workers.
-        if not (out.get("ok") and (out.get("provider") or out.get("image_url"))):
-            out["image_base64"] = "[image:in_chat]"
+        # Always keep inline base64 for generate_image — HF /generated-image URLs often 404.
     return out
 
 

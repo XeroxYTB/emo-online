@@ -1,10 +1,36 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AspectRatio } from "./ui/aspect-ratio";
 import { Globe, FileText, Image as ImageIcon, Copy, Check, Download } from "lucide-react";
 import { toast } from "sonner";
 import { IFRAME_ALLOW, IFRAME_SANDBOX } from "../lib/iframePreview";
 import { copyImageFromSrc, downloadImageFromSrc } from "../lib/imageExport";
 import { isImagePath, previewTextSnippet } from "../lib/previewHelpers";
+
+/** Try JSON base64 fallback when /generated-image URL 404s on HF workers. */
+async function fetchGeneratedImageB64(url) {
+  if (!url || typeof url !== "string") return null;
+  const m = url.match(/\/generated-image\/([^/?]+)(?:\?t=([^&]+))?/);
+  if (!m) return null;
+  const base = url.split("/generated-image/")[0];
+  const token = m[2] || (url.includes("?t=") ? url.split("?t=")[1]?.split("&")[0] : "");
+  const b64Url = `${base}/generated-image/${m[1]}/b64${token ? `?t=${token}` : ""}`;
+  const resp = await fetch(b64Url, { mode: "cors", credentials: "omit" });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  const b64 = data?.image_base64;
+  if (!b64 || b64.startsWith("[")) return null;
+  return `data:${data.mime || "image/png"};base64,${b64}`;
+}
+
+async function loadRemoteImageSrc(url) {
+  const resp = await fetch(url, { mode: "cors", credentials: "omit" });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const blob = await resp.blob();
+  if (!blob.type.startsWith("image/") && blob.size < 500) {
+    throw new Error("Not an image");
+  }
+  return URL.createObjectURL(blob);
+}
 
 /**
  * Cadre carré réutilisable pour aperçus site / fichier.
@@ -76,16 +102,23 @@ function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = f
   const [current, setCurrent] = useState(null);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    loadedRef.current = loaded;
+  }, [loaded]);
 
   useEffect(() => {
     let objectUrl = null;
     let cancelled = false;
 
-    const applySrc = (next) => {
-      if (cancelled) return;
+    const applySrc = (next, immediate = false) => {
+      if (cancelled || !next) return;
       setCurrent(next);
       setFailed(false);
-      setLoaded(false);
+      const isReady = immediate || next.startsWith("data:") || next.startsWith("blob:");
+      setLoaded(isReady);
+      loadedRef.current = isReady;
     };
 
     const fail = () => {
@@ -94,29 +127,59 @@ function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = f
       setLoaded(false);
     };
 
+    const tryFallbacks = async (primaryUrl) => {
+      if (fallbackSrc && fallbackSrc !== primaryUrl) {
+        applySrc(fallbackSrc, fallbackSrc.startsWith("data:"));
+        return true;
+      }
+      if (primaryUrl?.includes("/generated-image/")) {
+        try {
+          const dataUrl = await fetchGeneratedImageB64(primaryUrl);
+          if (dataUrl && !cancelled) {
+            applySrc(dataUrl, true);
+            return true;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      return false;
+    };
+
     if (!src || src.includes("[image:") || src.endsWith("base64,")) {
       fail();
       return () => {};
     }
 
-    // Use direct <img src> for http(s) — avoids CORS fetch failures on /generated-image URLs.
-    if (src.startsWith("data:") || src.startsWith("blob:") || src.startsWith("http://") || src.startsWith("https://")) {
-      applySrc(src);
+    if (src.startsWith("data:") || src.startsWith("blob:")) {
+      applySrc(src, true);
+      return () => {
+        cancelled = true;
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      };
+    }
+
+    if (src.startsWith("http://") || src.startsWith("https://")) {
+      (async () => {
+        try {
+          objectUrl = await loadRemoteImageSrc(src);
+          if (cancelled) return;
+          applySrc(objectUrl, true);
+        } catch {
+          if (cancelled) return;
+          const ok = await tryFallbacks(src);
+          if (!ok) fail();
+        }
+      })();
     } else {
       applySrc(src);
     }
 
-    const timer = setTimeout(() => {
-      setLoaded((wasLoaded) => {
-        if (wasLoaded) return true;
-        if (fallbackSrc && fallbackSrc !== src) {
-          applySrc(fallbackSrc);
-          return false;
-        }
-        fail();
-        return false;
-      });
-    }, 30000);
+    const timer = setTimeout(async () => {
+      if (cancelled || loadedRef.current) return;
+      const ok = await tryFallbacks(src);
+      if (!ok) fail();
+    }, 8000);
 
     return () => {
       cancelled = true;
@@ -153,10 +216,23 @@ function PreviewImage({ src, alt, fallbackSrc, className, style, showActions = f
         className={`${className || ""} ${loaded ? "emo-image-reveal" : "opacity-0"}`}
         style={style}
         onLoad={() => setLoaded(true)}
-        onError={() => {
+        onError={async () => {
           if (fallbackSrc && current !== fallbackSrc) {
             setCurrent(fallbackSrc);
+            setLoaded(fallbackSrc.startsWith("data:"));
             return;
+          }
+          if (current?.includes("/generated-image/")) {
+            try {
+              const dataUrl = await fetchGeneratedImageB64(current);
+              if (dataUrl) {
+                setCurrent(dataUrl);
+                setLoaded(true);
+                return;
+              }
+            } catch {
+              /* ignore */
+            }
           }
           setFailed(true);
         }}
