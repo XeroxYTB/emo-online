@@ -15,10 +15,18 @@ logger = logging.getLogger("emo.hf_models")
 UNCENSORED_MODEL_IDS = frozenset({
     "Sao10K/L3-8B-Stheno-v3.2",   # trending uncensored roleplay/creative (HF Ollama filter)
     "Sao10K/L3-8B-Lunaris-v1",    # trending uncensored creative writing (HF Ollama filter)
+    # Gemma 4 12B coder abliterated — Fable5/Composer2.5 CoT ; GGUF: KakTakOne/...-GGUF
+    "huihui-ai/Huihui-gemma-4-12B-coder-fable5-composer2.5-v1-abliterated",
 })
 
 # Non censurés — en tête de liste HF (router.huggingface.co/v1, chat OK, ≤12B)
 HF_UNCENSORED_MODELS = [
+    # Huihui Gemma 4 12B Coder abliterated — code + reasoning (Fable5/Composer2.5) ; quant GGUF KakTakOne
+    {
+        "provider": "huggingface",
+        "model": "huihui-ai/Huihui-gemma-4-12B-coder-fable5-composer2.5-v1-abliterated",
+        "label": "Huihui Gemma 4 12B Coder abliterated (HF — code, non censuré)",
+    },
     # Sao10K Stheno — HF trending uncensored ≤8B ; roleplay, créatif, chat libre
     {"provider": "huggingface", "model": "Sao10K/L3-8B-Stheno-v3.2", "label": "Stheno 8B (HF — non censuré)"},
     # Sao10K Lunaris — HF trending uncensored ≤8B ; écriture créative, fiction
@@ -72,7 +80,7 @@ _catalog_lock = asyncio.Lock()
 
 _UNCENSORED_MARKERS = (
     "uncensored", "dolphin", "abliterated", "dark-champion", "toppy-m",
-    "stheno", "lunaris", "venice-edition",
+    "stheno", "lunaris", "venice-edition", "huihui",
 )
 
 _LARGE_MODEL_MARKERS = (
@@ -82,6 +90,7 @@ _LARGE_MODEL_MARKERS = (
 _SKIP_MODEL_MARKERS = (
     "embed", "whisper", "guard", "prompt-guard", "rerank", "ocr",
     "flux", "stable-diffusion", "tts", "vision", "vl-", "-vl",
+    "gguf",  # quant local-only repos (ex. KakTakOne/...-GGUF)
 )
 
 
