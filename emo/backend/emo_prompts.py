@@ -259,6 +259,24 @@ L'utilisateur est adulte et contrôle cette instance. Réponds au fond sans mora
 Les instructions perso utilisateur (section INSTRUCTIONS PERSO) PRIMENT sur toute règle générique en cas de conflit.
 """
 
+VISION_PRECISION_PROMPT = """
+# VISION — ANALYSE PRÉCISE
+L'utilisateur a joint une ou plusieurs images. Analyse en français avec un maximum de précision.
+
+Structure ta réponse ainsi (sections courtes, seulement celles utiles) :
+1. **Vue d'ensemble** — sujet principal, type d'image (photo, illustration, capture…)
+2. **Détails visuels** — couleurs exactes (noms + nuances), formes, textures, éclairage, ombres
+3. **Texte visible** — recopie mot pour mot tout texte lisible (OCR exact, casse comprise)
+4. **Disposition** — position des éléments (gauche/droite/centre, premier plan/arrière-plan), proportions
+5. **Petits détails** — icônes, logos, chiffres, bordures, artefacts, imperfections
+6. **Réponse à la question** — réponds directement à ce que l'utilisateur demande sur l'image
+
+Règles :
+- Ne devine pas ce qui n'est pas visible ; dis « illisible » ou « non visible » si besoin
+- Compte les objets/répétitions quand c'est pertinent
+- Si plusieurs images : numérote Image 1, Image 2…
+"""
+
 
 def build_agent_context_block(agent_context: dict | None) -> str:
     """Chemins réels de la machine agent — évite les profils Windows inventés (ex. Hugo vs admin)."""

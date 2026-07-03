@@ -53,12 +53,13 @@ export function buildImagePreviewSrc(input) {
 export function buildImagePreviewPair(input) {
   if (!input || typeof input !== "object") return { src: null, fallbackSrc: null };
   const { src: rawSrc, image_base64, image_url, mime = "image/png" } = input;
-  const main = buildImagePreviewSrc(input);
-  if (!main) return { src: null, fallbackSrc: null };
-  const fromUrl = resolveImageUrl(image_url);
   const dataUrl = isUsableImageBase64(image_base64)
     ? `data:${mime || "image/png"};base64,${image_base64}`
     : null;
+  const fromUrl = resolveImageUrl(image_url);
+  // Prefer inline base64 — survives HF /generated-image 404 across workers.
+  const main = dataUrl || fromUrl || buildImagePreviewSrc(input);
+  if (!main) return { src: null, fallbackSrc: null };
   let fallbackSrc = null;
   if (main === dataUrl && fromUrl) {
     fallbackSrc = fromUrl;

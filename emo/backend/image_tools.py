@@ -45,13 +45,30 @@ _TYPE_DE_PREFIX_RE = re.compile(
     re.I,
 )
 
-_QUALITY_TAIL = "sharp focus, high detail"
-_NEGATIVE_PROMPT = (
+_QUALITY_TAIL = "sharp focus, high detail, precise composition"
+_PRECISION_TAIL = "exact colors as specified, legible text, clean layout, pixel-perfect details"
+_NEGATIVE_BASE = (
     "blurry, out of focus, low quality, distorted, deformed, extra limbs, "
-    "random objects, cluttered background, watermark, text overlay, logo, "
+    "random objects, cluttered background, watermark, "
     "cropped, ugly, noisy, oversaturated, abstract, vague, generic"
 )
+_NEGATIVE_NO_TEXT = _NEGATIVE_BASE + ", illegible text, misspelled text, garbled letters"
+_NEGATIVE_DEFAULT = _NEGATIVE_BASE + ", text overlay, logo"
 _SHORT_EXPANSION = "clearly visible, well-defined subject, centered composition"
+
+_TEXT_IN_IMAGE_RE = re.compile(
+    r"\b(texte|text|écrit|ecrit|inscription|titre|title|mot[s]?|lettre[s]?|"
+    r"affiche[r]?|panneau|signe|label|étiquette|etiquette|typograph|"
+    r"écrire|ecrire|marqué|marque|caption|slogan)\b",
+    re.I,
+)
+_PRECISION_HINT_RE = re.compile(
+    r"\b(exact|précis|precis|précisément|precisement|spécifique|specifique|"
+    r"couleur[s]? exacte[s]?|#[0-9a-f]{3,8}\b|rgb\(|layout|grille|grid|"
+    r"aligné|aligne|centré|centre|pixel|détail[s]?|detail[s]?|"
+    r"petit[s]?|miniature|icône|icone|logo)\b",
+    re.I,
+)
 
 
 def _looks_like_user_command(text: str) -> bool:
@@ -82,6 +99,30 @@ def _expand_short_subject(subject: str) -> str:
     return f"{subject}, {_SHORT_EXPANSION}"
 
 
+def _needs_text_in_image(subject: str) -> bool:
+    return bool(_TEXT_IN_IMAGE_RE.search(subject or ""))
+
+
+def _needs_precision(subject: str) -> bool:
+    s = subject or ""
+    return _needs_text_in_image(s) or bool(_PRECISION_HINT_RE.search(s))
+
+
+def _negative_prompt_for(subject: str) -> str:
+    return _NEGATIVE_NO_TEXT if _needs_text_in_image(subject) else _NEGATIVE_DEFAULT
+
+
+def _hf_model_order(subject: str) -> tuple[str, ...]:
+    """SDXL first for precision (text/colors/layout); Flux schnell for speed otherwise."""
+    if _needs_precision(subject):
+        return (
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "black-forest-labs/FLUX.1-schnell",
+            "runwayml/stable-diffusion-v1-5",
+        )
+    return _HF_MODELS
+
+
 def build_image_prompt(
     raw: str,
     *,
@@ -97,18 +138,21 @@ def build_image_prompt(
 
     subject = _expand_short_subject(subject)
     positive = f"Exact depiction of: {subject}"
+    precision = _needs_precision(subject)
+    tail = _PRECISION_TAIL if precision else _QUALITY_TAIL
 
     if for_pollinations:
         # enhance=true on Pollinations already boosts quality — avoid double dilution.
-        final = positive
+        final = f"{positive}, {tail}" if precision else positive
     else:
-        final = f"{positive}, {_QUALITY_TAIL}"
+        final = f"{positive}, {tail}"
 
     return {
         "subject": subject,
         "positive": positive,
         "final_prompt": final[:2000],
-        "negative": _NEGATIVE_PROMPT,
+        "negative": _negative_prompt_for(subject),
+        "precision": precision,
     }
 
 
@@ -126,30 +170,38 @@ def _parse_size(size: str) -> tuple[int, int]:
     return 1024, 1024
 
 
-def _hf_parameters(model: str, width: int, height: int, seed: int) -> dict:
+def _hf_parameters(
+    model: str,
+    width: int,
+    height: int,
+    seed: int,
+    *,
+    negative_prompt: str,
+    precision: bool = False,
+) -> dict:
     if "flux" in model.lower():
         return {
             "width": width,
             "height": height,
-            "num_inference_steps": 4,
-            "guidance_scale": 0.0,
+            "num_inference_steps": 8 if precision else 4,
+            "guidance_scale": 3.5 if precision else 0.0,
             "seed": seed,
         }
     if "xl" in model.lower():
         return {
             "width": width,
             "height": height,
-            "num_inference_steps": 30,
-            "guidance_scale": 7.5,
-            "negative_prompt": _NEGATIVE_PROMPT,
+            "num_inference_steps": 40 if precision else 30,
+            "guidance_scale": 8.5 if precision else 7.5,
+            "negative_prompt": negative_prompt,
             "seed": seed,
         }
     return {
         "width": width,
         "height": height,
-        "num_inference_steps": 25,
-        "guidance_scale": 7.0,
-        "negative_prompt": _NEGATIVE_PROMPT,
+        "num_inference_steps": 30 if precision else 25,
+        "guidance_scale": 7.5 if precision else 7.0,
+        "negative_prompt": negative_prompt,
         "seed": seed,
     }
 
@@ -162,6 +214,8 @@ async def _hf_generate(
     width: int,
     height: int,
     seed: int,
+    negative_prompt: str,
+    precision: bool = False,
 ) -> dict | None:
     headers = {}
     hf_key = get_api_key("huggingface")
@@ -169,7 +223,11 @@ async def _hf_generate(
         headers["Authorization"] = f"Bearer {hf_key}"
     body = {
         "inputs": final_prompt,
-        "parameters": _hf_parameters(model, width, height, seed),
+        "parameters": _hf_parameters(
+            model, width, height, seed,
+            negative_prompt=negative_prompt,
+            precision=precision,
+        ),
     }
     for base_tpl in _HF_ENDPOINTS:
         url = base_tpl.format(model=model)
@@ -212,10 +270,11 @@ async def _pollinations_generate(
     final = built["final_prompt"]
     q = urllib.parse.quote(final)
     neg = urllib.parse.quote(built["negative"])
+    guidance = "9.0" if built.get("precision") else "7.5"
     url = (
         f"https://image.pollinations.ai/prompt/{q}"
         f"?width={width}&height={height}&nologo=true&enhance=true&model=flux"
-        f"&seed={seed}&negative_prompt={neg}&guidance_scale=7.5"
+        f"&seed={seed}&negative_prompt={neg}&guidance_scale={guidance}"
     )
     try:
         resp = await client.get(url, follow_redirects=True)
@@ -296,13 +355,17 @@ async def generate_image(
     seed_val = _seed_from_prompt(built_hf["final_prompt"], seed)
 
     logger.info(
-        "Image gen subject=%r final_hf=%r",
+        "Image gen subject=%r precision=%s final_hf=%r",
         built_hf["subject"][:120],
+        built_hf.get("precision"),
         built_hf["final_prompt"][:200],
     )
 
+    precision = bool(built_hf.get("precision"))
+    model_order = _hf_model_order(built_hf["subject"])
+
     async with httpx.AsyncClient(timeout=180.0) as client:
-        for model in _HF_MODELS:
+        for model in model_order:
             hit = await _hf_generate(
                 client,
                 model,
@@ -310,6 +373,8 @@ async def generate_image(
                 width=width,
                 height=height,
                 seed=seed_val,
+                negative_prompt=built_hf["negative"],
+                precision=precision,
             )
             if hit:
                 hit["subject"] = built_hf["subject"]

@@ -31,7 +31,7 @@ from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionRequest, CheckoutSessionResponse,
 )
 
-from emo_prompts import build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT, UNCENSORED_SYSTEM_APPEND
+from emo_prompts import build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT, UNCENSORED_SYSTEM_APPEND, VISION_PRECISION_PROMPT
 from emo_self_edit import (
     EMO_SELF_TOOLS,
     emo_read_self,
@@ -2755,29 +2755,28 @@ async def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dic
 
 
 def _image_sse_payload(tc_id: str, result: dict, *, title: str = "") -> Optional[dict]:
-    """Small SSE image event — URL only, no inline base64."""
+    """SSE image event — URL + inline base64 fallback when URL may 404 on HF."""
     if not result.get("ok"):
         return None
     url = result.get("image_url")
     mime = result.get("mime") or "image/png"
     prompt = title or result.get("subject") or result.get("prompt") or "Image générée"
-    if url:
-        return {
-            "type": "image",
-            "id": tc_id,
-            "image_url": url,
-            "mime": mime,
-            "title": str(prompt)[:80],
-        }
     b64 = result.get("image_base64")
-    if b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("["):
-        return {
-            "type": "image",
-            "id": tc_id,
-            "image_url": f"data:{mime};base64,{b64}",
-            "mime": mime,
-            "title": str(prompt)[:80],
-        }
+    usable_b64 = (
+        b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("[")
+    )
+    payload: dict = {
+        "type": "image",
+        "id": tc_id,
+        "mime": mime,
+        "title": str(prompt)[:80],
+    }
+    if url:
+        payload["image_url"] = url
+    if usable_b64:
+        payload["image_base64"] = b64
+    if url or usable_b64:
+        return payload
     return None
 
 
@@ -3361,11 +3360,7 @@ async def chat_stream(
                 model_uncensored = is_uncensored_model(provider, model)
                 effective_system = system_msg
                 if has_images:
-                    effective_system += (
-                        "\n\n# VISION\n"
-                        "L'utilisateur a joint une ou plusieurs images. Décris-les clairement en français "
-                        "et réponds précisément à sa question sur le contenu visible."
-                    )
+                    effective_system += VISION_PRECISION_PROMPT
                 if open_url and pre_tool_log:
                     effective_system += (
                         f"\n\n# SITE DÉJÀ OUVERT\n"
@@ -3579,7 +3574,7 @@ async def chat_stream(
 
 
 def _shrink_for_ui(result: dict) -> dict:
-    """Trim huge outputs for UI display (keep last 4KB)."""
+    """Trim huge outputs for UI display — keep generated image bytes as inline fallback."""
     out = dict(result or {})
     for key in ("stdout", "stderr", "content", "text"):
         if key in out and isinstance(out[key], str) and len(out[key]) > 4000:
@@ -3588,9 +3583,11 @@ def _shrink_for_ui(result: dict) -> dict:
         if len(out["screenshot_base64"]) > 400:
             out["has_screenshot"] = True
             out["screenshot_base64"] = "[screenshot:in_panel]"
-    if out.get("image_base64") and isinstance(out["image_base64"], str):
-        if len(out["image_base64"]) > 400:
-            out["has_image"] = True
+    b64 = out.get("image_base64")
+    if b64 and isinstance(b64, str) and len(b64) > 400:
+        out["has_image"] = True
+        # Keep base64 for generate_image so UI works when /generated-image 404s on HF workers.
+        if not (out.get("ok") and (out.get("provider") or out.get("image_url"))):
             out["image_base64"] = "[image:in_chat]"
     return out
 
