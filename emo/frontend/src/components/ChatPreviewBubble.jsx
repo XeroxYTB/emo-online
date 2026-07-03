@@ -1,12 +1,13 @@
 import React, { useState } from "react";
-import { Globe, FileCode2, Copy, Check } from "lucide-react";
+import { Globe, FileCode2, Copy, Check, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import SquarePreviewFrame from "./SquarePreviewFrame";
+import GeneratedImagePreview from "./GeneratedImagePreview";
 import SearchResultPreview from "./SearchResultPreview";
 import InteractiveBrowser from "./InteractiveBrowser";
 import ErrorBoundary from "./ErrorBoundary";
 import LiveHtmlPreview from "./LiveHtmlPreview";
-import { resolveToolPreview, buildImagePreviewPair } from "../lib/resolveToolPreview";
+import { resolveToolPreview } from "../lib/resolveToolPreview";
 import { normalizeFilePath } from "../lib/filePreview";
 
 /** Bulle d'aperçu dans le chat — navigateur interactif inline pour les sites web. */
@@ -14,14 +15,6 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
   const data = resolveToolPreview(event);
   const [copied, setCopied] = useState(false);
   if (!data) return null;
-
-  const imageFallback = data.kind === "image"
-    ? (
-      data.fallbackSrc
-      || event?.inlinePreview?.fallbackSrc
-      || buildImagePreviewPair(event?.inlinePreview || event?.result || {}).fallbackSrc
-    )
-    : null;
 
   const liveHtmlContent =
     data.kind === "html" && data.path
@@ -67,6 +60,8 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
           />
         ) : data.kind === "html" ? (
           <FileCode2 size={12} style={{ color: "var(--emo-text-muted)" }} />
+        ) : data.kind === "image" ? (
+          <ImageIcon size={12} style={{ color: "var(--emo-text-muted)" }} />
         ) : (
           <Globe size={12} style={{ color: "var(--emo-text-muted)" }} />
         )}
@@ -135,16 +130,24 @@ export default function ChatPreviewBubble({ event, className = "", liveHtmlByPat
           />
         )}
 
-        {data.kind === "image" && (
+        {data.kind === "image" && data.imageFields && (
+          <GeneratedImagePreview
+            sources={[data.imageFields, event?.inlinePreview, event?.result]}
+            title={data.title}
+            showActions={event?.tool === "generate_image"}
+            className="max-w-none border-0 shadow-none"
+            testId="bubble-image-preview"
+          />
+        )}
+
+        {data.kind === "image" && !data.imageFields && data.src && (
           <SquarePreviewFrame
             kind="image"
             src={data.src}
-            imageFallback={imageFallback}
             title={data.title}
             subtitle={data.path}
             testId="bubble-image-preview"
             className="max-w-none"
-            showImageActions={event?.tool === "generate_image"}
           />
         )}
 

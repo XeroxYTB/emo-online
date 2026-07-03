@@ -2779,13 +2779,14 @@ async def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dic
 
 
 def _image_sse_payload(tc_id: str, result: dict, *, title: str = "") -> Optional[dict]:
-    """SSE image event — URL + inline base64 fallback when URL may 404 on HF."""
+    """SSE image event — URL (+ small base64); huge payloads fetched via /b64."""
     if not result.get("ok"):
         return None
-    url = result.get("image_url")
-    mime = result.get("mime") or "image/png"
-    prompt = title or result.get("subject") or result.get("prompt") or "Image générée"
-    b64 = result.get("image_base64")
+    slim = _slim_image_sse_payload(result)
+    url = slim.get("image_url")
+    mime = slim.get("mime") or "image/png"
+    prompt = title or slim.get("subject") or slim.get("prompt") or "Image générée"
+    b64 = slim.get("image_base64")
     usable_b64 = (
         b64 and isinstance(b64, str) and len(b64) > 100 and not b64.startswith("[")
     )
@@ -2799,7 +2800,8 @@ def _image_sse_payload(tc_id: str, result: dict, *, title: str = "") -> Optional
         payload["image_url"] = url
     if usable_b64:
         payload["image_base64"] = b64
-    if url or usable_b64:
+    if url or usable_b64 or slim.get("has_image"):
+        payload["has_image"] = True
         return payload
     return None
 
@@ -3121,7 +3123,7 @@ async def chat_stream(
                 yield _sse({
                     "type": "tool_result",
                     "id": tc_id, "name": "generate_image",
-                    "result": _shrink_for_ui(gen_result),
+                    "result": _slim_image_sse_payload(_shrink_for_ui(gen_result)),
                 })
                 img_evt = _image_sse_payload(
                     tc_id,
@@ -3479,10 +3481,13 @@ async def chat_stream(
                                 "id": tc.id, "name": tc.name,
                                 "arguments": tc.arguments, "result": result,
                             })
+                            ui_result = _shrink_for_ui(result)
+                            if tc.name == "generate_image":
+                                ui_result = _slim_image_sse_payload(ui_result)
                             yield _sse({
                                 "type": "tool_result",
                                 "id": tc.id, "name": tc.name,
-                                "result": _shrink_for_ui(result),
+                                "result": ui_result,
                             })
                             browser_evt = _browser_sse_payload(tc.name, result)
                             if browser_evt:
@@ -3610,7 +3615,19 @@ def _shrink_for_ui(result: dict) -> dict:
     b64 = out.get("image_base64")
     if b64 and isinstance(b64, str) and len(b64) > 400:
         out["has_image"] = True
-        # Always keep inline base64 for generate_image — HF /generated-image URLs often 404.
+    return out
+
+
+_SSE_IMAGE_B64_MAX = 48_000  # Large base64 breaks SSE JSON parsing in browsers
+
+
+def _slim_image_sse_payload(result: dict) -> dict:
+    """Drop huge base64 from SSE — frontend fetches via image_url or /b64 endpoint."""
+    out = dict(result or {})
+    b64 = out.get("image_base64")
+    if b64 and isinstance(b64, str) and len(b64) > _SSE_IMAGE_B64_MAX:
+        out.pop("image_base64", None)
+        out["has_image"] = True
     return out
 
 

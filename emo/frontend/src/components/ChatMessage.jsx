@@ -147,9 +147,11 @@ const RichText = ({ text, showCopyCode = false }) => {
 };
 
 function normalizeToolEvent(t, i) {
-  if (t.tool && t.state && (t.args || t.arguments)) return t;
   const args = t.arguments || t.args || {};
-  const tool = t.name || t.tool;
+  const tool = t.tool || t.name;
+  if (t.tool && t.state && (t.args || t.arguments) && t.inlinePreview) {
+    return { ...t, tool, args };
+  }
   const result = {
     ok: true,
     path: args.path,
@@ -200,19 +202,15 @@ function normalizeToolEvent(t, i) {
   }
   if (!inlinePreview && tool === "generate_image") {
     const res = t.result;
-    if (res?.ok !== false) {
-      const { src, fallbackSrc } = buildImagePreviewPair(res);
-      if (src) {
-        inlinePreview = {
-          type: "image",
-          src,
-          image_url: res.image_url,
-          image_base64: res.image_base64,
-          mime: res.mime,
-          title: args.prompt || res.prompt || res.subject || "Image générée",
-          fallbackSrc,
-        };
-      }
+    if (res?.ok !== false && (res?.image_url || res?.image_base64 || res?.has_image)) {
+      inlinePreview = {
+        type: "image",
+        image_url: res.image_url,
+        image_base64: res.image_base64,
+        mime: res.mime || "image/png",
+        title: args.prompt || res.prompt || res.subject || "Image générée",
+        has_image: res.has_image,
+      };
     }
   }
   return {

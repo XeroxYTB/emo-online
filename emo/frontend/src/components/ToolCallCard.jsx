@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import { hasToolPreview, buildImagePreviewSrc, buildImagePreviewPair } from "../lib/resolveToolPreview";
+import { hasToolPreview } from "../lib/resolveToolPreview";
+import { hasImagePayload, mergeImageFields } from "../lib/imagePreview";
+import GeneratedImagePreview from "./GeneratedImagePreview";
 import { getFileContentFromToolEvent, isCopyableFileToolEvent } from "../lib/filePreview";
 import ChatPreviewBubble from "./ChatPreviewBubble";
 import ImageGeneratingPlaceholder from "./ImageGeneratingPlaceholder";
@@ -68,10 +70,9 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
   const [open, setOpen] = useState(event.state !== "done");
   const [copied, setCopied] = useState(false);
   const isImageGen = event.tool === "generate_image";
-  const { src: imagePreviewSrc } = event.inlinePreview?.type === "image"
-    ? buildImagePreviewPair(event.inlinePreview)
-    : buildImagePreviewPair(event.result || {});
-  const canPreview = hasToolPreview(event) || Boolean(isImageGen && imagePreviewSrc) || Boolean(
+  const imageFields = mergeImageFields(event.inlinePreview, event.result);
+  const hasImageData = isImageGen && hasImagePayload(imageFields);
+  const canPreview = hasToolPreview(event) || hasImageData || Boolean(
     event.args?.url && [
       "browser_visit", "browser_open", "web_fetch",
       "browser_click", "browser_snapshot", "browser_scroll", "browser_press", "browser_type", "browser_fill",
@@ -218,17 +219,16 @@ export const ToolCallCard = ({ event, liveHtmlByPath = {}, showCopyCode = false 
         <ImageGeneratingPlaceholder prompt={event.args?.prompt} />
       )}
 
-      {previewOpen && isImageGen && event.state === "done" && !isError && !showImageGenLoading && !imagePreviewSrc && (
-        <div
-          className="w-full max-w-[340px] mx-auto rounded-xl px-4 py-6 text-center text-xs"
-          style={{ border: "1px solid var(--emo-border)", color: "var(--emo-text-muted)" }}
-          data-testid="image-gen-failed"
-        >
-          Image non reçue — réessayez dans un instant.
-        </div>
+      {previewOpen && isImageGen && event.state === "done" && !isError && !showImageGenLoading && (
+        <GeneratedImagePreview
+          sources={[event.inlinePreview, event.result]}
+          title={event.args?.prompt || event.result?.prompt || event.result?.subject || "Image générée"}
+          className="mt-2"
+          testId="tool-image-preview"
+        />
       )}
 
-      {previewOpen && canPreview && !showImageGenLoading && imagePreviewSrc && (
+      {previewOpen && !isImageGen && canPreview && !showImageGenLoading && (
         <ChatPreviewBubble
           event={event}
           liveHtmlByPath={liveHtmlByPath}

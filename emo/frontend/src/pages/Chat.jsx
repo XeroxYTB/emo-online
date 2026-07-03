@@ -668,16 +668,14 @@ export default function Chat() {
                     results: (evt.result.results || []).slice(0, 8),
                   };
                 } else if (tool === "generate_image" && evt.result?.ok !== false) {
-                  const { src, fallbackSrc } = buildImagePreviewPair(evt.result);
-                  if (src) {
+                  if (evt.result?.image_url || evt.result?.image_base64 || evt.result?.has_image) {
                     turnTools[i].inlinePreview = {
                       type: "image",
-                      src,
                       image_url: evt.result.image_url,
                       image_base64: evt.result.image_base64,
-                      mime: evt.result.mime,
+                      mime: evt.result.mime || "image/png",
                       title: args.prompt || evt.result.prompt || evt.result.subject || "Image générée",
-                      fallbackSrc,
+                      has_image: evt.result.has_image,
                     };
                   }
                 } else if (BROWSER_PREVIEW_TOOLS.includes(tool)) {
@@ -736,17 +734,15 @@ export default function Chat() {
             const note = { id: `rn_${Date.now()}`, ...evt };
             setReflectNotes((prev) => [note, ...prev].slice(0, 12));
           } else if (evt.type === "image") {
-            const { src, fallbackSrc } = buildImagePreviewPair(evt);
-            if (!src) return;
+            if (!evt.image_url && !evt.image_base64 && !evt.has_image) return;
             const preview = {
               type: "image",
-              src,
               image_url: evt.image_url,
               image_base64: evt.image_base64,
-              mime: evt.mime,
+              mime: evt.mime || "image/png",
               title: evt.title || "Image générée",
               toolId: evt.id,
-              fallbackSrc,
+              has_image: evt.has_image,
             };
             const i = evt.id ? turnTools.findIndex((t) => t.id === evt.id) : -1;
             if (i >= 0) {
