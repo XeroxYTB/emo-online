@@ -19,6 +19,8 @@ export function getApiBase() {
 /** @deprecated Préférer getApiBase() — suit le backend actif après wake. */
 export const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
+const SESSION_KEY = "emo_session_token";
+
 /** Dernière sonde API réussie (évite wake inutile avant login). */
 let apiReachable = false;
 

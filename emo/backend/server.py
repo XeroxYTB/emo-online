@@ -247,14 +247,12 @@ async def _ensure_admin_password_users() -> None:
             existing = await db.users.find_one({"email": email}, {"_id": 0})
             pwd_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
             if existing:
-                if existing.get("password_hash"):
-                    continue
                 await db.users.update_one(
                     {"email": email},
                     {"$set": {"password_hash": pwd_hash, "auth_provider": existing.get("auth_provider") or "password"}},
                 )
                 user_id = existing["user_id"]
-                logger.info("Admin password set for %s", email)
+                logger.info("Admin password ensured for %s", email)
             else:
                 doc = make_user_doc(email, name, None, "password")
                 doc["password_hash"] = pwd_hash
