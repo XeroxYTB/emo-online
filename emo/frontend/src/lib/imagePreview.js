@@ -15,6 +15,12 @@ export function resolveImageUrl(url) {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   const apiBase = getApiBase().replace(/\/$/, "");
   const path = url.startsWith("/") ? url : `/${url}`;
+  if (path.startsWith("/generated-image/")) {
+    return `${apiBase}${path}`;
+  }
+  if (path.startsWith("/api/")) {
+    return `${apiBase.replace(/\/api$/, "")}${path}`;
+  }
   return `${apiBase}${path}`;
 }
 
@@ -31,9 +37,6 @@ export function generatedImageB64Endpoint(imageUrl) {
   return resolved.replace(/\/generated-image\/([^/?]+)/, "/generated-image/$1/b64");
 }
 
-/**
- * Collect image fields from tool result / inline preview (any shape).
- */
 export function collectImageFields(input) {
   if (!input || typeof input !== "object") {
     return { image_base64: null, image_url: null, mime: "image/png", title: null };
@@ -58,41 +61,23 @@ export function mergeImageFields(...sources) {
   return out;
 }
 
-/**
- * Load a displayable src (data: or blob:) — tries base64, URL fetch, then /b64 JSON.
- */
-export async function loadImageDisplaySrc({ image_base64, image_url, mime = "image/png" }) {
+/** Best display src without network — data URL or resolved http(s) URL for <img src>. */
+export function resolveImageDisplaySrc({ image_base64, image_url, mime = "image/png" }) {
   const dataUrl = base64ToDataUrl(image_base64, mime);
-  if (dataUrl) return { src: dataUrl, revoke: false };
+  if (dataUrl) return dataUrl;
+  return resolveImageUrl(image_url);
+}
 
-  const url = resolveImageUrl(image_url);
-  if (url) {
-    try {
-      const resp = await fetch(url, { mode: "cors", credentials: "omit" });
-      if (resp.ok) {
-        const blob = await resp.blob();
-        if (blob.size > 500 && (blob.type.startsWith("image/") || blob.size > 2000)) {
-          return { src: URL.createObjectURL(blob), revoke: true };
-        }
-      }
-    } catch {
-      /* try b64 endpoint */
-    }
-
-    const b64Endpoint = generatedImageB64Endpoint(url);
-    if (b64Endpoint) {
-      try {
-        const resp = await fetch(b64Endpoint, { mode: "cors", credentials: "omit" });
-        if (resp.ok) {
-          const data = await resp.json();
-          const fromJson = base64ToDataUrl(data?.image_base64, data?.mime || mime);
-          if (fromJson) return { src: fromJson, revoke: false };
-        }
-      } catch {
-        /* fall through */
-      }
-    }
+/** Fetch JSON base64 fallback when direct URL fails. */
+export async function fetchImageB64DataUrl(imageUrl, mime = "image/png") {
+  const endpoint = generatedImageB64Endpoint(imageUrl);
+  if (!endpoint) return null;
+  try {
+    const resp = await fetch(endpoint, { mode: "cors", credentials: "omit" });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return base64ToDataUrl(data?.image_base64, data?.mime || mime);
+  } catch {
+    return null;
   }
-
-  return null;
 }

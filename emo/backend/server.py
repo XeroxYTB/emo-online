@@ -2773,8 +2773,9 @@ async def _prepare_image_delivery(user_id: str, tc_id: str, result: dict) -> dic
     await _persist_generated_image_db(image_id, user_id, b64, mime)
     token = _image_access_token(user_id, image_id)
     rel = f"/generated-image/{image_id}?t={token}"
-    public = EMO_PUBLIC_BACKEND_URL.rstrip("/")
-    out["image_url"] = f"{public}/api{rel}" if public.startswith("http") else rel
+    # Relative URL — frontend resolves via getApiBase() (avoids wrong EMO_PUBLIC_BACKEND_URL on HF).
+    out["image_url"] = rel
+    out["image_id"] = image_id
     return out
 
 
@@ -2798,6 +2799,8 @@ def _image_sse_payload(tc_id: str, result: dict, *, title: str = "") -> Optional
     }
     if url:
         payload["image_url"] = url
+    if slim.get("image_id"):
+        payload["image_id"] = slim["image_id"]
     if usable_b64:
         payload["image_base64"] = b64
     if url or usable_b64 or slim.get("has_image"):
@@ -3618,15 +3621,17 @@ def _shrink_for_ui(result: dict) -> dict:
     return out
 
 
-_SSE_IMAGE_B64_MAX = 48_000  # Large base64 breaks SSE JSON parsing in browsers
+_SSE_IMAGE_B64_MAX = 512_000  # Keep inline base64 for typical PNG/JPEG (~100–200 KB)
 
 
 def _slim_image_sse_payload(result: dict) -> dict:
-    """Drop huge base64 from SSE — frontend fetches via image_url or /b64 endpoint."""
+    """Pass through image payload — only strip absurdly large base64 (>512 KB)."""
     out = dict(result or {})
     b64 = out.get("image_base64")
     if b64 and isinstance(b64, str) and len(b64) > _SSE_IMAGE_B64_MAX:
         out.pop("image_base64", None)
+        out["has_image"] = True
+    elif b64 and isinstance(b64, str) and len(b64) > 400:
         out["has_image"] = True
     return out
 
