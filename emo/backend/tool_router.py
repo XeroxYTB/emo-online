@@ -73,6 +73,7 @@ def select_tools_for_message(
     provider: str = "",
     max_tools: int = 18,
     project_scope: str = "normal",
+    planning_required: bool = False,
 ) -> list[dict]:
     """Choisit les outils pertinents pour le message (Cursor-style dynamic tool set)."""
     if not tools_enabled:
@@ -146,11 +147,22 @@ def select_tools_for_message(
     ordered = _filter_tools(tools, picked)
     # Priorité: browser > web > local > self
     priority = [
+        "emo_think", "emo_todo",
         "browser_open", "browser_click", "browser_type", "browser_fill", "browser_snapshot",
         "web_search", "web_fetch", "browser_visit", "generate_image",
         "read_file", "edit_file", "write_file", "exec_shell", "print_file", "grep", "find_files",
-        "emo_think", "emo_todo", "emo_reflect", "emo_edit_self",
+        "emo_reflect", "emo_edit_self",
     ]
     order_map = {n: i for i, n in enumerate(priority)}
     ordered.sort(key=lambda t: order_map.get((t.get("function") or {}).get("name", ""), 99))
-    return ordered[:max_tools]
+    result = ordered[:max_tools]
+    if planning_required or project_scope in ("large", "mega"):
+        forced = _filter_tools(tools, COGNITION_CORE)
+        present = {(t.get("function") or {}).get("name") for t in result}
+        for t in forced:
+            name = (t.get("function") or {}).get("name", "")
+            if name and name not in present:
+                result.insert(0, t)
+                present.add(name)
+        result = result[:max_tools]
+    return result

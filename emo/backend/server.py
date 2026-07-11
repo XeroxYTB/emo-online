@@ -3003,6 +3003,7 @@ def _compact_llm_payload(
     mega_project: bool = False,
     project_scope: str = "normal",
     use_agent_cognition: bool = False,
+    planning_required: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq/Gemini : prompt compact + outils. HF : pas d'outils (router incompatible)."""
     if not tools_enabled:
@@ -3045,6 +3046,7 @@ def _compact_llm_payload(
         provider=provider,
         max_tools=max_tools,
         project_scope=project_scope,
+        planning_required=planning_required,
     )
     return compact_sys, compact_msgs, compact_tools
 
@@ -3577,6 +3579,7 @@ async def chat_stream(
                     mega_project=mega_project,
                     project_scope=project_scope,
                     use_agent_cognition=use_agent_cognition,
+                    planning_required=need_planning and not agent_cog.get("planning_complete"),
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -3647,7 +3650,29 @@ async def chat_stream(
                         if turn_text:
                             full_text_parts.append(turn_text)
                         if not pending_tools:
+                            agent_cog = await load_cognition(db, body.conversation_id, user.user_id)
+                            if (
+                                need_planning
+                                and not agent_cog.get("planning_complete")
+                                and _safety < 8
+                            ):
+                                user_message_for_iter = UserMessage(
+                                    text=(
+                                        "PLAN OBLIGATOIRE — n'appelle PAS write_file/exec_shell encore. "
+                                        "Étapes dans l'ordre : 1) emo_think (analyse) "
+                                        "2) emo_todo(action='set_plan', items=[8+ tâches]) "
+                                        "3) emo_todo(action='finalize_plan') "
+                                        "4) puis exécution avec emo_think avant chaque action lourde."
+                                    ),
+                                )
+                                yield _sse({
+                                    "type": "agent_status",
+                                    "phase": "planning_nudge",
+                                    "message": "Repasse par emo_think + emo_todo(set_plan) + finalize_plan.",
+                                })
+                                continue
                             break
+                        planning_nudge = False
                         for tc in pending_tools:
                             if await _client_gone():
                                 cancelled = True
@@ -3713,13 +3738,23 @@ async def chat_stream(
                             file_evt = _file_preview_sse(tc.name, tc.arguments or {}, result)
                             if file_evt:
                                 yield _sse(file_evt)
+                            if result.get("planning_gate") or result.get("think_gate"):
+                                planning_nudge = True
                             chat.add_tool_result(
                                 tc.id,
                                 json.dumps(_shrink_for_llm(result), ensure_ascii=False)[:50000],
                             )
                         if cancelled:
                             break
-                        user_message_for_iter = None
+                        if planning_nudge and need_planning and not agent_cog.get("planning_complete"):
+                            user_message_for_iter = UserMessage(
+                                text=(
+                                    "Les outils d'exécution sont bloqués tant que le plan n'est pas validé. "
+                                    "Appelle emo_think, puis emo_todo(set_plan), puis finalize_plan — dans cet ordre."
+                                ),
+                            )
+                        else:
+                            user_message_for_iter = None
                         if project_plan and mega_project:
                             files_this = sum(
                                 1 for t in pending_tools
