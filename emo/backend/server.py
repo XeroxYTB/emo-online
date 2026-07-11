@@ -3241,6 +3241,7 @@ async def chat_stream(
     chat_web_tools = WEB_TOOLS + [GENERATE_IMAGE_TOOL]
 
     async def event_gen():
+        nonlocal project_plan, agent_cog
         last_error: Optional[Exception] = None
         blocked: set[tuple[str, str]] = set()
         cancelled = False
@@ -3571,6 +3572,7 @@ async def chat_stream(
                     large_project=large_project,
                     mega_project=mega_project,
                     project_scope=project_scope,
+                    use_agent_cognition=use_agent_cognition,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
