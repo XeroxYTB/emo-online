@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check, ImageIcon } from "lucide-react";
+import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check, ImageIcon, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 import { hasImagePayload, hasToolPreview } from "../lib/resolveToolPreview";
 import { mergeImageFields } from "../lib/imagePreview";
@@ -30,6 +30,8 @@ const ICONS = {
   browser_press: Compass,
   browser_close: Compass,
   emo_reflect: Sparkles,
+  emo_think: Sparkles,
+  emo_todo: CheckSquare,
   emo_remember: Sparkles,
   emo_introspect: Sparkles,
   emo_read_self: Sparkles,
@@ -57,6 +59,8 @@ const COLORS = {
   browser_type: "#818CF8",
   browser_fill: "#818CF8",
   emo_reflect: "#E879F9",
+  emo_think: "#E879F9",
+  emo_todo: "#34D399",
   emo_remember: "#C084FC",
   emo_introspect: "#A855F7",
   emo_read_self: "#E879F9",
@@ -257,7 +261,8 @@ function formatArgs(tool, args) {
     if (args.text) return `"${String(args.text).slice(0, 40)}"`;
     return args.url || "";
   }
-  if (tool === "emo_reflect") return (args.thought || "").slice(0, 60);
+  if (tool === "emo_reflect" || tool === "emo_think") return (args.thought || "").slice(0, 60);
+  if (tool === "emo_todo") return (args.action || "todo") + (args.text ? `: ${args.text}` : "");
   if (tool === "emo_remember") return (args.content || "").slice(0, 60);
   if (tool === "emo_edit_self") return `${args.section || ""} (${(args.content || "").length} car.)`;
   if (tool === "emo_read_self") return args.section || "tout";

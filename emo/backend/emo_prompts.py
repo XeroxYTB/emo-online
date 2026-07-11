@@ -376,6 +376,8 @@ def build_system_prompt(
     large_project: bool = False,
     mega_project: bool = False,
     project_plan_context: str = "",
+    agent_cognition_context: str = "",
+    use_agent_cognition: bool = False,
 ) -> str:
     mode_prompt = MODE_PROMPTS.get(mode, "")
     overrides = identity_overrides or {}
@@ -421,6 +423,13 @@ def build_system_prompt(
     if project_plan_context and agent_online and not chat_mode:
         sections.append(project_plan_context)
 
+    if use_agent_cognition and agent_online and not chat_mode:
+        from agent_cognition import AGENT_COGNITION_PROMPT
+
+        sections.append(AGENT_COGNITION_PROMPT)
+    if agent_cognition_context and agent_online and not chat_mode:
+        sections.append(agent_cognition_context)
+
     if chat_mode:
         status = (
             "mode CHAT actif — agent local **désactivé** (même s'il tourne sur le PC). "
@@ -447,6 +456,7 @@ def build_compact_system_prompt(
     chat_mode: bool = False,
     large_project: bool = False,
     mega_project: bool = False,
+    use_agent_cognition: bool = False,
 ) -> str:
     """Prompt court pour Groq (limites TPM free tier)."""
     raw = (user_name or "").strip()
@@ -486,6 +496,11 @@ def build_compact_system_prompt(
             parts.append(
                 "GROS PROJET actif: emo_reflect plan → web_search template → write_file par phases (max 10 fichiers/tour) → exec_shell build. Pas de réponse sans tools."
             )
+    if use_agent_cognition and agent_online and not chat_mode:
+        parts.append(
+            "THINK&TODO: début projet → emo_think + emo_todo(set_plan) + finalize_plan AVANT write_file. "
+            "Avant chaque write_file/exec_shell → emo_think(before_tool=...)."
+        )
     parts.extend([
         "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",
         "Demande de créer/dessiner/générer une image → generate_image avec le sujet/style/couleurs exacts de Hugo (pas de reformulation vague, pas de fluff générique).",
@@ -813,6 +828,10 @@ EMO_TOOLS = [
         },
     },
 ]
+
+from agent_cognition import AGENT_COGNITION_TOOLS  # noqa: E402
+
+EMO_TOOLS = EMO_TOOLS + AGENT_COGNITION_TOOLS
 
 MEMORY_EXTRACTION_PROMPT = """Tu analyses une conversation entre Hugo et son IA Émo. Extrais UNIQUEMENT les faits durables, utiles pour les prochaines conversations.
 

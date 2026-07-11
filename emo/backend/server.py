@@ -42,6 +42,19 @@ from project_orchestrator import (
     advance_phase_if_done,
     resolve_project_mode,
 )
+from agent_cognition import (
+    load_cognition,
+    save_cognition,
+    default_cognition,
+    planning_required_for_session,
+    check_planning_gate,
+    require_think_before_act,
+    build_cognition_context_prompt,
+    emo_think,
+    emo_todo,
+    mark_action_executed,
+    PLANNING_BLOCKED_TOOLS,
+)
 from emo_self_edit import (
     EMO_SELF_TOOLS,
     emo_read_self,
@@ -2331,9 +2344,21 @@ async def execute_tool(
     *,
     is_owner: bool = False,
     allow_local_agent: bool = True,
+    conversation_id: str = "",
 ) -> dict:
     """Dispatch a Claude tool call to the user's local agent OR to a backend web tool."""
     tool_name = TOOL_ALIASES.get(tool_name, tool_name)
+
+    if conversation_id and tool_name not in ("emo_think", "emo_todo"):
+        cog = await load_cognition(db, conversation_id, user_id)
+        pg = check_planning_gate(cog, tool_name)
+        if pg:
+            return pg
+        if allow_local_agent or tool_name in PLANNING_BLOCKED_TOOLS:
+            tg = require_think_before_act(cog, tool_name)
+            if tg:
+                return tg
+
     # Web tools run on the backend directly (no local agent required)
     if tool_name == "web_search":
         return await do_web_search(
@@ -2426,6 +2451,29 @@ async def execute_tool(
     if tool_name == "browser_close":
         return await do_browser_close(user_id, sid)
 
+    if tool_name == "emo_think":
+        if not conversation_id:
+            return {"ok": False, "error": "conversation_id requis."}
+        return await emo_think(
+            db, conversation_id, user_id,
+            str(args.get("thought", "")),
+            str(args.get("next_action") or ""),
+            str(args.get("before_tool") or ""),
+            str(args.get("reasoning") or ""),
+        )
+
+    if tool_name == "emo_todo":
+        if not conversation_id:
+            return {"ok": False, "error": "conversation_id requis."}
+        return await emo_todo(
+            db, conversation_id, user_id,
+            str(args.get("action") or "list"),
+            items=args.get("items"),
+            todo_id=str(args.get("todo_id") or ""),
+            text=str(args.get("text") or ""),
+            status=str(args.get("status") or ""),
+        )
+
     # Émo self-edit (admin/owner only, server-side)
     if tool_name == "emo_reflect":
         if not is_owner:
@@ -2484,7 +2532,17 @@ async def execute_tool(
     timeout = 90
     if tool_name == "exec_shell":
         timeout = int(args.get("timeout", 60)) + 30
-    return await agent_registry.dispatch(user_id, tool_name, args, timeout=timeout)
+    result = await agent_registry.dispatch(user_id, tool_name, args, timeout=timeout)
+    if (
+        conversation_id
+        and isinstance(result, dict)
+        and result.get("ok")
+        and tool_name in PLANNING_BLOCKED_TOOLS
+    ):
+        cog = await load_cognition(db, conversation_id, user_id)
+        cog = mark_action_executed(cog, tool_name)
+        await save_cognition(db, conversation_id, user_id, cog)
+    return result
 
 
 # ============================ CHAT STREAMING ============================ #
@@ -2878,6 +2936,31 @@ def _reflect_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
     }
 
 
+def _think_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
+    if tool_name != "emo_think" or not result.get("ok"):
+        return None
+    return {
+        "type": "think",
+        "id": result.get("id"),
+        "thought": result.get("thought", ""),
+        "reasoning": result.get("reasoning", ""),
+        "next_action": result.get("next_action", ""),
+        "before_tool": result.get("before_tool", ""),
+        "ts": result.get("ts"),
+    }
+
+
+def _todo_sse_payload(tool_name: str, result: dict) -> Optional[dict]:
+    if tool_name != "emo_todo" or not result.get("ok"):
+        return None
+    return {
+        "type": "todo_update",
+        "todos": result.get("todos") or [],
+        "planning_complete": result.get("planning_complete"),
+        "action": result.get("action"),
+    }
+
+
 def _file_preview_sse(tool_name: str, args: dict, result: dict) -> Optional[dict]:
     if tool_name not in ("read_file", "write_file", "edit_file") or not result.get("ok"):
         return None
@@ -2919,6 +3002,7 @@ def _compact_llm_payload(
     large_project: bool = False,
     mega_project: bool = False,
     project_scope: str = "normal",
+    use_agent_cognition: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq/Gemini : prompt compact + outils. HF : pas d'outils (router incompatible)."""
     if not tools_enabled:
@@ -2937,6 +3021,7 @@ def _compact_llm_payload(
         chat_mode=chat_mode,
         large_project=large_project,
         mega_project=mega_project,
+        use_agent_cognition=use_agent_cognition,
     )
     non_system = [m for m in initial_messages if m.get("role") != "system"]
     keep = 14 if mega_project else (10 if large_project else (4 if provider == "groq" else 8))
@@ -3074,6 +3159,19 @@ async def chat_stream(
             )
     project_scope = "mega" if mega_project else ("large" if large_project else "normal")
     project_plan_context = build_phase_context_prompt(project_plan) if project_plan else ""
+    agent_cog = await load_cognition(db, body.conversation_id, user.user_id)
+    need_planning = planning_required_for_session(
+        large_project=large_project,
+        mega_project=mega_project,
+        content=body.content,
+        prior_message_count=len(prior),
+        existing=agent_cog,
+    )
+    if need_planning and not agent_cog.get("planning_required"):
+        agent_cog = default_cognition(planning_required=True)
+        await save_cognition(db, body.conversation_id, user.user_id, agent_cog)
+    agent_cognition_context = build_cognition_context_prompt(agent_cog)
+    use_agent_cognition = use_agent_mode and effective_agent_online
     is_owner = user.email.lower() in ADMIN_EMAILS
     identity_overrides = await get_identity_overrides(db) if is_owner else {}
     system_msg = build_system_prompt(
@@ -3085,6 +3183,8 @@ async def chat_stream(
         large_project=large_project,
         mega_project=mega_project,
         project_plan_context=project_plan_context,
+        agent_cognition_context=agent_cognition_context,
+        use_agent_cognition=use_agent_cognition,
     )
 
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "custom_prompt_addon": 1})
@@ -3450,6 +3550,14 @@ async def chat_stream(
                     effective_system += "\n\n" + UNCENSORED_SYSTEM_APPEND.strip()
                 if project_plan:
                     effective_system += build_phase_context_prompt(project_plan)
+                if use_agent_cognition:
+                    effective_system += build_cognition_context_prompt(agent_cog)
+                if need_planning and not agent_cog.get("planning_complete"):
+                    yield _sse({
+                        "type": "agent_status",
+                        "phase": "planning",
+                        "message": "Plan d'action requis — emo_think puis emo_todo(set_plan) avant exécution.",
+                    })
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
                     provider, effective_system, initial_messages, tool_set,
                     mode=mode, user_name=user.name, agent_online=effective_agent_online,
@@ -3556,6 +3664,7 @@ async def chat_stream(
                                     execute_tool(
                                         user.user_id, tc.name, tc.arguments or {}, is_owner=is_owner,
                                         allow_local_agent=use_agent_mode,
+                                        conversation_id=body.conversation_id,
                                     ),
                                     timeout=tool_timeout,
                                 )
@@ -3588,6 +3697,13 @@ async def chat_stream(
                             reflect_evt = _reflect_sse_payload(tc.name, result)
                             if reflect_evt:
                                 yield _sse(reflect_evt)
+                            think_evt = _think_sse_payload(tc.name, result)
+                            if think_evt:
+                                yield _sse(think_evt)
+                            todo_evt = _todo_sse_payload(tc.name, result)
+                            if todo_evt:
+                                yield _sse(todo_evt)
+                                agent_cog = await load_cognition(db, body.conversation_id, user.user_id)
                             file_evt = _file_preview_sse(tc.name, tc.arguments or {}, result)
                             if file_evt:
                                 yield _sse(file_evt)

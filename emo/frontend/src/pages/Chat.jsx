@@ -6,6 +6,7 @@ import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDo
 import Sidebar from "../components/Sidebar";
 import ChatComposer from "../components/ChatComposer";
 import ProjectPlanStrip from "../components/ProjectPlanStrip";
+import AgentTodoPanel from "../components/AgentTodoPanel";
 import ChatMessage from "../components/ChatMessage";
 import EmoEyes from "../components/EmoEyes";
 import { AppTopBar } from "../components/EmoLogo";
@@ -122,6 +123,9 @@ export default function Chat() {
   const [agentStatus, setAgentStatus] = useState("");
   const [projectPlan, setProjectPlan] = useState(null);
   const [megaSession, setMegaSession] = useState(false);
+  const [agentTodos, setAgentTodos] = useState([]);
+  const [planningComplete, setPlanningComplete] = useState(true);
+  const [thinkNotes, setThinkNotes] = useState([]);
   const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto" }]);
   const chatAreaRef = useRef(null);
   const stickyBottomRef = useRef(true);
@@ -451,6 +455,15 @@ export default function Chat() {
       setProjectPlan(null);
       setMegaSession(false);
     }
+    if (c?.agent_cognition) {
+      setAgentTodos(c.agent_cognition.todos || []);
+      setPlanningComplete(c.agent_cognition.planning_complete !== false);
+      setThinkNotes((c.agent_cognition.thoughts || []).slice(-5).reverse());
+    } else {
+      setAgentTodos([]);
+      setPlanningComplete(true);
+      setThinkNotes([]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
@@ -653,11 +666,30 @@ export default function Chat() {
         agent_project_path: agentProjectPath,
         signal: abortController.signal,
         onEvent: (evt) => {
-          if (["delta", "ping", "tool_start", "tool_executing", "tool_result", "agent_status", "project_plan"].includes(evt.type)) {
+          if (["delta", "ping", "tool_start", "tool_executing", "tool_result", "agent_status", "project_plan", "think", "todo_update"].includes(evt.type)) {
             resetStreamTimeout();
           }
           pushDebug(evt);
-          if (evt.type === "project_plan") {
+          if (evt.type === "think") {
+            setThinkNotes((prev) => [{ ...evt }, ...prev].slice(0, 8));
+          } else if (evt.type === "todo_update") {
+            setAgentTodos(evt.todos || []);
+            if (evt.planning_complete !== undefined) setPlanningComplete(!!evt.planning_complete);
+            setConversations((cs) =>
+              cs.map((c) =>
+                c.conversation_id === convId
+                  ? {
+                      ...c,
+                      agent_cognition: {
+                        ...(c.agent_cognition || {}),
+                        todos: evt.todos,
+                        planning_complete: evt.planning_complete,
+                      },
+                    }
+                  : c,
+              ),
+            );
+          } else if (evt.type === "project_plan") {
             setProjectPlan(evt.plan || null);
             setMegaSession(evt.plan?.scope === "mega");
             setConversations((cs) =>
@@ -1094,6 +1126,13 @@ export default function Chat() {
         <div className="emo-chat-composer-wrap">
           <div className="emo-chat-composer-inner">
             {projectPlan && <ProjectPlanStrip plan={projectPlan} />}
+            {(agentTodos.length > 0 || thinkNotes.length > 0) && (
+              <AgentTodoPanel
+                todos={agentTodos}
+                planningComplete={planningComplete}
+                thinkNotes={thinkNotes}
+              />
+            )}
             <ChatComposer
               mode={mode}
               onChangeMode={setMode}

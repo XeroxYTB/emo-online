@@ -121,6 +121,10 @@ def select_tools_for_message(
     if project_scope in ("large", "mega") and agent_online:
         picked |= (LOCAL_CORE | WEB_CORE) & available
         picked |= {"emo_reflect", "emo_remember", "grep", "find_files", "codebase_search", "download_url"} & available
+        picked |= {"emo_think", "emo_todo"} & available
+
+    if agent_online:
+        picked |= {"emo_think", "emo_todo"} & available
 
     # Agent en ligne + demande fichier → outils essentiels garantis
     if agent_online and _FILE.search(text):
@@ -141,7 +145,7 @@ def select_tools_for_message(
         "browser_open", "browser_click", "browser_type", "browser_fill", "browser_snapshot",
         "web_search", "web_fetch", "browser_visit", "generate_image",
         "read_file", "edit_file", "write_file", "exec_shell", "print_file", "grep", "find_files",
-        "emo_reflect", "emo_edit_self",
+        "emo_think", "emo_todo", "emo_reflect", "emo_edit_self",
     ]
     order_map = {n: i for i, n in enumerate(priority)}
     ordered.sort(key=lambda t: order_map.get((t.get("function") or {}).get("name", ""), 99))
