@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { http, streamChat, clearSessionToken, wakeBackend, getSessionToken } from "../lib/api";
+import { parseAgentStatus } from "../lib/agentStatus";
 import { toast } from "sonner";
 import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDown, Wifi, RefreshCw, Loader2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
@@ -68,7 +69,8 @@ export default function Chat() {
   const [streaming, setStreaming] = useState(false);
   const [streamingMsg, setStreamingMsg] = useState(null);
   const [streamingTools, setStreamingTools] = useState([]);
-  const [agentOnline, setAgentOnline] = useState(false);
+  const [desktopOnline, setDesktopOnline] = useState(false);
+  const [agentToolsOnline, setAgentToolsOnline] = useState(false);
   const [allTools, setAllTools] = useState([]);
   const [filePreview, setFilePreview] = useState(null);
   const [liveHtmlByPath, setLiveHtmlByPath] = useState({});
@@ -398,7 +400,9 @@ export default function Chat() {
       .then((res) => {
         if (cancelled) return;
         setUser(res.data);
-        setAgentOnline(!!res.data.agent_online);
+        const parsed = parseAgentStatus(res.data);
+        setDesktopOnline(parsed.desktopOnline);
+        setAgentToolsOnline(parsed.agentToolsOnline);
         setAuthState("ok");
       })
       .catch(() => {
@@ -420,7 +424,9 @@ export default function Chat() {
     const tick = async () => {
       try {
         const r = await http.get("/agent/status");
-        setAgentOnline(r.data.online);
+        const parsed = parseAgentStatus(r.data);
+        setDesktopOnline(parsed.desktopOnline);
+        setAgentToolsOnline(parsed.agentToolsOnline);
       } catch { /* ignore */ }
     };
     tick();
@@ -430,7 +436,9 @@ export default function Chat() {
 
   const refreshAgentStatus = useCallback(async () => {
     const r = await http.get("/agent/status");
-    setAgentOnline(r.data.online);
+    const parsed = parseAgentStatus(r.data);
+    setDesktopOnline(parsed.desktopOnline);
+    setAgentToolsOnline(parsed.agentToolsOnline);
   }, []);
 
   useEffect(() => {
@@ -947,7 +955,9 @@ export default function Chat() {
       await wakeBackend({ maxWaitMs: 30000 });
       const res = await http.get("/auth/me", { timeout: 8000, _emoSkipRetry: true, _emoMaxRetries: 0 });
       setUser(res.data);
-      setAgentOnline(!!res.data.agent_online);
+      const parsed = parseAgentStatus(res.data);
+      setDesktopOnline(parsed.desktopOnline);
+      setAgentToolsOnline(parsed.agentToolsOnline);
       setAuthState("ok");
     } catch {
       navigate("/login", { replace: true });
@@ -1157,7 +1167,8 @@ export default function Chat() {
         <div className="hidden md:flex flex-shrink-0 emo-right-panel-wrap">
           <RightPanel
             tools={allTools}
-            agentOnline={agentOnline}
+            agentOnline={desktopOnline}
+            agentToolsOnline={agentToolsOnline}
             onRefreshStatus={refreshAgentStatus}
             filePreview={filePreview}
             activeTab={rightPanelTab}
@@ -1180,7 +1191,8 @@ export default function Chat() {
             <div className="emo-bottom-sheet-handle" aria-hidden />
             <RightPanel
               tools={allTools}
-              agentOnline={agentOnline}
+              agentOnline={desktopOnline}
+              agentToolsOnline={agentToolsOnline}
               onRefreshStatus={refreshAgentStatus}
               filePreview={filePreview}
               activeTab={rightPanelTab}
@@ -1239,7 +1251,8 @@ export default function Chat() {
         onLogout={handleLogout}
         themeMode={themeMode}
         onThemeModeChange={setThemeMode}
-        agentOnline={agentOnline}
+        agentOnline={desktopOnline}
+        desktopOnline={desktopOnline}
         debugEvents={debugEvents}
         onClearDebugEvents={() => setDebugEvents([])}
       />

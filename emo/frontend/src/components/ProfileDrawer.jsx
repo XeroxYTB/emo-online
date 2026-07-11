@@ -32,6 +32,7 @@ export default function ProfileDrawer({
   themeMode,
   onThemeModeChange,
   agentOnline,
+  desktopOnline,
   debugEvents,
   onClearDebugEvents,
   initialSection = "profile",
@@ -321,18 +322,15 @@ export default function ProfileDrawer({
               {section === "agent" && (
                 <div className="emo-settings-section">
                   <h3 className="emo-settings-section-title">
-                    <Shield size={12} /> Agent local
+                    <Shield size={12} /> Émo Desktop
                   </h3>
                   <div className="emo-settings-card">
-                    <p className="text-xs text-muted-em mb-3">
-                      Téléchargement et permissions détaillées dans le panneau Agent (à droite).
-                    </p>
-                    <AgentPermissionsPanel agentOnline={agentOnline} />
+                    <AgentPermissionsPanel agentOnline={agentOnline} desktopOnline={desktopOnline} />
                   </div>
                 </div>
               )}
 
-              {section !== "admin" && section !== "connections" && (
+              {section !== "admin" && section !== "connections" && section !== "agent" && (
                 <button
                   data-testid="profile-save-btn"
                   onClick={save}

@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { http, getApiBase, getSessionToken } from "../lib/api";
-import { Copy, Check, RefreshCw, Download, ShieldAlert, Apple, Box, Cpu } from "lucide-react";
+import { parseAgentStatus } from "../lib/agentStatus";
+import { EmoLogo } from "./EmoLogo";
+import { Copy, Check, RefreshCw, Download, ShieldAlert, Apple, Box, Cpu, Monitor, Link2 } from "lucide-react";
 import { toast } from "sonner";
 
 const detectOS = () => {
@@ -23,12 +25,12 @@ const detectOS = () => {
 };
 
 const OS_OPTIONS = [
-  { id: "windows", label: "Windows x64", filename: "Emo-Agent.exe", icon: Box },
-  { id: "windows-arm", label: "Windows ARM", filename: "Emo-Agent.exe", icon: Box },
-  { id: "macos", label: "macOS Intel", filename: "Emo-Agent.zip", icon: Apple },
-  { id: "macos-arm", label: "macOS Apple Silicon", filename: "Emo-Agent.zip", icon: Apple },
-  { id: "linux", label: "Linux x64", filename: "Emo-Agent.zip", icon: Cpu },
-  { id: "linux-arm", label: "Linux ARM64", filename: "Emo-Agent.zip", icon: Cpu },
+  { id: "windows", label: "Windows x64", filename: "Emo-Desktop.zip", icon: Box },
+  { id: "windows-arm", label: "Windows ARM", filename: "Emo-Desktop.zip", icon: Box },
+  { id: "macos", label: "macOS Intel", filename: "Emo-Desktop.zip", icon: Apple },
+  { id: "macos-arm", label: "macOS Apple Silicon", filename: "Emo-Desktop.zip", icon: Apple },
+  { id: "linux", label: "Linux x64", filename: "Emo-Desktop.zip", icon: Cpu },
+  { id: "linux-arm", label: "Linux ARM64", filename: "Emo-Desktop.zip", icon: Cpu },
 ];
 
 const DOWNLOAD_NAMES = Object.fromEntries(OS_OPTIONS.map((o) => [o.id, o.filename]));
@@ -38,10 +40,38 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
   const [copied, setCopied] = useState("");
   const [os, setOs] = useState(detectOS());
   const [downloading, setDownloading] = useState(false);
+  const [status, setStatus] = useState({
+    connected: false,
+    online: false,
+    desktopOnline: false,
+    linked: false,
+    context: null,
+  });
+
+  const refreshLocal = useCallback(async () => {
+    try {
+      const r = await http.get("/agent/status");
+      const parsed = parseAgentStatus(r.data);
+      setStatus({
+        connected: parsed.desktopOnline || parsed.desktopLinked,
+        online: parsed.agentToolsOnline,
+        desktopOnline: parsed.desktopOnline,
+        linked: parsed.desktopLinked,
+        context: r.data.context || null,
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     http.get("/agent/token").then((r) => setToken(r.data.agent_token));
-  }, []);
+    refreshLocal();
+    const id = setInterval(refreshLocal, 5000);
+    return () => clearInterval(id);
+  }, [refreshLocal]);
+
+  const connected = status.desktopOnline || agentOnline;
 
   const copy = async (text, key) => {
     try {
@@ -82,11 +112,12 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       const blob = await resp.blob();
       const buf = await blob.arrayBuffer();
       const bytes = new Uint8Array(buf);
-      const isZipFile = bytes[0] === 0x50 && bytes[1] === 0x4b; // PK..
-      const isZip = isZipFile
-        || resp.headers.get("content-type")?.includes("zip")
-        || resp.headers.get("content-disposition")?.includes(".zip");
-      const filename = isZip ? "Emo-Agent.zip" : (DOWNLOAD_NAMES[os] || "Emo-Agent.exe");
+      const isZipFile = bytes[0] === 0x50 && bytes[1] === 0x4b;
+      const isZip =
+        isZipFile ||
+        resp.headers.get("content-type")?.includes("zip") ||
+        resp.headers.get("content-disposition")?.includes(".zip");
+      const filename = "Emo-Desktop.zip";
       const outBlob = new Blob([buf], { type: isZip ? "application/zip" : blob.type });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(outBlob);
@@ -97,8 +128,8 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       URL.revokeObjectURL(a.href);
       toast.success(
         isZip
-          ? "Emo-Agent.zip — extrais le dossier, double-clic sur start.bat"
-          : "Emo-Agent.exe — double-clic, connecte-toi avec ton compte Émo"
+          ? "Émo Desktop téléchargé — extrais et lance start-emo-desktop.bat"
+          : "Émo Desktop téléchargé — double-clic pour lancer"
       );
     } catch (e) {
       toast.error(e.message || "Téléchargement impossible");
@@ -107,34 +138,81 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
     }
   };
 
-  const isWindows = os.startsWith("windows");
-  const isUnix = os.startsWith("macos") || os.startsWith("linux");
+  const handleRefresh = () => {
+    refreshLocal();
+    onRefreshStatus?.();
+  };
+
+  const hostname = status.context?.hostname || status.context?.os || "";
 
   return (
     <div className="space-y-5 text-sm">
-      <div className="flex items-center gap-2">
-        <div
-          className={`w-2 h-2 rounded-full ${agentOnline ? "emo-status-dot-online" : "emo-status-dot-offline"}`}
-        />
-        <span className="text-secondary-em">
-          Agent local :{" "}
-          <strong style={{ color: agentOnline ? "var(--emo-status-online)" : "var(--emo-status-offline)" }}>
-            {agentOnline ? "EN LIGNE" : "HORS LIGNE"}
-          </strong>
-        </span>
-        <button
-          data-testid="refresh-agent-status"
-          onClick={onRefreshStatus}
-          className="ml-auto p-1 rounded em-hover"
-        >
-          <RefreshCw size={13} />
-        </button>
+      <div
+        className="rounded-2xl p-5 text-center space-y-3"
+        style={{
+          background: "var(--emo-surface-raised)",
+          border: `1px solid ${connected ? "var(--emo-status-online)" : "var(--emo-border)"}`,
+          boxShadow: connected ? "0 0 24px var(--emo-status-online-glow)" : "none",
+        }}
+      >
+        <EmoLogo size="md" layout="stacked" subtitle="Desktop" online={connected} className="mx-auto" />
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <div className={`w-2.5 h-2.5 rounded-full ${connected ? "emo-status-dot-online" : "emo-status-dot-offline"}`} />
+          <span
+            className="text-xs uppercase tracking-[0.2em] font-semibold"
+            style={{ color: connected ? "var(--emo-status-online)" : "var(--emo-status-offline)" }}
+          >
+            {connected ? "Connecté" : status.linked ? "Desktop lié — en attente" : "Hors ligne"}
+          </span>
+          <button
+            data-testid="refresh-agent-status"
+            onClick={handleRefresh}
+            className="ml-2 p-1 rounded em-hover"
+            type="button"
+          >
+            <RefreshCw size={13} />
+          </button>
+        </div>
+        {connected && hostname ? (
+          <p className="text-[11px] text-muted-em font-code">{hostname}</p>
+        ) : null}
+        {!connected && (
+          <p className="text-[11px] text-secondary-em leading-relaxed px-2">
+            Lance <strong>Émo Desktop</strong> sur ce PC, clique <strong>link</strong>, connecte-toi sur le site et
+            appuie sur <strong>Accepter</strong>.
+          </p>
+        )}
       </div>
 
-      <p className="text-[11px] text-secondary-em leading-relaxed">
-        Installe l&apos;agent sur ton PC une fois. Ensuite pilote-le depuis{" "}
-        <strong>xeroxytb.com</strong> sur n&apos;importe quel appareil (téléphone, tablette…).
-      </p>
+      <div
+        className="rounded-xl p-3 space-y-2"
+        style={{ background: "var(--emo-bg-subtle)", border: "1px solid var(--emo-border)" }}
+      >
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-em">
+          <Monitor size={12} /> État
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-[11px]">
+          <StatusPill label="App desktop" ok={status.desktopOnline} />
+          <StatusPill label="Agent outils" ok={status.online} />
+          <StatusPill label="Compte lié" ok={status.linked} />
+          <StatusPill label="Cloud" ok={!!getSessionToken()} />
+        </div>
+      </div>
+
+      <div
+        className="rounded-2xl p-4 space-y-2"
+        style={{ background: "var(--emo-surface-raised)", border: "1px solid var(--emo-border)" }}
+      >
+        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-em">
+          <Link2 size={13} /> Connexion
+        </div>
+        <ol className="text-[11px] text-secondary-em space-y-1.5 list-decimal list-inside leading-relaxed">
+          <li>Télécharge et lance Émo Desktop</li>
+          <li>Clique <strong>link</strong> — le site s&apos;ouvre</li>
+          <li>Connecte-toi si besoin → <strong>Accepter</strong></li>
+          <li>Le voyant passe au vert ici</li>
+        </ol>
+      </div>
 
       <div>
         <label className="text-xs uppercase tracking-[0.18em] text-muted-em mb-2 block">Plateforme</label>
@@ -145,6 +223,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
             return (
               <button
                 key={opt.id}
+                type="button"
                 data-testid={`os-${opt.id}-btn`}
                 onClick={() => setOs(opt.id)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] transition"
@@ -163,6 +242,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
       </div>
 
       <button
+        type="button"
         data-testid="download-agent-btn"
         onClick={downloadAgent}
         disabled={downloading}
@@ -173,30 +253,11 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           boxShadow: "0 0 24px var(--mode-glow)",
         }}
       >
-        <Download size={15} /> {downloading ? "Téléchargement…" : "Télécharger Emo Agent"}
+        <Download size={15} /> {downloading ? "Téléchargement…" : "Télécharger Émo Desktop"}
       </button>
 
-      <div className="text-[11px] text-secondary-em leading-relaxed space-y-2">
-        {isWindows ? (
-          <>
-            <p>
-              Télécharge <code className="font-code">Emo-Agent.zip</code> si pas d&apos;exe compilé —{" "}
-              <strong>extrais</strong> le dossier, puis double-clic sur <code className="font-code">start.bat</code>.
-              Ne renomme pas le zip en .exe.
-            </p>
-            <p className="rounded-xl px-3 py-2 emo-alert-warning">
-              Windows bloque parfois l&apos;exe (SmartScreen) : clic droit → <strong>Propriétés</strong> → cocher{" "}
-              <strong>Débloquer</strong>, ou au lancement <strong>Informations complémentaires</strong> →{" "}
-              <strong>Exécuter quand même</strong>.
-            </p>
-          </>
-        ) : isUnix ? (
-          <p>Archive zip avec l&apos;agent et l&apos;interface locale.</p>
-        ) : null}
-      </div>
-
       <details className="text-xs">
-        <summary className="cursor-pointer text-muted-em hover:text-[var(--emo-text)]">Token (avancé)</summary>
+        <summary className="cursor-pointer text-muted-em hover:text-[var(--emo-text)]">Token agent (avancé)</summary>
         <div className="mt-3 space-y-3">
           <div className="flex items-center gap-2">
             <code
@@ -206,11 +267,12 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
             >
               {token || "…"}
             </code>
-            <button data-testid="copy-token-btn" onClick={() => copy(token, "token")} className="p-2 rounded-lg glass-card">
+            <button type="button" data-testid="copy-token-btn" onClick={() => copy(token, "token")} className="p-2 rounded-lg glass-card">
               {copied === "token" ? <Check size={14} /> : <Copy size={14} />}
             </button>
           </div>
           <button
+            type="button"
             onClick={rotate}
             data-testid="rotate-token-btn"
             className="text-[11px] text-muted-em hover:text-[var(--emo-error-text)] flex items-center gap-1"
@@ -219,6 +281,18 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           </button>
         </div>
       </details>
+    </div>
+  );
+}
+
+function StatusPill({ label, ok }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg"
+      style={{ background: "var(--emo-surface)", border: "1px solid var(--emo-border)" }}
+    >
+      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${ok ? "emo-status-dot-online" : "emo-status-dot-offline"}`} />
+      <span className="text-secondary-em truncate">{label}</span>
     </div>
   );
 }

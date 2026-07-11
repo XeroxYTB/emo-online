@@ -55,7 +55,7 @@ PROVIDERS: dict[str, dict[str, Any]] = {
 
 
 def _public_backend_url() -> str:
-    return os.environ.get("EMO_PUBLIC_BACKEND_URL", "http://127.0.0.1:8010").rstrip("/")
+    return os.environ.get("EMO_PUBLIC_BACKEND_URL", "https://xroxx-emo-online-api.hf.space").rstrip("/")
 
 
 def _frontend_url() -> str:

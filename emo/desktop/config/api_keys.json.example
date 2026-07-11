@@ -1,0 +1,18 @@
+{
+  "gemini_api_key": "",
+  "openai_api_key": "",
+  "backend_url": "https://xroxx-emo-online-api.hf.space",
+  "agent_token": "",
+  "session_token": "",
+  "user_email": "",
+  "conversation_id": "",
+  "dashboard_port": 8000,
+  "dashboard_pair_code": "",
+  "language": "fr",
+  "_instructions": {
+    "backend_url": "URL hôte Emo Online (sans /api). Production : https://xroxx-emo-online-api.hf.space — le client ajoute /api pour chat/auth.",
+    "session_token": "Obtenu via Paramètres → Connecter (login) ou depuis https://xeroxytb.com/chat après connexion (localStorage emo_session_token)",
+    "agent_token": "Paramètres agent sur https://xeroxytb.com/chat → section Agent local → copier le token, ou récupéré auto après login desktop",
+    "pair": "Dashboard local http://0.0.0.0:8000/pair — code d'appairage pour la télécommande mobile"
+  }
+}

@@ -27,7 +27,7 @@ def redirect_uri() -> str:
     explicit = os.environ.get("GOOGLE_REDIRECT_URI", "").strip()
     if explicit:
         return explicit
-    base = os.environ.get("EMO_PUBLIC_BACKEND_URL", "http://127.0.0.1:8010").rstrip("/")
+    base = os.environ.get("EMO_PUBLIC_BACKEND_URL", "https://xroxx-emo-online-api.hf.space").rstrip("/")
     return f"{base}/api/auth/google/callback"
 
 

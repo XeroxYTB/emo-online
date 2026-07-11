@@ -214,6 +214,23 @@ class LlmChat:
                 "content": result,
             })
 
+    def prune_context(self, *, max_messages: int = 24, max_tool_chars: int = 6000) -> None:
+        """Drop oldest turns so Groq/OpenAI requests stay under body-size limits (HTTP 413)."""
+        if len(self._messages) <= max_messages:
+            for m in self._messages:
+                if m.get("role") == "tool" and isinstance(m.get("content"), str):
+                    c = m["content"]
+                    if len(c) > max_tool_chars:
+                        m["content"] = c[:max_tool_chars] + "\n…[context-pruned]"
+            return
+        kept = self._messages[-max_messages:]
+        for m in kept:
+            if m.get("role") == "tool" and isinstance(m.get("content"), str):
+                c = m["content"]
+                if len(c) > max_tool_chars:
+                    m["content"] = c[:max_tool_chars] + "\n…[context-pruned]"
+        self._messages = kept
+
     async def send_message(self, user_message: UserMessage) -> str:
         parts: list[str] = []
         async for ev in self.stream_message(user_message):
@@ -286,6 +303,7 @@ class LlmChat:
     async def _stream_anthropic(self) -> AsyncIterator[Any]:
         if AsyncAnthropic is None:
             raise ValueError("Package anthropic non installé")
+        self.prune_context(max_messages=32, max_tool_chars=8000)
         client = AsyncAnthropic(api_key=self._key())
         kwargs: dict[str, Any] = {
             "model": self._model,
@@ -391,6 +409,8 @@ class LlmChat:
         base, headers = self._openai_base()
         headers["Content-Type"] = "application/json"
         max_tokens = 2048 if self._provider in ("groq", "huggingface") else 8192
+        prune_n = 18 if self._provider == "groq" else 28
+        self.prune_context(max_messages=prune_n, max_tool_chars=5000 if self._provider == "groq" else 8000)
         body: dict[str, Any] = {
             "model": self._model,
             "messages": self._openai_messages(),

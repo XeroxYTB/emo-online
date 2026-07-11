@@ -100,8 +100,8 @@ from llm_config import (
 import google_auth
 import connected_accounts as conn_accounts
 from image_tools import generate_image as do_generate_image, GENERATE_IMAGE_TOOL
-from site_intent import is_full_site_request, resolve_site_output_dir
-from site_builder import build_sales_site
+from site_intent import is_full_site_request, is_marketplace_request, resolve_site_output_dir
+from site_builder import build_sales_site, build_marketplace_site
 from llm_health import refresh_probe_cache, mark_provider_ok, mark_provider_failed
 
 
@@ -141,7 +141,7 @@ STRIPE_SUBSCRIPTION_LINK = os.environ.get('STRIPE_SUBSCRIPTION_LINK', '')
 STRIPE_BASIC_LINK = os.environ.get('STRIPE_BASIC_LINK', 'https://buy.stripe.com/5kQ14pae7a8Rd4yb6y48001')
 STRIPE_PREMIUM_LINK = os.environ.get('STRIPE_PREMIUM_LINK', '')
 STRIPE_ULTRA_LINK = os.environ.get('STRIPE_ULTRA_LINK', '')
-EMO_PUBLIC_BACKEND_URL = os.environ.get('EMO_PUBLIC_BACKEND_URL', 'http://127.0.0.1:8001').rstrip('/')
+EMO_PUBLIC_BACKEND_URL = os.environ.get('EMO_PUBLIC_BACKEND_URL', 'https://xroxx-emo-online-api.hf.space').rstrip('/')
 
 
 def _cors_origins() -> list[str]:
@@ -159,8 +159,8 @@ def _cors_origins() -> list[str]:
         "http://localhost:3000",
         "http://127.0.0.1:8010",
         "http://localhost:8010",
-        "http://127.0.0.1:17841",
-        "http://localhost:17841",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
         "https://xeroxytb.com",
         "https://www.xeroxytb.com",
         "https://xeroxytb.github.io",
@@ -673,6 +673,9 @@ async def me(user: User = Depends(get_current_user)):
         "user_id": user.user_id, "email": user.email, "name": user.name,
         "picture": user.picture, "auth_provider": user.auth_provider,
         "agent_online": agent_registry.is_online(user.user_id),
+        "desktop_online": agent_registry.is_desktop_online(user.user_id),
+        "desktop_linked": agent_registry.is_desktop_linked(user.user_id),
+        "connected": agent_registry.is_online(user.user_id) or agent_registry.is_desktop_online(user.user_id),
     }
 
 
@@ -2052,13 +2055,97 @@ async def rotate_agent_token(user: User = Depends(get_current_user)):
     return {"agent_token": token}
 
 
+DESKTOP_PAIR_TTL = timedelta(minutes=10)
+
+
+@api.post("/desktop/pair/claim")
+async def desktop_pair_claim(body: dict, request: Request, user: User = Depends(get_current_user)):
+    """Le site enregistre une demande d'appairage desktop (code affiché localement)."""
+    code = (body.get("code") or "").strip().upper()
+    if not code or len(code) < 4:
+        raise HTTPException(status_code=400, detail="Code d'appairage invalide")
+    session_token = await get_session_token_from_request(request)
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Session requise")
+    agent_doc = await db.agent_tokens.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not agent_doc:
+        agent_token = f"agent_{uuid.uuid4().hex}"
+        await db.agent_tokens.insert_one({
+            "agent_token": agent_token,
+            "user_id": user.user_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    else:
+        agent_token = agent_doc["agent_token"]
+    expires_at = (datetime.now(timezone.utc) + DESKTOP_PAIR_TTL).isoformat()
+    await db.desktop_pair_claims.update_one(
+        {"code": code},
+        {"$set": {
+            "code": code,
+            "user_id": user.user_id,
+            "email": user.email,
+            "name": user.name,
+            "session_token": session_token,
+            "agent_token": agent_token,
+            "expires_at": expires_at,
+            "claimed_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    agent_registry.mark_desktop_linked(user.user_id)
+    return {"ok": True, "email": user.email, "name": user.name}
+
+
+@api.get("/desktop/pair/poll")
+async def desktop_pair_poll(code: str = Query(...)):
+    """Le desktop récupère les tokens une fois le site confirmé (sans auth)."""
+    code = (code or "").strip().upper()
+    if not code:
+        return {"ok": False, "pending": True}
+    doc = await db.desktop_pair_claims.find_one({"code": code}, {"_id": 0})
+    if not doc:
+        return {"ok": False, "pending": True}
+    exp_raw = doc.get("expires_at") or ""
+    try:
+        exp = datetime.fromisoformat(exp_raw.replace("Z", "+00:00"))
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
+            await db.desktop_pair_claims.delete_one({"code": code})
+            return {"ok": False, "error": "Code expiré — relancez la connexion depuis le desktop"}
+    except Exception:
+        pass
+    await db.desktop_pair_claims.delete_one({"code": code})
+    agent_registry.mark_desktop_linked(doc.get("user_id", ""))
+    return {
+        "ok": True,
+        "session_token": doc.get("session_token", ""),
+        "agent_token": doc.get("agent_token", ""),
+        "email": doc.get("email", ""),
+        "name": doc.get("name", ""),
+    }
+
+
 @api.get("/agent/status")
 async def agent_status(user: User = Depends(get_current_user)):
     ctx = agent_registry.get_context(user.user_id)
+    agent_on = agent_registry.is_online(user.user_id)
+    desktop_on = agent_registry.is_desktop_online(user.user_id)
     return {
-        "online": agent_registry.is_online(user.user_id),
+        "online": agent_on,
+        "desktop_online": desktop_on,
+        "desktop_linked": agent_registry.is_desktop_linked(user.user_id),
+        "connected": agent_on or desktop_on,
         "context": ctx if ctx else None,
     }
+
+
+@api.post("/desktop/heartbeat")
+async def desktop_app_heartbeat(user: User = Depends(get_current_user), body: Optional[dict] = Body(default=None)):
+    agent_registry.desktop_heartbeat(user.user_id)
+    if isinstance(body, dict) and body:
+        agent_registry.set_context(user.user_id, {**body, "client": "emo-desktop"})
+    return {"ok": True, "online": True}
 
 
 # Agent long-polling endpoints
@@ -3330,7 +3417,11 @@ async def chat_stream(
 
             # Site e-commerce clé en main → génération pro (HTML + CSS + JS)
             if is_full_site_request(body.content):
-                site = build_sales_site(body.content)
+                site = (
+                    build_marketplace_site(body.content)
+                    if is_marketplace_request(body.content)
+                    else build_sales_site(body.content)
+                )
                 out_dir = resolve_site_output_dir(body.content, agent_context)
                 site_tool_log: list[dict] = []
                 written_ok = 0
@@ -3375,14 +3466,15 @@ async def chat_stream(
                         written_ok += 1
 
                 if written_ok == len(site["files"]):
+                    kind = "marketplace achat-revente" if is_marketplace_request(body.content) else "e-commerce"
                     reply = (
-                        f"**Site e-commerce clé en main** — **{site['title']}** créé avec succès.\n\n"
+                        f"**Site {kind} clé en main** — **{site['title']}** créé avec succès.\n\n"
                         f"📁 `{out_dir}`\n"
-                        f"- `index.html` — page complète (hero, produits, avantages, contact)\n"
+                        f"- `index.html` — page complète (annonces, vendre, messagerie, profil)\n"
                         f"- `style.css` — design moderne responsive\n"
-                        f"- `script.js` — panier, menu mobile, formulaires\n\n"
+                        f"- `script.js` — recherche, filtres, favoris, chat démo\n\n"
                         f"Ouvre `index.html` dans ton navigateur. "
-                        f"Dis-moi ce que tu veux modifier (couleurs, textes, produits)."
+                        f"Dis-moi ce que tu veux modifier (couleurs, textes, catégories)."
                     )
                 elif use_agent_mode and not effective_agent_online:
                     reply = (
@@ -3742,7 +3834,7 @@ async def chat_stream(
                                 planning_nudge = True
                             chat.add_tool_result(
                                 tc.id,
-                                json.dumps(_shrink_for_llm(result), ensure_ascii=False)[:50000],
+                                json.dumps(_shrink_for_llm(result), ensure_ascii=False)[:12000],
                             )
                         if cancelled:
                             break
@@ -3910,8 +4002,8 @@ def _shrink_for_llm(result: dict) -> dict:
     if out.get("final_prompt") and isinstance(out["final_prompt"], str):
         out["final_prompt"] = out["final_prompt"][:600]
     for key in ("stdout", "stderr", "content", "text"):
-        if key in out and isinstance(out[key], str) and len(out[key]) > 8000:
-            out[key] = out[key][:8000] + "\n…[truncated]"
+        if key in out and isinstance(out[key], str) and len(out[key]) > 4000:
+            out[key] = out[key][:4000] + "\n…[truncated]"
     return out
 
 
@@ -4012,8 +4104,10 @@ def _agent_native_bundle(os_name: str, token: str, backend_url: str, bin_path: P
         zf.writestr("backend.txt", backend_url + "\n")
         zf.writestr(
             "README.txt",
-            "Emo Agent\n\n1. Extraire ce dossier\n2. Double-clic sur start.bat (Windows) ou start.sh\n"
-            "3. Autoriser les permissions dans la fenêtre http://127.0.0.1:17841\n\n"
+            "Emo Agent (legacy Go — déprécié)\n\n"
+            "Préférez Émo Desktop (zip Python) depuis le panneau Agent du site.\n\n"
+            "1. Extraire ce dossier\n2. Double-clic sur start.bat (Windows) ou start.sh\n"
+            "3. Autoriser les permissions dans l'app\n\n"
             f"Backend: {backend_url}\n",
         )
         icon_path = ROOT_DIR.parent / "agent-go" / "icon.ico"
@@ -4028,7 +4122,7 @@ def _agent_native_bundle(os_name: str, token: str, backend_url: str, bin_path: P
                 + download_name
                 + "' -ErrorAction SilentlyContinue\"\r\n"
                 f"start \"\" \"{download_name}\"\r\n"
-                "echo Emo Agent demarre — ouvre http://127.0.0.1:17841\r\n"
+                "echo Emo Agent legacy demarre — preferez Emo Desktop (zip Python)\r\n"
                 "timeout /t 5 >nul\r\n",
             )
         elif os_name.startswith("macos"):
@@ -4051,42 +4145,86 @@ def _agent_native_bundle(os_name: str, token: str, backend_url: str, bin_path: P
 
 
 def _agent_python_bundle(os_name: str, token: str, backend_url: str) -> bytes:
-    """Fallback zip (Python agent) si binaire Go absent."""
-    script_path = ROOT_DIR.parent / "agent" / "emo-agent.py"
-    if not script_path.exists():
-        raise HTTPException(status_code=404, detail="Agent indisponible")
-    script = script_path.read_text(encoding="utf-8")
+    """Fallback zip (Python desktop app) si binaire Go absent."""
+    emo_root = ROOT_DIR.parent
+    agent_script = emo_root / "agent" / "emo-agent.py"
+    desktop_dir = emo_root / "desktop"
+    if not agent_script.exists() or not desktop_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Agent desktop indisponible")
+    req_path = desktop_dir / "requirements.txt"
+    requirements = req_path.read_text(encoding="utf-8") if req_path.exists() else "httpx\nPyQt6\n"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("emo-agent.py", script)
+        # Package emo/ pour py -m emo.desktop
+        zf.writestr("emo/__init__.py", '"""Emo package."""\n')
+        for folder, subdirs, files in os.walk(desktop_dir):
+            for fname in files:
+                fp = Path(folder) / fname
+                arc = Path("emo") / "desktop" / fp.relative_to(desktop_dir)
+                zf.write(fp, arcname=str(arc).replace("\\", "/"))
+        zf.writestr("emo/agent/emo-agent.py", agent_script.read_text(encoding="utf-8"))
+        zf.writestr("requirements.txt", requirements)
         zf.writestr(
             "README.txt",
-            f"Emo Agent (Python)\n\n1. pip install httpx\n2. python emo-agent.py --token {token}\n\nBackend: {backend_url}\n",
+            "Emo Desktop (Python)\n\n"
+            "1. pip install -r requirements.txt\n"
+            f"2. py -m emo.desktop  (token agent: {token[:8]}…)\n\n"
+            f"Backend: {backend_url}\n"
+            "Appairage : bouton link dans l'app → confirmer sur xeroxytb.com\n"
+            "Le relais agent démarre automatiquement si agent_token est configuré.\n",
         )
         if os_name == "windows":
             zf.writestr(
                 "start.bat",
                 "@echo off\r\n"
                 "cd /d \"%~dp0\"\r\n"
-                "powershell -NoProfile -Command \"Unblock-File -LiteralPath '%~dp0emo-agent.py' -ErrorAction SilentlyContinue\"\r\n"
                 "python --version >nul 2>&1 || py --version >nul 2>&1 || (echo Installe Python 3.11+ & pause & exit /b 1)\r\n"
-                f"python emo-agent.py --token {token} 2>nul || py emo-agent.py --token {token}\r\n"
+                f"set EMO_AGENT_TOKEN={token}\r\n"
+                f"set EMO_BACKEND_URL={backend_url}\r\n"
+                "pip install -r requirements.txt -q 2>nul\r\n"
+                "py -m emo.desktop 2>nul || python -m emo.desktop\r\n"
                 "pause\r\n",
             )
         else:
             zf.writestr(
                 "start.sh",
                 "#!/bin/bash\n"
+                "cd \"$(dirname \"$0\")\"\n"
                 f"export EMO_AGENT_TOKEN='{token}'\n"
                 f"export EMO_BACKEND_URL='{backend_url}'\n"
-                "python3 emo-agent.py\n",
+                "pip3 install -r requirements.txt -q\n"
+                "python3 -m emo.desktop\n",
             )
     return buf.getvalue()
 
 
 @api.get("/agent/binary/{os_name}", include_in_schema=False)
 async def serve_agent_binary(os_name: str, user: User = Depends(get_current_user)):
-    """Binaire agent propre (login intégré dans l'app — pas de token embarqué)."""
+    """Package Émo Desktop (PyQt6) — relais agent intégré, appairage via le site."""
+    if os_name not in AGENT_BINARIES:
+        raise HTTPException(status_code=404, detail="OS non supporté")
+
+    backend_url = EMO_PUBLIC_BACKEND_URL
+    doc = await db.agent_tokens.find_one({"user_id": user.user_id}, {"_id": 0})
+    token = (doc or {}).get("agent_token") or ""
+    if not token:
+        token = f"agent_{uuid.uuid4().hex}"
+        await db.agent_tokens.insert_one({
+            "agent_token": token,
+            "user_id": user.user_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    data = _agent_python_bundle(os_name, token, backend_url)
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="Emo-Desktop.zip"'},
+    )
+
+
+@api.get("/agent/binary-legacy/{os_name}", include_in_schema=False)
+async def serve_agent_binary_legacy(os_name: str, user: User = Depends(get_current_user)):
+    """Ancien binaire Go (déprécié) — conservé pour compat interne."""
     if os_name not in AGENT_BINARIES:
         raise HTTPException(status_code=404, detail="OS non supporté")
 
@@ -4095,26 +4233,10 @@ async def serve_agent_binary(os_name: str, user: User = Depends(get_current_user
     backend_url = EMO_PUBLIC_BACKEND_URL
 
     if not bin_path.exists():
-        logger.warning("Agent binary missing: %s — fallback zip Python", bin_name)
-        doc = await db.agent_tokens.find_one({"user_id": user.user_id}, {"_id": 0})
-        token = (doc or {}).get("agent_token") or ""
-        if not token:
-            token = f"agent_{uuid.uuid4().hex}"
-            await db.agent_tokens.insert_one({
-                "agent_token": token,
-                "user_id": user.user_id,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
-        data = _agent_python_bundle(os_name, token, backend_url)
-        return Response(
-            content=data,
-            media_type="application/zip",
-            headers={"Content-Disposition": 'attachment; filename="Emo-Agent.zip"'},
-        )
+        raise HTTPException(status_code=404, detail="Binaire legacy indisponible")
 
     filename = AGENT_DOWNLOAD_NAMES.get(os_name, "Emo-Agent")
     exe_bytes = bin_path.read_bytes()
-    # PE modifié (append token) = refusé par Windows — jamais modifier le binaire
     if len(exe_bytes) >= 2 and exe_bytes[:2] != b"MZ":
         logger.error("Invalid agent binary (not PE): %s", bin_name)
         raise HTTPException(status_code=503, detail="Binaire agent corrompu — rebuild en cours")

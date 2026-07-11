@@ -1,6 +1,7 @@
 """Générateur de site e-commerce premium — photos réelles, panier, animations."""
 from __future__ import annotations
 
+import json
 import re
 from html import escape
 
@@ -520,5 +521,450 @@ def build_sales_site(brief: str) -> dict:
             "index.html": _render_html(cfg),
             "style.css": _css(cfg["accent"], cfg["accent2"]),
             "script.js": JS_TEMPLATE,
+        },
+    }
+
+
+# ── Marketplace achat-revente (Vinted / LeBonCoin) ──────────────────────────
+
+_MARKETPLACE_LISTINGS = [
+    {"title": "Nike Air Max 90", "price": "45", "seller": "Léa_M", "city": "Paris 11e", "img": "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=500&q=80", "cat": "mode", "size": "39", "likes": 24, "cond": "Très bon état"},
+    {"title": "Veste en jean Levi's", "price": "28", "seller": "Tom_92", "city": "Lyon", "img": "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=500&q=80", "cat": "mode", "size": "M", "likes": 11, "cond": "Bon état"},
+    {"title": "iPhone 13 128 Go", "price": "320", "seller": "MarieTech", "city": "Bordeaux", "img": "https://images.unsplash.com/photo-1592286923188-0d4f5a9c0e0a?w=500&q=80", "cat": "tech", "size": "", "likes": 56, "cond": "Comme neuf"},
+    {"title": "Canapé 3 places gris", "price": "180", "seller": "Julie_Home", "city": "Nantes", "img": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=500&q=80", "cat": "maison", "size": "", "likes": 8, "cond": "Bon état"},
+    {"title": "PlayStation 5 + 2 manettes", "price": "380", "seller": "GamerX", "city": "Lille", "img": "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=500&q=80", "cat": "loisirs", "size": "", "likes": 42, "cond": "Très bon état"},
+    {"title": "Robe Zara neuve", "price": "22", "seller": "Chloé_V", "city": "Marseille", "img": "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=500&q=80", "cat": "mode", "size": "S", "likes": 19, "cond": "Neuf avec étiquette"},
+    {"title": "Vélo ville Decathlon", "price": "95", "seller": "Pierre_B", "city": "Toulouse", "img": "https://images.unsplash.com/photo-1485965120188-e496f3752776?w=500&q=80", "cat": "sport", "size": "", "likes": 15, "cond": "Bon état"},
+    {"title": "MacBook Air M1 2020", "price": "520", "seller": "DevShop", "city": "Paris 15e", "img": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500&q=80", "cat": "tech", "size": "", "likes": 73, "cond": "Très bon état"},
+    {"title": "Baskets Adidas Stan Smith", "price": "35", "seller": "Nina_S", "city": "Strasbourg", "img": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=500&q=80", "cat": "mode", "size": "38", "likes": 9, "cond": "Bon état"},
+    {"title": "Table basse scandinave", "price": "55", "seller": "Deco_Luc", "city": "Rennes", "img": "https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=500&q=80", "cat": "maison", "size": "", "likes": 6, "cond": "Bon état"},
+    {"title": "Appareil photo Canon EOS", "price": "290", "seller": "PhotoMax", "city": "Nice", "img": "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=500&q=80", "cat": "loisirs", "size": "", "likes": 31, "cond": "Très bon état"},
+    {"title": "Pull cachemire Uniqlo", "price": "18", "seller": "Emma_W", "city": "Grenoble", "img": "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&q=80", "cat": "mode", "size": "L", "likes": 5, "cond": "Comme neuf"},
+]
+
+
+def _parse_marketplace_brief(brief: str) -> dict:
+    t = (brief or "").lower()
+    has_vinted = "vinted" in t
+    has_lbc = "leboncoin" in t or "le bon coin" in t
+    if has_vinted and not has_lbc:
+        title, accent, accent2 = "Vinted", "#09b1ba", "#1ccad8"
+    elif has_lbc and not has_vinted:
+        title, accent, accent2 = "LeBonCoin", "#ff6e14", "#ff8c42"
+    elif has_vinted or has_lbc:
+        title, accent, accent2 = "ReMarket", "#09b1ba", "#6366f1"
+    else:
+        title, accent, accent2 = "ReMarket", "#09b1ba", "#6366f1"
+    return {
+        "title": escape(title),
+        "raw_title": title,
+        "slug": re.sub(r"[^a-z0-9]", "", title.lower()) or "market",
+        "accent": accent,
+        "accent2": accent2,
+        "year": "2026",
+        "listings": _MARKETPLACE_LISTINGS,
+    }
+
+
+def _listing_card(item: dict, i: int) -> str:
+    size = f'<span class="listing-size">Taille {escape(item["size"])}</span>' if item.get("size") else ""
+    return f"""<article class="listing-card" data-cat="{escape(item['cat'])}" data-id="{i}" data-title="{escape(item['title'].lower())}">
+  <a href="#" class="listing-media" data-open="{i}">
+    <img src="{item['img']}" alt="{escape(item['title'])}" loading="lazy" width="300" height="360" />
+    <button type="button" class="like-btn" data-like="{i}" aria-label="Ajouter aux favoris">♡</button>
+  </a>
+  <div class="listing-body">
+    <div class="listing-meta"><span class="listing-price">{escape(item['price'])} €</span>{size}</div>
+    <h3><a href="#" data-open="{i}">{escape(item['title'])}</a></h3>
+    <p class="listing-cond">{escape(item.get('cond', ''))}</p>
+    <div class="listing-seller">
+      <span class="avatar">{escape(item['seller'][:1].upper())}</span>
+      <span>{escape(item['seller'])} · {escape(item['city'])}</span>
+    </div>
+  </div>
+</article>"""
+
+
+def _render_marketplace_html(cfg: dict) -> str:
+    cards = "\n".join(_listing_card(it, i) for i, it in enumerate(cfg["listings"]))
+    cats = [
+        ("all", "Tout voir"),
+        ("mode", "Mode"),
+        ("tech", "High-Tech"),
+        ("maison", "Maison"),
+        ("loisirs", "Loisirs"),
+        ("sport", "Sport"),
+    ]
+    cat_btns = "".join(
+        f'<button type="button" class="cat-pill{" active" if k == "all" else ""}" data-filter="{k}">{label}</button>'
+        for k, label in cats
+    )
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Achat-revente entre particuliers — annonces, messagerie, paiement sécurisé." />
+  <title>{cfg["title"]} — Achat & revente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container header-inner">
+      <a href="#" class="logo">{cfg["title"]}</a>
+      <form class="search-bar" id="search-form" role="search">
+        <input type="search" id="search-input" placeholder="Rechercher une annonce…" aria-label="Rechercher" />
+        <button type="submit" class="btn btn-primary btn-sm">Rechercher</button>
+      </form>
+      <nav class="nav" id="nav">
+        <a href="#annonces">Annonces</a>
+        <a href="#vendre">Vendre</a>
+        <a href="#messages">Messages</a>
+        <a href="#profil">Profil</a>
+      </nav>
+      <div class="header-actions">
+        <button type="button" class="btn btn-sell" id="sell-btn">+ Vendre</button>
+        <button type="button" class="icon-btn" id="fav-btn" aria-label="Favoris">♡ <span id="fav-count">0</span></button>
+        <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Menu"><span></span><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero-market">
+      <div class="container hero-market-inner">
+        <div>
+          <p class="eyebrow">Entre particuliers · 0 % commission</p>
+          <h1>Achetez & revendez<br /><span class="accent-text">en toute confiance.</span></h1>
+          <p class="hero-lead">Publiez une annonce en 2 min, discutez avec les acheteurs, expédiez avec suivi.</p>
+          <div class="hero-cta">
+            <button type="button" class="btn btn-primary btn-lg" id="hero-sell">Déposer une annonce</button>
+            <a href="#annonces" class="btn btn-ghost btn-lg">Parcourir</a>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div><strong>2,4M</strong><span>Annonces actives</span></div>
+          <div><strong>98 %</strong><span>Avis positifs</span></div>
+          <div><strong>24h</strong><span>Paiement sécurisé</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="annonces" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Dernières annonces</h2>
+          <p class="sub">Filtrez par catégorie ou recherchez un article précis</p>
+        </div>
+        <div class="cat-bar">{cat_btns}</div>
+        <div class="listing-grid" id="listing-grid">
+{cards}
+        </div>
+        <p class="empty-state" id="empty-state" hidden>Aucune annonce ne correspond à votre recherche.</p>
+      </div>
+    </section>
+
+    <section id="vendre" class="section section-alt">
+      <div class="container sell-grid">
+        <div>
+          <p class="eyebrow">Vendre</p>
+          <h2>3 étapes pour vendre</h2>
+          <ol class="steps">
+            <li><strong>Photo + description</strong> — Ajoutez 4 photos minimum et le prix souhaité.</li>
+            <li><strong>Discussion</strong> — Répondez aux messages des acheteurs intéressés.</li>
+            <li><strong>Expédition</strong> — Étiquette prépayée ou remise en main propre.</li>
+          </ol>
+        </div>
+        <form class="sell-form" id="sell-form">
+          <h3>Nouvelle annonce</h3>
+          <label>Titre<input type="text" name="title" placeholder="Ex: Veste Nike taille M" required /></label>
+          <label>Prix (€)<input type="number" name="price" min="1" placeholder="25" required /></label>
+          <label>Catégorie
+            <select name="cat" required>
+              <option value="mode">Mode</option><option value="tech">High-Tech</option>
+              <option value="maison">Maison</option><option value="loisirs">Loisirs</option><option value="sport">Sport</option>
+            </select>
+          </label>
+          <label>Description<textarea name="desc" rows="3" placeholder="État, défauts, dimensions…"></textarea></label>
+          <button type="submit" class="btn btn-primary btn-block">Publier l'annonce</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="messages" class="section">
+      <div class="container">
+        <h2>Messagerie</h2>
+        <div class="chat-layout">
+          <aside class="chat-list">
+            <button type="button" class="chat-thread active" data-thread="0"><span class="avatar">L</span><div><strong>Léa_M</strong><p>Nike Air Max — toujours dispo ?</p></div></button>
+            <button type="button" class="chat-thread" data-thread="1"><span class="avatar">T</span><div><strong>Tom_92</strong><p>Je peux passer ce soir</p></div></button>
+            <button type="button" class="chat-thread" data-thread="2"><span class="avatar">M</span><div><strong>MarieTech</strong><p>iPhone — batterie à combien % ?</p></div></button>
+          </aside>
+          <div class="chat-panel">
+            <div class="chat-header"><span class="avatar">L</span><strong id="chat-name">Léa_M</strong></div>
+            <div class="chat-messages" id="chat-messages">
+              <div class="msg them">Salut ! La Nike Air Max est toujours dispo ?</div>
+              <div class="msg me">Oui ! Très bon état, portées 3 fois. 45 € + livraison.</div>
+              <div class="msg them">Parfait, je prends. Tu envoies avec suivi ?</div>
+            </div>
+            <form class="chat-input" id="chat-form">
+              <input type="text" placeholder="Écrire un message…" required />
+              <button type="submit" class="btn btn-primary btn-sm">Envoyer</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="profil" class="section section-alt">
+      <div class="container profile-card">
+        <div class="profile-head">
+          <span class="profile-avatar">H</span>
+          <div><h2>Mon profil</h2><p>Membre depuis 2024 · ★ 4,9 (127 avis)</p></div>
+        </div>
+        <div class="profile-stats">
+          <div><strong>12</strong><span>Annonces</span></div>
+          <div><strong>48</strong><span>Ventes</span></div>
+          <div><strong>23</strong><span>Achats</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-bottom"><p>© {cfg["year"]} {cfg["title"]} — Démo achat-revente (HTML/CSS/JS statique).</p></div>
+  </footer>
+
+  <dialog class="modal" id="listing-modal">
+    <button type="button" class="modal-close" id="modal-close" aria-label="Fermer">×</button>
+    <div class="modal-body" id="modal-body"></div>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="script.js"></script>
+</body>
+</html>"""
+
+
+def _marketplace_css(accent: str, accent2: str) -> str:
+    return f""":root {{
+  --accent: {accent}; --accent2: {accent2}; --bg: #f4f6f8; --surface: #fff;
+  --surface2: #eef1f4; --border: #e2e8f0; --text: #0f172a; --muted: #64748b;
+  --font: 'Plus Jakarta Sans', system-ui, sans-serif; --radius: 14px;
+  --shadow: 0 12px 40px rgba(15,23,42,.08);
+}}
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+html{{scroll-behavior:smooth}}
+body{{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.55}}
+img{{max-width:100%;display:block}}
+a{{color:inherit;text-decoration:none}}
+.container{{width:min(1180px,94vw);margin:0 auto}}
+.header{{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}}
+.header-inner{{display:flex;align-items:center;gap:1rem;padding:.85rem 0;flex-wrap:wrap}}
+.logo{{font-weight:800;font-size:1.35rem;color:var(--accent)}}
+.search-bar{{flex:1;display:flex;gap:.5rem;min-width:200px}}
+.search-bar input{{flex:1;border:1px solid var(--border);border-radius:999px;padding:.65rem 1rem;font:inherit}}
+.nav{{display:flex;gap:1.25rem}}
+.nav a{{font-size:.88rem;color:var(--muted);font-weight:600}}
+.nav a:hover{{color:var(--text)}}
+.header-actions{{display:flex;align-items:center;gap:.5rem;margin-left:auto}}
+.btn{{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.65rem 1.25rem;border-radius:999px;font-weight:700;font-size:.88rem;border:none;cursor:pointer;font-family:inherit;transition:transform .15s,box-shadow .15s}}
+.btn:hover{{transform:translateY(-1px)}}
+.btn-sm{{padding:.5rem 1rem;font-size:.82rem}}
+.btn-lg{{padding:.9rem 1.6rem}}
+.btn-primary{{background:var(--accent);color:#fff;box-shadow:0 6px 20px color-mix(in srgb,var(--accent) 35%,transparent)}}
+.btn-ghost{{background:var(--surface);border:1px solid var(--border);color:var(--text)}}
+.btn-sell{{background:var(--accent2);color:#fff}}
+.btn-block{{width:100%}}
+.icon-btn{{background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:.45rem .85rem;cursor:pointer;font:inherit}}
+.menu-toggle{{display:none;flex-direction:column;gap:4px;background:none;border:none;padding:8px;cursor:pointer}}
+.menu-toggle span{{width:20px;height:2px;background:var(--text);border-radius:2px}}
+.hero-market{{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 12%,#fff),#fff);padding:3rem 0}}
+.hero-market-inner{{display:grid;grid-template-columns:1.4fr 1fr;gap:2rem;align-items:center}}
+.hero-market h1{{font-size:clamp(2rem,5vw,3rem);font-weight:800;line-height:1.1;margin:.75rem 0}}
+.accent-text{{color:var(--accent)}}
+.eyebrow{{text-transform:uppercase;letter-spacing:.14em;font-size:.68rem;font-weight:700;color:var(--accent)}}
+.hero-lead{{color:var(--muted);max-width:48ch;margin-bottom:1.5rem}}
+.hero-cta{{display:flex;flex-wrap:wrap;gap:.75rem}}
+.hero-stats{{display:grid;gap:1rem}}
+.hero-stats div{{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow)}}
+.hero-stats strong{{display:block;font-size:1.6rem;font-weight:800}}
+.hero-stats span{{font-size:.78rem;color:var(--muted)}}
+.section{{padding:3.5rem 0}}
+.section-alt{{background:var(--surface)}}
+.section-head{{margin-bottom:1.5rem}}
+.section-head h2{{font-size:1.75rem;font-weight:800}}
+.section-head .sub{{color:var(--muted)}}
+.cat-bar{{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem}}
+.cat-pill{{border:1px solid var(--border);background:var(--surface);color:var(--muted);padding:.4rem .95rem;border-radius:999px;font:inherit;font-size:.82rem;cursor:pointer}}
+.cat-pill.active,.cat-pill:hover{{background:var(--accent);border-color:var(--accent);color:#fff}}
+.listing-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem}}
+.listing-card{{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:box-shadow .2s,transform .2s}}
+.listing-card:hover{{box-shadow:var(--shadow);transform:translateY(-3px)}}
+.listing-media{{position:relative;display:block;aspect-ratio:4/5;overflow:hidden;background:var(--surface2)}}
+.listing-media img{{width:100%;height:100%;object-fit:cover}}
+.like-btn{{position:absolute;top:.6rem;right:.6rem;width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.92);cursor:pointer;font-size:1.1rem}}
+.listing-body{{padding:.85rem}}
+.listing-price{{font-weight:800;font-size:1.05rem;color:var(--accent)}}
+.listing-size{{font-size:.72rem;color:var(--muted);margin-left:.5rem}}
+.listing-body h3{{font-size:.92rem;margin:.35rem 0;font-weight:700}}
+.listing-cond{{font-size:.75rem;color:var(--muted)}}
+.listing-seller{{display:flex;align-items:center;gap:.45rem;margin-top:.55rem;font-size:.78rem;color:var(--muted)}}
+.avatar{{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700}}
+.sell-grid{{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start}}
+.steps{{margin-top:1rem;padding-left:1.2rem;color:var(--muted)}}
+.steps li{{margin-bottom:.75rem}}
+.sell-form{{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;display:grid;gap:.75rem}}
+.sell-form label{{display:grid;gap:.3rem;font-size:.82rem;font-weight:600}}
+.sell-form input,.sell-form select,.sell-form textarea{{border:1px solid var(--border);border-radius:10px;padding:.6rem .75rem;font:inherit}}
+.chat-layout{{display:grid;grid-template-columns:280px 1fr;gap:1rem;margin-top:1rem;min-height:320px}}
+.chat-list{{display:grid;gap:.35rem}}
+.chat-thread{{display:flex;gap:.65rem;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:.75rem;cursor:pointer;font:inherit}}
+.chat-thread.active{{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,#fff)}}
+.chat-thread p{{font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+.chat-panel{{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);display:grid;grid-template-rows:auto 1fr auto}}
+.chat-header{{padding:.85rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem}}
+.chat-messages{{padding:1rem;display:grid;gap:.6rem;align-content:start;max-height:280px;overflow:auto}}
+.msg{{max-width:78%;padding:.55rem .85rem;border-radius:14px;font-size:.88rem}}
+.msg.them{{background:var(--surface2);justify-self:start}}
+.msg.me{{background:var(--accent);color:#fff;justify-self:end}}
+.chat-input{{display:flex;gap:.5rem;padding:.75rem;border-top:1px solid var(--border)}}
+.chat-input input{{flex:1;border:1px solid var(--border);border-radius:999px;padding:.55rem .85rem;font:inherit}}
+.profile-card{{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem}}
+.profile-head{{display:flex;gap:1rem;align-items:center}}
+.profile-avatar{{width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800}}
+.profile-stats{{display:flex;gap:2rem;margin-top:1.25rem}}
+.profile-stats strong{{display:block;font-size:1.4rem}}
+.profile-stats span{{font-size:.78rem;color:var(--muted)}}
+.footer{{padding:2rem 0;color:var(--muted);font-size:.82rem}}
+.modal{{border:none;border-radius:var(--radius);padding:0;max-width:520px;width:92vw;box-shadow:var(--shadow)}}
+.modal::backdrop{{background:rgba(15,23,42,.45)}}
+.modal-close{{position:absolute;top:.5rem;right:.75rem;border:none;background:none;font-size:1.6rem;cursor:pointer}}
+.modal-body{{padding:1.25rem}}
+.toast{{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(120%);background:var(--text);color:#fff;padding:.7rem 1.2rem;border-radius:999px;font-size:.85rem;transition:transform .25s;z-index:200}}
+.toast.show{{transform:translateX(-50%) translateY(0)}}
+.empty-state{{text-align:center;color:var(--muted);padding:2rem}}
+@media(max-width:900px){{
+  .hero-market-inner,.sell-grid,.chat-layout{{grid-template-columns:1fr}}
+  .nav{{display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);flex-direction:column;padding:1rem;border-bottom:1px solid var(--border)}}
+  .nav.open{{display:flex}}
+  .menu-toggle{{display:flex}}
+}}
+"""
+
+
+MARKETPLACE_JS = r"""
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const toast = $('#toast');
+  const showToast = (m) => { if (!toast) return; toast.textContent = m; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2600); };
+
+  const LISTINGS = """ + json.dumps(_MARKETPLACE_LISTINGS, ensure_ascii=False) + r""";
+
+  let favorites = new Set();
+
+  function filterListings(cat, q) {
+    const query = (q || '').trim().toLowerCase();
+    let visible = 0;
+    $$('.listing-card').forEach((card) => {
+      const matchCat = cat === 'all' || card.dataset.cat === cat;
+      const matchQ = !query || (card.dataset.title || '').includes(query);
+      const show = matchCat && matchQ;
+      card.hidden = !show;
+      if (show) visible++;
+    });
+    const empty = $('#empty-state');
+    if (empty) empty.hidden = visible > 0;
+  }
+
+  $$('.cat-pill').forEach((btn) => btn.addEventListener('click', () => {
+    $$('.cat-pill').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterListings(btn.dataset.filter, $('#search-input')?.value);
+  }));
+
+  $('#search-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const active = $('.cat-pill.active');
+    filterListings(active?.dataset.filter || 'all', $('#search-input')?.value);
+  });
+
+  $$('[data-like]').forEach((btn) => btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = btn.dataset.like;
+    if (favorites.has(id)) { favorites.delete(id); btn.textContent = '♡'; }
+    else { favorites.add(id); btn.textContent = '♥'; showToast('Ajouté aux favoris'); }
+    const fc = $('#fav-count');
+    if (fc) fc.textContent = String(favorites.size);
+  }));
+
+  const modal = $('#listing-modal');
+  const openModal = (id) => {
+    const item = LISTINGS[Number(id)];
+    if (!item || !modal) return;
+    $('#modal-body').innerHTML = `
+      <img src="${item.img}" alt="${item.title}" style="width:100%;border-radius:12px;margin-bottom:1rem" />
+      <h2>${item.title}</h2>
+      <p style="font-size:1.4rem;font-weight:800;color:var(--accent);margin:.5rem 0">${item.price} €</p>
+      <p>${item.cond} · ${item.seller} · ${item.city}</p>
+      <button type="button" class="btn btn-primary btn-block" style="margin-top:1rem" onclick="document.getElementById('listing-modal').close();document.getElementById('messages').scrollIntoView()">Contacter le vendeur</button>`;
+    modal.showModal();
+  };
+  $$('[data-open]').forEach((el) => el.addEventListener('click', (e) => { e.preventDefault(); openModal(el.dataset.open); }));
+  $('#modal-close')?.addEventListener('click', () => modal?.close());
+
+  const scrollSell = () => document.getElementById('vendre')?.scrollIntoView({ behavior: 'smooth' });
+  $('#sell-btn')?.addEventListener('click', scrollSell);
+  $('#hero-sell')?.addEventListener('click', scrollSell);
+
+  $('#sell-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    showToast('Annonce publiée (démo) — connecte un backend pour la persistance.');
+    e.target.reset();
+  });
+
+  const threads = {
+    0: { name: 'Léa_M', msgs: ['Salut ! La Nike Air Max est toujours dispo ?', 'Oui ! Très bon état. 45 € + livraison.', 'Parfait, je prends.'] },
+    1: { name: 'Tom_92', msgs: ['Je peux passer ce soir vers 19h ?', 'Oui, je suis dispo Place Bellecour.', 'Super, à tout à l\'heure !'] },
+    2: { name: 'MarieTech', msgs: ['iPhone — batterie à combien % ?', '87 % selon Réglages.', 'OK, je prends à 320 €'] },
+  };
+  $$('.chat-thread').forEach((btn) => btn.addEventListener('click', () => {
+    $$('.chat-thread').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const t = threads[btn.dataset.thread];
+    if (!t) return;
+    $('#chat-name').textContent = t.name;
+    $('#chat-messages').innerHTML = t.msgs.map((m, i) =>
+      `<div class="msg ${i % 2 ? 'me' : 'them'}">${m}</div>`).join('');
+  }));
+
+  $('#chat-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = e.target.querySelector('input');
+    const text = input?.value?.trim();
+    if (!text) return;
+    $('#chat-messages')?.insertAdjacentHTML('beforeend', `<div class="msg me">${text}</div>`);
+    input.value = '';
+    showToast('Message envoyé (démo)');
+  });
+
+  $('#menu-toggle')?.addEventListener('click', () => $('#nav')?.classList.toggle('open'));
+})();
+"""
+
+
+def build_marketplace_site(brief: str) -> dict:
+    cfg = _parse_marketplace_brief(brief)
+    return {
+        "ok": True,
+        "title": cfg["raw_title"],
+        "files": {
+            "index.html": _render_marketplace_html(cfg),
+            "style.css": _marketplace_css(cfg["accent"], cfg["accent2"]),
+            "script.js": MARKETPLACE_JS,
         },
     }

@@ -1,4 +1,4 @@
-# Demarre l'agent Emo local (headless) pour impression / pilotage PC depuis xeroxytb.com
+﻿# Demarre l'agent Emo local (headless) pour impression / pilotage PC depuis xeroxytb.com
 $ErrorActionPreference = 'Stop'
 
 $emoDir = Join-Path $env:LOCALAPPDATA 'Emo'
@@ -18,7 +18,7 @@ $backend = (Get-Content (Join-Path $emoDir 'backend.txt') -Raw -ErrorAction Sile
 if (-not $backend) { $backend = 'https://xroxx-emo-online-api.hf.space' }
 
 if (-not $token) {
-    Write-Host "token.txt manquant dans $emoDir — connectez-vous via Emo-Agent.exe une fois." -ForegroundColor Red
+    Write-Host "token.txt manquant dans $emoDir - connectez-vous via Emo-Agent.exe une fois." -ForegroundColor Red
     exit 1
 }
 

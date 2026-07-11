@@ -13,6 +13,7 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger("emo.agent")
 
 HEARTBEAT_TTL = 30.0  # seconds
+DESKTOP_HEARTBEAT_TTL = 90.0  # seconds
 
 
 class AgentRegistry:
@@ -25,6 +26,26 @@ class AgentRegistry:
         self._queues: Dict[str, asyncio.Queue] = {}
         # request_id -> asyncio.Future
         self._pending: Dict[str, asyncio.Future] = {}
+        # user_id -> desktop app heartbeat (PyQt6, distinct from agent long-poll)
+        self._desktop_heartbeats: Dict[str, float] = {}
+        # user_id -> last desktop pair timestamp
+        self._desktop_linked: Dict[str, float] = {}
+
+    def desktop_heartbeat(self, user_id: str) -> None:
+        now = time.time()
+        self._desktop_heartbeats[user_id] = now
+        self._desktop_linked[user_id] = now
+
+    def mark_desktop_linked(self, user_id: str) -> None:
+        self._desktop_linked[user_id] = time.time()
+
+    def is_desktop_online(self, user_id: str) -> bool:
+        ts = self._desktop_heartbeats.get(user_id)
+        return ts is not None and (time.time() - ts) < DESKTOP_HEARTBEAT_TTL
+
+    def is_desktop_linked(self, user_id: str) -> bool:
+        ts = self._desktop_linked.get(user_id)
+        return ts is not None and (time.time() - ts) < 86400 * 7
 
     def heartbeat(self, user_id: str, context: Optional[dict] = None):
         self._heartbeats[user_id] = time.time()
@@ -72,7 +93,7 @@ class AgentRegistry:
     async def dispatch(self, user_id: str, tool: str, args: dict, timeout: int = 90) -> dict:
         """Enqueue a tool request and wait for the agent's response."""
         if not self.is_online(user_id):
-            return {"ok": False, "error": "Agent local non connecté. Télécharge et lance Emo-Agent depuis Profil > Agent ou le panneau Agent."}
+            return {"ok": False, "error": "Agent outils non connecté. Lancez Émo Desktop et vérifiez que le relais agent est actif (Paramètres → token agent)."}
 
         request_id = uuid.uuid4().hex
         loop = asyncio.get_event_loop()

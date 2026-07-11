@@ -7,19 +7,21 @@ const SIZES = {
   lg: { square: 22, gap: 6, textGap: 12, title: "text-2xl", sub: "text-sm" },
 };
 
-function LogoMark({ square = 16, gap = 5, className = "" }) {
+function LogoMark({ square = 16, gap = 5, className = "", style }) {
   const r = Math.max(3, Math.round(square * 0.32));
   const w = square * 2 + gap;
+  const fill = style?.["--emo-logo-bg"] || "var(--emo-logo-bg, #8b5cf6)";
   return (
     <svg
       width={w}
       height={square}
       viewBox={`0 0 ${w} ${square}`}
       className={className}
+      style={style}
       aria-hidden="true"
     >
-      <rect width={square} height={square} rx={r} fill="var(--emo-logo-bg, #8b5cf6)" />
-      <rect x={square + gap} width={square} height={square} rx={r} fill="var(--emo-logo-bg, #8b5cf6)" />
+      <rect width={square} height={square} rx={r} fill={fill} />
+      <rect x={square + gap} width={square} height={square} rx={r} fill={fill} />
     </svg>
   );
 }
@@ -33,11 +35,15 @@ export function EmoLogo({
   className = "",
   asLink = false,
   href = "/chat",
+  online = false,
 }) {
   const s = SIZES[size] || SIZES.md;
   const stacked = layout === "stacked";
+  const logoStyle = online
+    ? { "--emo-logo-bg": "var(--emo-status-online)" }
+    : undefined;
 
-  const mark = <LogoMark square={s.square} gap={s.gap} />;
+  const mark = <LogoMark square={s.square} gap={s.gap} style={logoStyle} />;
   const titleEl = showText && (
     <span
       className={`font-heading font-semibold tracking-tight ${s.title}`}

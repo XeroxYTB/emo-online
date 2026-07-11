@@ -5,6 +5,7 @@ import { ROUTER_BASENAME } from "@/lib/paths";
 import ThemedToaster from "@/components/ThemedToaster";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/pages/Login";
+import LinkDesktop from "@/pages/LinkDesktop";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import ConnectionsCallback from "@/pages/ConnectionsCallback";
 import Chat from "@/pages/Chat";
@@ -18,6 +19,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/link-desktop" element={<LinkDesktop />} />
             <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
             <Route path="/auth/connections/callback" element={<ConnectionsCallback />} />
             <Route path="/chat" element={<Chat />} />

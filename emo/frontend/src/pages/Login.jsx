@@ -9,6 +9,7 @@ import { Loader2, Sparkles } from "lucide-react";
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || searchParams.get("return") || "";
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +52,7 @@ export default function Login() {
         { maxAttempts: 3 }
       );
       if (res.data?.session_token) saveSessionToken(res.data.session_token);
-      navigate("/chat", { replace: true, state: { user: res.data } });
+      navigate(returnTo || "/chat", { replace: true, state: { user: res.data } });
     } catch (err) {
       if (!err?.response) setApiDown(true);
       toast.error(formatApiError(err, "Connexion Google impossible."));
@@ -79,7 +80,7 @@ export default function Login() {
           _emoSkipRetry: true,
           _emoMaxRetries: 0,
         });
-        navigate("/chat", { replace: true });
+        navigate(returnTo || "/chat", { replace: true });
       } catch (_) {
         if (ctrl.signal.aborted) return;
         clearSessionToken();
@@ -89,7 +90,7 @@ export default function Login() {
       }
     })();
     return () => ctrl.abort();
-  }, [navigate]);
+  }, [navigate, returnTo]);
 
   useEffect(() => {
     const err = searchParams.get("error");
@@ -124,7 +125,7 @@ export default function Login() {
         sessionUser = res.data;
       }
       setApiDown(false);
-      navigate("/chat", { replace: true, state: { user: sessionUser } });
+      navigate(returnTo || "/chat", { replace: true, state: { user: sessionUser } });
     } catch (err) {
       if (!err?.response) setApiDown(true);
       toast.error(formatApiError(err, "Identifiants incorrects"));

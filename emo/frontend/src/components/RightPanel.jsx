@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Activity, FolderTree, Bot, X } from "lucide-react";
 import FileExplorer from "./FileExplorer";
 import AgentSettingsPanel from "./AgentSettingsPanel";
-import AgentPermissionsPanel from "./AgentPermissionsPanel";
 import BrowserPanel from "./BrowserPanel";
 
 const TABS = [
@@ -14,6 +13,7 @@ const TABS = [
 export default function RightPanel({
   tools,
   agentOnline,
+  agentToolsOnline,
   onRefreshStatus,
   onClose,
   filePreview = null,
@@ -82,6 +82,7 @@ export default function RightPanel({
           <ActivityTab
             tools={tools}
             agentOnline={agentOnline}
+            agentToolsOnline={agentToolsOnline}
             browserFrames={browserFrames}
             reflectNotes={reflectNotes}
             onBrowserFrameUpdate={onBrowserFrameUpdate}
@@ -92,16 +93,15 @@ export default function RightPanel({
           data-active={tab === "files" ? "true" : "false"}
           aria-hidden={tab !== "files"}
         >
-          <FileExplorer agentOnline={agentOnline} externalPreview={filePreview} />
+          <FileExplorer agentOnline={agentToolsOnline} externalPreview={filePreview} />
         </div>
         <div
           className="emo-panel-tab-pane"
           data-active={tab === "agent" ? "true" : "false"}
           aria-hidden={tab !== "agent"}
         >
-          <div className="p-4 overflow-y-auto h-full scrollbar-thin space-y-4">
+          <div className="p-4 overflow-y-auto h-full scrollbar-thin">
             <AgentSettingsPanel agentOnline={agentOnline} onRefreshStatus={onRefreshStatus} />
-            <AgentPermissionsPanel agentOnline={agentOnline} />
           </div>
         </div>
       </div>
@@ -109,7 +109,7 @@ export default function RightPanel({
   );
 }
 
-const ActivityTab = ({ tools, agentOnline, browserFrames, reflectNotes, onBrowserFrameUpdate }) => (
+const ActivityTab = ({ tools, agentOnline, agentToolsOnline, browserFrames, reflectNotes, onBrowserFrameUpdate }) => (
   <div className="h-full flex flex-col overflow-hidden" data-testid="activity-tab">
     <div
       className="flex-shrink-0 flex items-center gap-2 text-[10px] uppercase tracking-wide font-medium text-muted-em px-4 py-2.5"
@@ -118,7 +118,10 @@ const ActivityTab = ({ tools, agentOnline, browserFrames, reflectNotes, onBrowse
       <div
         className={`w-2 h-2 rounded-full ${agentOnline ? "emo-status-dot-online" : "emo-status-dot-offline"}`}
       />
-      Agent {agentOnline ? "connecté" : "hors ligne"}
+      Desktop {agentOnline ? "connecté" : "hors ligne"}
+      {agentToolsOnline ? (
+        <span className="normal-case tracking-normal opacity-70 font-normal">· outils actifs</span>
+      ) : null}
       {tools.length > 0 && (
         <span className="normal-case tracking-normal opacity-70 font-normal">
           · {tools.length} action{tools.length !== 1 ? "s" : ""}
