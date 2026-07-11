@@ -1,0 +1,53 @@
+{
+  "defaults": {
+    "backend_url": "https://xroxx-emo-online-api.hf.space",
+    "email": "huglostalatac@gmail.com",
+    "password": "emo2026",
+    "project_root": "C:/Users/admin/Desktop/JarvisProjects",
+    "max_rounds_per_project": 6,
+    "stream_timeout_sec": 2400,
+    "min_score_to_pass": 75
+  },
+  "projects": [
+    {
+      "id": "task_platform",
+      "name": "Plateforme gestion de tâches multi-utilisateur",
+      "folder": "capability_test_1_task_platform",
+      "prompt": "Crée une application COMPLÈTE de gestion de tâches multi-utilisateur : auth (inscription/login JWT), projets partagés, todos avec statuts, tags, due dates, API REST FastAPI + SQLite, frontend React minimal, docker-compose. Stack moderne, tests pytest. Tout dans le dossier projet.",
+      "criteria": {
+        "min_thinks": 3,
+        "min_todos_set": 8,
+        "require_finalize_plan": true,
+        "require_no_planning_gate_after_finalize": true,
+        "min_successful_tools": 12,
+        "expected_files_any": ["PROJECT.md", "ARCHITECTURE.md", "README.md"]
+      }
+    },
+    {
+      "id": "mod_catalog_cli",
+      "name": "CLI catalogue mods avec cache en ligne",
+      "prompt": "Crée un outil CLI Python COMPLET : recherche de mods Minecraft en ligne (Modrinth/CurseForge API), cache local SQLite, téléchargement, liste par catégorie, export JSON. Architecture propre (src/, tests/, pyproject.toml).",
+      "folder": "capability_test_2_mod_catalog_cli",
+      "criteria": {
+        "min_thinks": 3,
+        "min_todos_set": 6,
+        "require_finalize_plan": true,
+        "min_successful_tools": 10,
+        "expected_files_any": ["pyproject.toml", "PROJECT.md", "src"]
+      }
+    },
+    {
+      "id": "launcher_core",
+      "name": "Noyau launcher (auth + instances + market)",
+      "prompt": "Crée le NOYAU d'un launcher de jeu complet : module auth OAuth2 stub, gestion d'instances (CRUD JSON), catalogue mods (API Modrinth), UI Electron minimal + backend Node/Express, tout modularisé. Pas un clone Minecraft — l'architecture produit complète.",
+      "folder": "capability_test_3_launcher_core",
+      "criteria": {
+        "min_thinks": 4,
+        "min_todos_set": 10,
+        "require_finalize_plan": true,
+        "min_successful_tools": 15,
+        "expected_files_any": ["PROJECT.md", "ARCHITECTURE.md", "package.json"]
+      }
+    }
+  ]
+}

@@ -46,6 +46,7 @@ SELF_CORE = {
     "emo_reflect", "emo_remember", "emo_introspect", "emo_read_self",
     "emo_edit_self", "emo_list_self_saves", "emo_restore_self",
 }
+COGNITION_CORE = {"emo_think", "emo_todo"}
 
 
 def _tool_names(tools: list[dict]) -> set[str]:
@@ -118,13 +119,16 @@ def select_tools_for_message(
     ):
         picked |= LOCAL_CORE & available
 
-    if project_scope in ("large", "mega") and agent_online:
-        picked |= (LOCAL_CORE | WEB_CORE) & available
-        picked |= {"emo_reflect", "emo_remember", "grep", "find_files", "codebase_search", "download_url"} & available
-        picked |= {"emo_think", "emo_todo"} & available
+    if project_scope in ("large", "mega"):
+        picked |= (WEB_CORE | COGNITION_CORE) & available
+        if agent_online:
+            picked |= LOCAL_CORE & available
+            picked |= {"emo_reflect", "emo_remember", "grep", "find_files", "codebase_search", "download_url"} & available
 
     if agent_online:
-        picked |= {"emo_think", "emo_todo"} & available
+        picked |= COGNITION_CORE & available
+    elif project_scope in ("large", "mega"):
+        picked |= COGNITION_CORE & available
 
     # Agent en ligne + demande fichier → outils essentiels garantis
     if agent_online and _FILE.search(text):

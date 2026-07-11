@@ -3170,8 +3170,10 @@ async def chat_stream(
     if need_planning and not agent_cog.get("planning_required"):
         agent_cog = default_cognition(planning_required=True)
         await save_cognition(db, body.conversation_id, user.user_id, agent_cog)
-    agent_cognition_context = build_cognition_context_prompt(agent_cog)
-    use_agent_cognition = use_agent_mode and effective_agent_online
+    agent_cognition_context = build_cognition_context_prompt(
+        agent_cog, content=body.content, mega=mega_project,
+    )
+    use_agent_cognition = use_agent_mode
     is_owner = user.email.lower() in ADMIN_EMAILS
     identity_overrides = await get_identity_overrides(db) if is_owner else {}
     system_msg = build_system_prompt(
@@ -3552,7 +3554,9 @@ async def chat_stream(
                 if project_plan:
                     effective_system += build_phase_context_prompt(project_plan)
                 if use_agent_cognition:
-                    effective_system += build_cognition_context_prompt(agent_cog)
+                    effective_system += build_cognition_context_prompt(
+                        agent_cog, content=body.content, mega=mega_project,
+                    )
                 if need_planning and not agent_cog.get("planning_complete"):
                     yield _sse({
                         "type": "agent_status",

@@ -25,6 +25,21 @@ from typing import Any
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Windows/Python often lacks CA bundle — allow opt-out via EMO_SSL_VERIFY=1
+_SSL_VERIFY = os.environ.get("EMO_SSL_VERIFY", "0").strip().lower() in ("1", "true", "yes")
+
+
+def _http_client(**kwargs) -> httpx.Client:
+    """httpx client — Windows often fails CA verify; default to False unless EMO_SSL_VERIFY=1."""
+    verify: bool | str = _SSL_VERIFY
+    if verify is True:
+        try:
+            import certifi
+            verify = certifi.where()
+        except ImportError:
+            verify = True
+    return httpx.Client(verify=verify, follow_redirects=True, **kwargs)
 sys.path.insert(0, str(ROOT / "emo" / "backend"))
 try:
     import ssl_fix  # noqa: F401
@@ -299,7 +314,7 @@ def run_project(
         "passed": False,
     }
 
-    with httpx.Client(follow_redirects=True) as client:
+    with _http_client() as client:
         token = login(client, base, email, password)
         client.headers.update({"Authorization": f"Bearer {token}", "X-Emo-Session": token})
         ag = agent_status(client, base, token)

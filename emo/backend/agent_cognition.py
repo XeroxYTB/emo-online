@@ -276,7 +276,50 @@ async def emo_todo(
     return {"ok": True, "action": "list", "todos": todos, "planning_complete": cog.get("planning_complete")}
 
 
-def build_cognition_context_prompt(cognition: dict[str, Any] | None) -> str:
+def suggest_plan_items(content: str, *, mega: bool = False) -> list[str]:
+    """Skeleton de plan injecté quand planning requis mais pas encore de todos."""
+    text = (content or "").lower()
+    items: list[str] = [
+        "emo_think — analyser demande, stack, risques, architecture cible",
+        "web_search — templates / projets open-source similaires",
+        "write_file PROJECT.md — vision, scope, stack, structure dossiers",
+        "write_file ARCHITECTURE.md — modules, flux, dépendances",
+    ]
+    if any(k in text for k in ("fastapi", "api", "rest", "plateforme", "saas", "auth", "jwt")):
+        items += [
+            "Scaffold backend FastAPI + SQLite + modèles User/Project/Task",
+            "Routes auth JWT (register/login) + middleware",
+            "CRUD projets partagés + todos (statuts, tags, due dates)",
+            "Frontend React minimal + docker-compose",
+            "Tests pytest + README",
+        ]
+    elif any(k in text for k in ("cli", "modrinth", "curseforge", "mod", "catalogue")):
+        items += [
+            "Scaffold pyproject.toml + src/ package",
+            "Client API Modrinth + cache SQLite",
+            "Commandes CLI (search, list, download, export JSON)",
+            "Tests pytest + README",
+        ]
+    elif any(k in text for k in ("launcher", "electron", "instance", "oauth", "market")):
+        items += [
+            "Module auth OAuth2 stub",
+            "Gestion instances CRUD (JSON persistence)",
+            "Catalogue mods API Modrinth",
+            "Backend Node/Express + UI Electron minimal",
+            "Tests + README + package.json scripts",
+        ]
+    else:
+        items += [
+            "Scaffold structure projet + dépendances",
+            "Implémenter feature centrale MVP",
+            "Tests smoke + README",
+        ]
+    if mega:
+        items.append("Intégration modules + polish + docs release")
+    return items[:14 if mega else 10]
+
+
+def build_cognition_context_prompt(cognition: dict[str, Any] | None, *, content: str = "", mega: bool = False) -> str:
     cog = cognition or {}
     if not cog.get("planning_required") and not cog.get("todos"):
         return ""
@@ -290,6 +333,11 @@ def build_cognition_context_prompt(cognition: dict[str, Any] | None) -> str:
             "4. `emo_todo(action='finalize_plan')` — valide le plan\n"
             "5. Ensuite seulement : exécution par tâches"
         )
+        if not todos and content:
+            skeleton = suggest_plan_items(content, mega=mega)
+            lines.append("Plan suggéré (copie/adapte dans set_plan) :")
+            for i, s in enumerate(skeleton, 1):
+                lines.append(f"  {i}. {s}")
     elif cog.get("planning_complete"):
         lines.append(
             "Plan validé. **Avant chaque** write_file / exec_shell / edit_file : "
