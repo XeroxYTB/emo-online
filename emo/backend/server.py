@@ -33,7 +33,14 @@ from emergentintegrations.payments.stripe.checkout import (
 
 from emo_prompts import (
     build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT,
-    UNCENSORED_SYSTEM_APPEND, VISION_PRECISION_PROMPT, is_large_project_request,
+    UNCENSORED_SYSTEM_APPEND, VISION_PRECISION_PROMPT,
+)
+from project_orchestrator import (
+    active_phase,
+    build_initial_project_plan,
+    build_phase_context_prompt,
+    advance_phase_if_done,
+    resolve_project_mode,
 )
 from emo_self_edit import (
     EMO_SELF_TOOLS,
@@ -2910,6 +2917,8 @@ def _compact_llm_payload(
     is_uncensored: bool = False,
     chat_mode: bool = False,
     large_project: bool = False,
+    mega_project: bool = False,
+    project_scope: str = "normal",
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq/Gemini : prompt compact + outils. HF : pas d'outils (router incompatible)."""
     if not tools_enabled:
@@ -2927,9 +2936,10 @@ def _compact_llm_payload(
         is_uncensored=is_uncensored,
         chat_mode=chat_mode,
         large_project=large_project,
+        mega_project=mega_project,
     )
     non_system = [m for m in initial_messages if m.get("role") != "system"]
-    keep = 10 if large_project else (4 if provider == "groq" else 8)
+    keep = 14 if mega_project else (10 if large_project else (4 if provider == "groq" else 8))
     compact_msgs = [{"role": "system", "content": compact_sys}]
     for m in non_system[-keep:]:
         entry: dict = {"role": m.get("role"), "content": m.get("content", "")}
@@ -2949,6 +2959,7 @@ def _compact_llm_payload(
         tools_enabled=True,
         provider=provider,
         max_tools=max_tools,
+        project_scope=project_scope,
     )
     return compact_sys, compact_msgs, compact_tools
 
@@ -3040,7 +3051,29 @@ async def chat_stream(
             {"conversation_id": body.conversation_id, "user_id": user.user_id},
             {"$set": {"agent_project_path": project_path, "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
-    large_project = use_agent_mode and is_large_project_request(body.content)
+    large_project = False
+    mega_project = False
+    project_plan = conv.get("project_plan")
+    if use_agent_mode:
+        large_project, mega_project, project_plan_hint = resolve_project_mode(body.content, project_plan)
+        if project_plan_hint is not None:
+            project_plan = project_plan_hint
+    if mega_project and not project_plan:
+        project_plan = build_initial_project_plan(body.content, project_path)
+        await db.conversations.update_one(
+            {"conversation_id": body.conversation_id, "user_id": user.user_id},
+            {"$set": {"project_plan": project_plan}},
+        )
+    elif project_plan and use_agent_mode:
+        # Rafraîchir le chemin projet dans le plan persisté
+        if project_path and project_plan.get("project_path") != project_path:
+            project_plan = {**project_plan, "project_path": project_path}
+            await db.conversations.update_one(
+                {"conversation_id": body.conversation_id, "user_id": user.user_id},
+                {"$set": {"project_plan": project_plan}},
+            )
+    project_scope = "mega" if mega_project else ("large" if large_project else "normal")
+    project_plan_context = build_phase_context_prompt(project_plan) if project_plan else ""
     is_owner = user.email.lower() in ADMIN_EMAILS
     identity_overrides = await get_identity_overrides(db) if is_owner else {}
     system_msg = build_system_prompt(
@@ -3050,6 +3083,8 @@ async def chat_stream(
         agent_context=agent_context,
         chat_mode=not use_agent_mode,
         large_project=large_project,
+        mega_project=mega_project,
+        project_plan_context=project_plan_context,
     )
 
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "custom_prompt_addon": 1})
@@ -3413,6 +3448,8 @@ async def chat_stream(
                     )
                 if model_uncensored:
                     effective_system += "\n\n" + UNCENSORED_SYSTEM_APPEND.strip()
+                if project_plan:
+                    effective_system += build_phase_context_prompt(project_plan)
                 prov_system, prov_messages, prov_tools = _compact_llm_payload(
                     provider, effective_system, initial_messages, tool_set,
                     mode=mode, user_name=user.name, agent_online=effective_agent_online,
@@ -3424,6 +3461,8 @@ async def chat_stream(
                     is_uncensored=model_uncensored,
                     chat_mode=not use_agent_mode,
                     large_project=large_project,
+                    mega_project=mega_project,
+                    project_scope=project_scope,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -3441,15 +3480,23 @@ async def chat_stream(
                     image_media_types=chat_image_types,
                 )
                 started = False
-                if large_project:
+                max_agent_rounds = 120 if mega_project else (80 if large_project else 40)
+                if mega_project and project_plan:
+                    yield _sse({"type": "project_plan", "plan": project_plan})
+                    yield _sse({
+                        "type": "agent_status",
+                        "phase": "mega_project",
+                        "message": "Méga-projet — architecture multi-modules, jusqu'à 120 tours (~60 min).",
+                    })
+                elif large_project:
                     yield _sse({
                         "type": "agent_status",
                         "phase": "large_project",
                         "message": "Projet volumineux — exécution par phases (jusqu'à 80 tours, ~30 min).",
                     })
                 try:
-                    for _safety in range(80):
-                        if large_project and _safety == 0:
+                    for _safety in range(max_agent_rounds):
+                        if (large_project or mega_project) and _safety == 0:
                             yield _sse({
                                 "type": "agent_status",
                                 "round": 1,
@@ -3498,7 +3545,13 @@ async def chat_stream(
                                 "arguments": tc.arguments,
                             })
                             try:
-                                tool_timeout = 120.0 if large_project and tc.name in ("exec_shell", "write_file", "edit_file") else 75.0
+                                slow_tools = ("exec_shell", "write_file", "edit_file", "grep", "find_files", "list_dir")
+                                if mega_project and tc.name in slow_tools:
+                                    tool_timeout = 180.0
+                                elif large_project and tc.name in slow_tools:
+                                    tool_timeout = 120.0
+                                else:
+                                    tool_timeout = 75.0
                                 result = await asyncio.wait_for(
                                     execute_tool(
                                         user.user_id, tc.name, tc.arguments or {}, is_owner=is_owner,
@@ -3507,7 +3560,7 @@ async def chat_stream(
                                     timeout=tool_timeout,
                                 )
                             except asyncio.TimeoutError:
-                                result = {"ok": False, "error": "Outil timeout (75s) — réessaie ou simplifie la requête."}
+                                result = {"ok": False, "error": f"Outil timeout ({int(tool_timeout)}s) — réessaie ou simplifie."}
                             if tc.name == "generate_image":
                                 result = await _prepare_image_delivery(user.user_id, tc.id, result)
                             tool_call_log.append({
@@ -3545,12 +3598,28 @@ async def chat_stream(
                         if cancelled:
                             break
                         user_message_for_iter = None
-                        if large_project:
+                        if project_plan and mega_project:
+                            files_this = sum(
+                                1 for t in pending_tools
+                                if t.name in ("write_file", "edit_file")
+                            )
+                            project_plan = advance_phase_if_done(project_plan, files_this_session=files_this)
+                            await db.conversations.update_one(
+                                {"conversation_id": body.conversation_id, "user_id": user.user_id},
+                                {"$set": {"project_plan": project_plan}},
+                            )
+                            yield _sse({"type": "project_plan", "plan": project_plan})
+                        if large_project or mega_project:
+                            phase = active_phase(project_plan) if project_plan else None
+                            phase_name = phase.get("name", "") if phase else ""
                             yield _sse({
                                 "type": "agent_status",
                                 "round": _safety + 2,
                                 "tools_done": len(tool_call_log),
-                                "message": f"Tour {_safety + 1} terminé — {len(tool_call_log)} outil(s) au total.",
+                                "message": (
+                                    f"Tour {_safety + 1} — {len(tool_call_log)} outil(s)"
+                                    + (f" — phase: {phase_name}" if phase_name else "")
+                                ),
                             })
                     else:
                         yield _sse({"type": "error", "content": "Trop d'appels d'outils. Boucle arrêtée."})
@@ -3589,6 +3658,7 @@ async def chat_stream(
                         "title": update.get("title"),
                         "tool_calls": assistant_msg["tool_calls"],
                         "model_label": model_label,
+                        "project_plan": project_plan if mega_project else None,
                     })
                     return
                 except Exception as e:

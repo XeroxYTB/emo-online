@@ -301,10 +301,15 @@ _LARGE_PROJECT_RE = re.compile(
 
 def is_large_project_request(content: str) -> bool:
     """Détecte les demandes type client Minecraft, launcher, gros codebase."""
-    text = (content or "").strip()
-    if len(text) < 12:
-        return False
-    return bool(_LARGE_PROJECT_RE.search(text))
+    from project_orchestrator import classify_project_scope, SCOPE_NORMAL
+
+    return classify_project_scope(content) != SCOPE_NORMAL
+
+
+def is_mega_project_request(content: str) -> bool:
+    from project_orchestrator import classify_project_scope, SCOPE_MEGA
+
+    return classify_project_scope(content) == SCOPE_MEGA
 
 
 LARGE_PROJECT_EXECUTION_PROMPT = """
@@ -369,6 +374,8 @@ def build_system_prompt(
     agent_context: dict | None = None,
     chat_mode: bool = False,
     large_project: bool = False,
+    mega_project: bool = False,
+    project_plan_context: str = "",
 ) -> str:
     mode_prompt = MODE_PROMPTS.get(mode, "")
     overrides = identity_overrides or {}
@@ -404,7 +411,15 @@ def build_system_prompt(
         sections.append(agent_block)
 
     if large_project and agent_online and not chat_mode:
-        sections.append(LARGE_PROJECT_EXECUTION_PROMPT)
+        if mega_project:
+            from project_orchestrator import MEGA_PROJECT_EXECUTION_PROMPT
+
+            sections.append(MEGA_PROJECT_EXECUTION_PROMPT)
+        else:
+            sections.append(LARGE_PROJECT_EXECUTION_PROMPT)
+
+    if project_plan_context and agent_online and not chat_mode:
+        sections.append(project_plan_context)
 
     if chat_mode:
         status = (
@@ -431,6 +446,7 @@ def build_compact_system_prompt(
     is_uncensored: bool = False,
     chat_mode: bool = False,
     large_project: bool = False,
+    mega_project: bool = False,
 ) -> str:
     """Prompt court pour Groq (limites TPM free tier)."""
     raw = (user_name or "").strip()
@@ -461,9 +477,15 @@ def build_compact_system_prompt(
             'Agent en ligne → write_file pour fichiers, exec_shell pour terminal. Interdit de dire "copie cette commande".'
         )
     if large_project and agent_online and not chat_mode:
-        parts.append(
-            "GROS PROJET actif: emo_reflect plan → web_search template → write_file par phases (max 10 fichiers/tour) → exec_shell build. Pas de réponse sans tools."
-        )
+        if mega_project:
+            parts.append(
+                "MÉGA-PROJET: architecture complète (modules auth/instances/market/UI/backend). "
+                "emo_reflect plan 8-15 phases → PROJECT.md + ARCHITECTURE.md → exécution par modules. Pas de refus."
+            )
+        else:
+            parts.append(
+                "GROS PROJET actif: emo_reflect plan → web_search template → write_file par phases (max 10 fichiers/tour) → exec_shell build. Pas de réponse sans tools."
+            )
     parts.extend([
         "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",
         "Demande de créer/dessiner/générer une image → generate_image avec le sujet/style/couleurs exacts de Hugo (pas de reformulation vague, pas de fluff générique).",

@@ -71,6 +71,7 @@ def select_tools_for_message(
     tools_enabled: bool = True,
     provider: str = "",
     max_tools: int = 18,
+    project_scope: str = "normal",
 ) -> list[dict]:
     """Choisit les outils pertinents pour le message (Cursor-style dynamic tool set)."""
     if not tools_enabled:
@@ -116,6 +117,10 @@ def select_tools_for_message(
         _CODE.search(text) or _FILE.search(text) or _PRINT.search(text) or not _WEB.search(text)
     ):
         picked |= LOCAL_CORE & available
+
+    if project_scope in ("large", "mega") and agent_online:
+        picked |= (LOCAL_CORE | WEB_CORE) & available
+        picked |= {"emo_reflect", "emo_remember", "grep", "find_files", "codebase_search", "download_url"} & available
 
     # Agent en ligne + demande fichier → outils essentiels garantis
     if agent_online and _FILE.search(text):

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { PanelRightOpen, PanelRightClose, Clock, User as UserIcon, Menu, ArrowDown, Wifi, RefreshCw, Loader2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ChatComposer from "../components/ChatComposer";
+import ProjectPlanStrip from "../components/ProjectPlanStrip";
 import ChatMessage from "../components/ChatMessage";
 import EmoEyes from "../components/EmoEyes";
 import { AppTopBar } from "../components/EmoLogo";
@@ -119,6 +120,8 @@ export default function Chat() {
     () => (typeof window !== "undefined" ? localStorage.getItem("emo_agent_project_path") || "" : "")
   );
   const [agentStatus, setAgentStatus] = useState("");
+  const [projectPlan, setProjectPlan] = useState(null);
+  const [megaSession, setMegaSession] = useState(false);
   const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto" }]);
   const chatAreaRef = useRef(null);
   const stickyBottomRef = useRef(true);
@@ -441,6 +444,13 @@ export default function Chat() {
     const c = conversations.find((cv) => cv.conversation_id === activeId);
     if (c?.mode) setMode(c.mode);
     if (c?.agent_project_path) setAgentProjectPath(c.agent_project_path);
+    if (c?.project_plan) {
+      setProjectPlan(c.project_plan);
+      setMegaSession(c.project_plan?.scope === "mega");
+    } else {
+      setProjectPlan(null);
+      setMegaSession(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
@@ -615,6 +625,7 @@ export default function Chat() {
     setStreamingMsg({ content: "" });
     setStreamingTools([]);
     setAgentStatus("");
+    if (projectPlan?.scope === "mega") setMegaSession(true);
 
     let buffer = "";
     const turnTools = [];
@@ -623,10 +634,11 @@ export default function Chat() {
     const streamTimeoutRef = { id: null };
     const resetStreamTimeout = () => {
       if (streamTimeoutRef.id) clearTimeout(streamTimeoutRef.id);
-      const ms = useAgentTools ? 30 * 60 * 1000 : 3 * 60 * 1000;
+      const ms = megaSession ? 60 * 60 * 1000 : useAgentTools ? 30 * 60 * 1000 : 3 * 60 * 1000;
       streamTimeoutRef.id = setTimeout(() => {
         abortController.abort();
-        toast.error(useAgentTools ? "Délai agent dépassé (30 min)." : "Délai dépassé.");
+        const label = megaSession ? "60 min" : useAgentTools ? "30 min" : "3 min";
+        toast.error(`Délai agent dépassé (${label}).`);
       }, ms);
     };
     resetStreamTimeout();
@@ -641,11 +653,17 @@ export default function Chat() {
         agent_project_path: agentProjectPath,
         signal: abortController.signal,
         onEvent: (evt) => {
-          if (["delta", "ping", "tool_start", "tool_executing", "tool_result", "agent_status"].includes(evt.type)) {
+          if (["delta", "ping", "tool_start", "tool_executing", "tool_result", "agent_status", "project_plan"].includes(evt.type)) {
             resetStreamTimeout();
           }
           pushDebug(evt);
-          if (evt.type === "agent_status") {
+          if (evt.type === "project_plan") {
+            setProjectPlan(evt.plan || null);
+            setMegaSession(evt.plan?.scope === "mega");
+            setConversations((cs) =>
+              cs.map((c) => (c.conversation_id === convId ? { ...c, project_plan: evt.plan } : c)),
+            );
+          } else if (evt.type === "agent_status") {
             setAgentStatus(evt.message || "");
           } else if (evt.type === "delta") {
             buffer += evt.content;
@@ -819,6 +837,10 @@ export default function Chat() {
               }
             }
           } else if (evt.type === "done") {
+            if (evt.project_plan) {
+              setProjectPlan(evt.project_plan);
+              setMegaSession(evt.project_plan?.scope === "mega");
+            }
             const finalContent = cleanStreamText(buffer).trim();
             setMessages((m) => [
               ...m,
@@ -1071,6 +1093,7 @@ export default function Chat() {
 
         <div className="emo-chat-composer-wrap">
           <div className="emo-chat-composer-inner">
+            {projectPlan && <ProjectPlanStrip plan={projectPlan} />}
             <ChatComposer
               mode={mode}
               onChangeMode={setMode}
