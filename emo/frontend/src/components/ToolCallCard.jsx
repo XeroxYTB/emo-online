@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, Terminal, FileText, FolderTree, Wrench, AlertCircle, Globe, Search, Pencil, Trash2, Move, FileSearch, Compass, Sparkles, History, MousePointer2, Eye, EyeOff, Copy, Check, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import { hasToolPreview } from "../lib/resolveToolPreview";
-import { hasImagePayload, mergeImageFields } from "../lib/imagePreview";
+import { hasImagePayload, hasToolPreview } from "../lib/resolveToolPreview";
+import { mergeImageFields } from "../lib/imagePreview";
 import GeneratedImagePreview from "./GeneratedImagePreview";
 import { getFileContentFromToolEvent, isCopyableFileToolEvent } from "../lib/filePreview";
 import ChatPreviewBubble from "./ChatPreviewBubble";

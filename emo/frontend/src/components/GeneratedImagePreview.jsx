@@ -3,12 +3,12 @@ import { Image as ImageIcon, Copy, Check, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchImageB64DataUrl,
+  loadRenderableImageSrc,
   mergeImageFields,
-  resolveImageDisplaySrc,
 } from "../lib/imagePreview";
 import { copyImageFromSrc, downloadImageFromSrc } from "../lib/imageExport";
 
-/** Aperçu image générée — base64 inline ou URL directe sur <img>. */
+/** Aperçu image générée — blob URL, URL directe ou /b64 fallback. */
 export default function GeneratedImagePreview({
   sources = [],
   title = "Image générée",
@@ -17,27 +17,59 @@ export default function GeneratedImagePreview({
   testId = "generated-image-preview",
 }) {
   const fields = mergeImageFields(...sources);
-  const [src, setSrc] = useState(() => resolveImageDisplaySrc(fields));
+  const [src, setSrc] = useState(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    let revokeSrc = null;
+    let cancelled = false;
+    setSrc(null);
     setFailed(false);
-    const initial = resolveImageDisplaySrc(fields);
-    setSrc(initial);
-    if (!initial && !fields.image_url && !fields.image_base64) {
+
+    if (!fields.image_base64 && !fields.image_url && !fields.has_image) {
       setFailed(true);
+      return undefined;
     }
-  }, [fields.image_base64, fields.image_url, fields.mime]);
+
+    (async () => {
+      const hit = await loadRenderableImageSrc(fields);
+      if (cancelled) {
+        if (hit?.revoke && hit.src) URL.revokeObjectURL(hit.src);
+        return;
+      }
+      if (hit?.src) {
+        setSrc(hit.src);
+        if (hit.revoke) revokeSrc = hit.src;
+      } else {
+        setFailed(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (revokeSrc) URL.revokeObjectURL(revokeSrc);
+    };
+  }, [fields.image_base64, fields.image_url, fields.mime, fields.has_image]);
 
   const handleImgError = async () => {
     if (fields.image_url) {
       const fallback = await fetchImageB64DataUrl(fields.image_url, fields.mime);
       if (fallback) {
-        setSrc(fallback);
-        setFailed(false);
-        return;
+        try {
+          const resp = await fetch(fallback);
+          const blob = await resp.blob();
+          if (blob.size > 500) {
+            setSrc(URL.createObjectURL(blob));
+            setFailed(false);
+            return;
+          }
+        } catch {
+          setSrc(fallback);
+          setFailed(false);
+          return;
+        }
       }
     }
     setFailed(true);
@@ -95,11 +127,9 @@ export default function GeneratedImagePreview({
         {src && !failed && (
           <>
             <img
-              key={src.slice(0, 80)}
               src={src}
               alt={title || "Image générée"}
-              className="absolute inset-0 w-full h-full object-contain p-2"
-              style={{ display: "block", maxWidth: "100%", maxHeight: "100%" }}
+              className="absolute inset-0 z-[1] w-full h-full object-contain p-2 emo-image-reveal"
               decoding="async"
               loading="eager"
               onError={handleImgError}

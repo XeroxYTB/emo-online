@@ -39,24 +39,26 @@ export function generatedImageB64Endpoint(imageUrl) {
 
 export function collectImageFields(input) {
   if (!input || typeof input !== "object") {
-    return { image_base64: null, image_url: null, mime: "image/png", title: null };
+    return { image_base64: null, image_url: null, mime: "image/png", title: null, has_image: false };
   }
   return {
     image_base64: input.image_base64 || null,
     image_url: input.image_url || null,
     mime: input.mime || "image/png",
     title: input.title || input.prompt || input.subject || null,
+    has_image: Boolean(input.has_image),
   };
 }
 
 export function mergeImageFields(...sources) {
-  const out = { image_base64: null, image_url: null, mime: "image/png", title: null };
+  const out = { image_base64: null, image_url: null, mime: "image/png", title: null, has_image: false };
   for (const src of sources) {
     const f = collectImageFields(src);
-    if (f.image_base64) out.image_base64 = f.image_base64;
+    if (isUsableImageBase64(f.image_base64)) out.image_base64 = f.image_base64;
     if (f.image_url) out.image_url = f.image_url;
     if (f.mime && f.mime !== "image/png") out.mime = f.mime;
     if (f.title) out.title = f.title;
+    if (f.has_image) out.has_image = true;
   }
   return out;
 }
@@ -80,4 +82,53 @@ export async function fetchImageB64DataUrl(imageUrl, mime = "image/png") {
   } catch {
     return null;
   }
+}
+
+async function blobSrcFromDataUrl(dataUrl) {
+  const resp = await fetch(dataUrl);
+  if (!resp.ok) return null;
+  const blob = await resp.blob();
+  if (!blob || blob.size < 500) return null;
+  return URL.createObjectURL(blob);
+}
+
+/** Load a displayable src for <img> — blob URL preferred over huge data: URLs. */
+export async function loadRenderableImageSrc(fields) {
+  const mime = fields?.mime || "image/png";
+  const dataUrl = base64ToDataUrl(fields?.image_base64, mime);
+  if (dataUrl) {
+    try {
+      const blobSrc = await blobSrcFromDataUrl(dataUrl);
+      if (blobSrc) return { src: blobSrc, revoke: true };
+    } catch {
+      /* try URL fallbacks */
+    }
+  }
+
+  const url = resolveImageUrl(fields?.image_url);
+  if (url) {
+    try {
+      const resp = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        if (blob.size > 500 && (blob.type.startsWith("image/") || blob.size > 2000)) {
+          return { src: URL.createObjectURL(blob), revoke: true };
+        }
+      }
+    } catch {
+      /* try /b64 */
+    }
+    const fromJson = await fetchImageB64DataUrl(url, mime);
+    if (fromJson) {
+      try {
+        const blobSrc = await blobSrcFromDataUrl(fromJson);
+        if (blobSrc) return { src: blobSrc, revoke: true };
+      } catch {
+        return { src: fromJson, revoke: false };
+      }
+    }
+  }
+
+  if (dataUrl) return { src: dataUrl, revoke: false };
+  return null;
 }
