@@ -35,3 +35,13 @@ def test_thought_covers_tool():
     cog["planning_complete"] = True
     cog["thoughts"] = [{"before_tool": "write_file", "ts": "2026-01-01T00:00:00+00:00"}]
     assert _thought_covers_tool(cog, "write_file")
+
+
+def test_build_cognition_context_with_skeleton():
+    from agent_cognition import build_cognition_context_prompt
+    cog = default_cognition(planning_required=True)
+    out = build_cognition_context_prompt(
+        cog, content="Crée une API FastAPI complète avec auth JWT", mega=True,
+    )
+    assert "Plan suggéré" in out
+    assert "emo_think" in out

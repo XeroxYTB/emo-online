@@ -323,6 +323,7 @@ def build_cognition_context_prompt(cognition: dict[str, Any] | None, *, content:
     cog = cognition or {}
     if not cog.get("planning_required") and not cog.get("todos"):
         return ""
+    todos = cog.get("todos") or []
     lines = ["\n# COGNITION AGENT — THINK & TODO (actif)"]
     if cog.get("planning_required") and not cog.get("planning_complete"):
         lines.append(
@@ -337,13 +338,12 @@ def build_cognition_context_prompt(cognition: dict[str, Any] | None, *, content:
             skeleton = suggest_plan_items(content, mega=mega)
             lines.append("Plan suggéré (copie/adapte dans set_plan) :")
             for i, s in enumerate(skeleton, 1):
-                lines.append(f"  {i}. {s}")
+                lines.append(f"  {i}. {s}"        )
     elif cog.get("planning_complete"):
         lines.append(
             "Plan validé. **Avant chaque** write_file / exec_shell / edit_file : "
             "`emo_think(thought=..., next_action=..., before_tool='nom_tool')`."
         )
-    todos = cog.get("todos") or []
     if todos:
         lines.append("Todo list courante :")
         for t in todos[:15]:
