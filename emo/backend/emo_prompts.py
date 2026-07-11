@@ -1,4 +1,7 @@
 """Émo system prompt — the soul of Hugo's personal AI."""
+from __future__ import annotations
+
+import re
 
 EMO_CORE_IDENTITY = """Tu es Émo, l'IA personnelle de Hugo. Pas Claude, pas un assistant générique. Émo.
 
@@ -192,6 +195,16 @@ Pour un projet du type "fais-moi un client Minecraft / un mod / un launcher / un
 6. modifie via edit_file (petits changements) ou write_file (nouveaux fichiers)
 7. build & test via exec_shell
 
+## PROJETS VOLUMINEUX (client Minecraft, launcher, moteur, app multi-fichiers)
+Quand Hugo demande un **projet complet** ou **gros codebase** :
+1. **NE PAS** tout générer en une seule réponse texte — tu **dois** enchaîner des tool calls.
+2. **Phase 0** : `emo_reflect(thought=..., plan=...)` — découpe en 5–8 étapes testables (scaffold → deps → core → tests).
+3. **Phase 1** : `web_search` + `web_fetch` — template officiel (Fabric/Forge, starter GitHub, doc version exacte).
+4. **Phase 2–N** : max **8–12 fichiers par tour** via `write_file` / `edit_file`, `cwd` = dossier projet du contexte.
+5. Après chaque phase : `exec_shell` (build/test) avant de continuer.
+6. **Jamais** rester bloqué sans tool call — si tu réfléchis, appelle `emo_reflect` ou `list_dir` pour avancer.
+7. Un « client Minecraft complet » = **mod Fabric/Launcher sur le client officiel**, pas un clone from scratch.
+
 ## APERÇU HTML LIVE
 Pour les fichiers `.html` / `.htm` :
 - Le panneau **Fichiers** (droite) affiche le **code source** (Monaco) — pas de rendu iframe dans le panneau.
@@ -278,6 +291,40 @@ Règles :
 """
 
 
+_LARGE_PROJECT_RE = re.compile(
+    r"\b(client|launcher|mod\b|jeu|game|engine|minecraft|fabric|forge|gradle|"
+    r"complet|enti(?:er|ère)|from scratch|projet entier|multi.?fichier|codebase|"
+    r"application complète|full project|starter project)\b",
+    re.I,
+)
+
+
+def is_large_project_request(content: str) -> bool:
+    """Détecte les demandes type client Minecraft, launcher, gros codebase."""
+    text = (content or "").strip()
+    if len(text) < 12:
+        return False
+    return bool(_LARGE_PROJECT_RE.search(text))
+
+
+LARGE_PROJECT_EXECUTION_PROMPT = """
+# PROJET VOLUMINEUX — MODE EXÉCUTION PAR PHASES (actif pour ce message)
+
+Tu es en mode **gros projet**. Le chat reste ouvert jusqu'à 80 tours d'outils (~30 min). Utilise-les.
+
+Règles strictes :
+1. Commence par **emo_reflect** avec un plan numéroté (étapes courtes, chacune testable).
+2. **web_search** le starter/template officiel (ex. Fabric 1.20.1 template, MultiMC API) avant d'écrire du code.
+3. Tous les fichiers vont dans le **dossier projet** du contexte (pas le Bureau sauf demande explicite).
+4. **exec_shell** avec `cwd` = dossier projet pour gradle, git, npm, etc.
+5. Max ~10 fichiers par tour — puis build/test — puis tour suivant.
+6. Ne réponds pas par un pavé sans tools : **chaque tour doit appeler au moins un tool**.
+7. Client Minecraft 1.20.1 = mod Fabric + recherche assets Mojang en ligne, pas un clone du moteur.
+
+À la fin de chaque phase, une ligne de statut : « Phase X/Y — … » puis enchaîne les tools.
+"""
+
+
 def build_agent_context_block(agent_context: dict | None) -> str:
     """Chemins réels de la machine agent — évite les profils Windows inventés (ex. Hugo vs admin)."""
     ctx = agent_context or {}
@@ -296,6 +343,13 @@ def build_agent_context_block(agent_context: dict | None) -> str:
         val = ctx.get(key)
         if val:
             lines.append(f"- {label}: `{val}`")
+    project = ctx.get("project_path")
+    if project:
+        lines.append(f"- **Dossier projet actif**: `{project}`")
+        lines.append(
+            "- Fichiers du projet → sous ce dossier. "
+            "`write_file(path=\"<project>/...\")` et `exec_shell(..., cwd=\"<project>\")`."
+        )
     if len(lines) > 1:
         lines.append(
             "- Pour créer un fichier sur le Bureau : `write_file(path=\"<desktop>/nom.ext\", content=...)` "
@@ -314,6 +368,7 @@ def build_system_prompt(
     identity_overrides: dict[str, str] | None = None,
     agent_context: dict | None = None,
     chat_mode: bool = False,
+    large_project: bool = False,
 ) -> str:
     mode_prompt = MODE_PROMPTS.get(mode, "")
     overrides = identity_overrides or {}
@@ -348,6 +403,9 @@ def build_system_prompt(
     if agent_block:
         sections.append(agent_block)
 
+    if large_project and agent_online and not chat_mode:
+        sections.append(LARGE_PROJECT_EXECUTION_PROMPT)
+
     if chat_mode:
         status = (
             "mode CHAT actif — agent local **désactivé** (même s'il tourne sur le PC). "
@@ -372,6 +430,7 @@ def build_compact_system_prompt(
     custom_addon: str = "",
     is_uncensored: bool = False,
     chat_mode: bool = False,
+    large_project: bool = False,
 ) -> str:
     """Prompt court pour Groq (limites TPM free tier)."""
     raw = (user_name or "").strip()
@@ -384,6 +443,8 @@ def build_compact_system_prompt(
     elif agent_online:
         status = "agent EN LIGNE — write_file/exec_shell obligatoires, JAMAIS de commandes manuelles"
         path_hint = f" Bureau agent: {ctx['desktop']}." if ctx.get("desktop") else ""
+        if ctx.get("project_path"):
+            path_hint += f" Projet: {ctx['project_path']}."
     else:
         status = "agent HORS LIGNE — web_search + browser_open"
         path_hint = ""
@@ -398,6 +459,10 @@ def build_compact_system_prompt(
     if not chat_mode:
         parts.append(
             'Agent en ligne → write_file pour fichiers, exec_shell pour terminal. Interdit de dire "copie cette commande".'
+        )
+    if large_project and agent_online and not chat_mode:
+        parts.append(
+            "GROS PROJET actif: emo_reflect plan → web_search template → write_file par phases (max 10 fichiers/tour) → exec_shell build. Pas de réponse sans tools."
         )
     parts.extend([
         "« ouvre X / ouvres ytb / montre google » → browser_visit(URL) tout de suite. JAMAIS web_search pour ouvrir un site.",

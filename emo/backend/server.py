@@ -31,7 +31,10 @@ from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionRequest, CheckoutSessionResponse,
 )
 
-from emo_prompts import build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT, UNCENSORED_SYSTEM_APPEND, VISION_PRECISION_PROMPT
+from emo_prompts import (
+    build_system_prompt, build_compact_system_prompt, EMO_TOOLS, MEMORY_EXTRACTION_PROMPT,
+    UNCENSORED_SYSTEM_APPEND, VISION_PRECISION_PROMPT, is_large_project_request,
+)
 from emo_self_edit import (
     EMO_SELF_TOOLS,
     emo_read_self,
@@ -343,6 +346,7 @@ class SendMessageBody(BaseModel):
     mode: Optional[str] = "tech"
     model_preference: Optional[str] = "auto"
     use_agent_tools: Optional[bool] = True
+    agent_project_path: Optional[str] = None
     images: Optional[List[str]] = None  # base64 JPEG/PNG sans préfixe data:
     image_media_types: Optional[List[str]] = None  # mime par image (image/jpeg, image/png, …)
 
@@ -2905,6 +2909,7 @@ def _compact_llm_payload(
     custom_addon: str = "",
     is_uncensored: bool = False,
     chat_mode: bool = False,
+    large_project: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Groq/Gemini : prompt compact + outils. HF : pas d'outils (router incompatible)."""
     if not tools_enabled:
@@ -2921,9 +2926,10 @@ def _compact_llm_payload(
         custom_addon=custom_addon,
         is_uncensored=is_uncensored,
         chat_mode=chat_mode,
+        large_project=large_project,
     )
     non_system = [m for m in initial_messages if m.get("role") != "system"]
-    keep = 4 if provider == "groq" else 8
+    keep = 10 if large_project else (4 if provider == "groq" else 8)
     compact_msgs = [{"role": "system", "content": compact_sys}]
     for m in non_system[-keep:]:
         entry: dict = {"role": m.get("role"), "content": m.get("content", "")}
@@ -3027,6 +3033,14 @@ async def chat_stream(
     agent_online_raw = agent_registry.is_online(user.user_id)
     effective_agent_online = agent_online_raw and use_agent_mode
     agent_context = await _ensure_agent_context(user.user_id) if effective_agent_online else {}
+    project_path = (body.agent_project_path or conv.get("agent_project_path") or "").strip()
+    if project_path and effective_agent_online:
+        agent_context = {**agent_context, "project_path": project_path}
+        await db.conversations.update_one(
+            {"conversation_id": body.conversation_id, "user_id": user.user_id},
+            {"$set": {"agent_project_path": project_path, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+    large_project = use_agent_mode and is_large_project_request(body.content)
     is_owner = user.email.lower() in ADMIN_EMAILS
     identity_overrides = await get_identity_overrides(db) if is_owner else {}
     system_msg = build_system_prompt(
@@ -3035,6 +3049,7 @@ async def chat_stream(
         identity_overrides=identity_overrides,
         agent_context=agent_context,
         chat_mode=not use_agent_mode,
+        large_project=large_project,
     )
 
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "custom_prompt_addon": 1})
@@ -3408,6 +3423,7 @@ async def chat_stream(
                     custom_addon=addon,
                     is_uncensored=model_uncensored,
                     chat_mode=not use_agent_mode,
+                    large_project=large_project,
                 )
                 chat = LlmChat(
                     api_key=EMERGENT_LLM_KEY,
@@ -3425,8 +3441,21 @@ async def chat_stream(
                     image_media_types=chat_image_types,
                 )
                 started = False
+                if large_project:
+                    yield _sse({
+                        "type": "agent_status",
+                        "phase": "large_project",
+                        "message": "Projet volumineux — exécution par phases (jusqu'à 80 tours, ~30 min).",
+                    })
                 try:
                     for _safety in range(80):
+                        if large_project and _safety == 0:
+                            yield _sse({
+                                "type": "agent_status",
+                                "round": 1,
+                                "tools_done": len(tool_call_log),
+                                "message": "Planification + premier tour d'outils…",
+                            })
                         pending_tools: list = []
                         turn_text = ""
                         async for kind, ev in _iter_with_keepalive(chat.stream_message(user_message_for_iter)):
@@ -3469,12 +3498,13 @@ async def chat_stream(
                                 "arguments": tc.arguments,
                             })
                             try:
+                                tool_timeout = 120.0 if large_project and tc.name in ("exec_shell", "write_file", "edit_file") else 75.0
                                 result = await asyncio.wait_for(
                                     execute_tool(
                                         user.user_id, tc.name, tc.arguments or {}, is_owner=is_owner,
                                         allow_local_agent=use_agent_mode,
                                     ),
-                                    timeout=75.0,
+                                    timeout=tool_timeout,
                                 )
                             except asyncio.TimeoutError:
                                 result = {"ok": False, "error": "Outil timeout (75s) — réessaie ou simplifie la requête."}
@@ -3515,6 +3545,13 @@ async def chat_stream(
                         if cancelled:
                             break
                         user_message_for_iter = None
+                        if large_project:
+                            yield _sse({
+                                "type": "agent_status",
+                                "round": _safety + 2,
+                                "tools_done": len(tool_call_log),
+                                "message": f"Tour {_safety + 1} terminé — {len(tool_call_log)} outil(s) au total.",
+                            })
                     else:
                         yield _sse({"type": "error", "content": "Trop d'appels d'outils. Boucle arrêtée."})
                         return

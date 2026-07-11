@@ -263,7 +263,7 @@ http.interceptors.response.use(
   }
 );
 
-export async function streamChat({ conversation_id, content, images, image_media_types, mode, model_preference, use_agent_tools, onEvent, signal }) {
+export async function streamChat({ conversation_id, content, images, image_media_types, mode, model_preference, use_agent_tools, agent_project_path, onEvent, signal }) {
   const headers = { "Content-Type": "application/json", Accept: "text/event-stream" };
   const token = getSessionToken();
   if (token) {
@@ -290,6 +290,7 @@ export async function streamChat({ conversation_id, content, images, image_media
         mode,
         model_preference: model_preference || "auto",
         use_agent_tools: use_agent_tools !== false,
+        agent_project_path: agent_project_path?.trim() || undefined,
       }),
     });
   } catch (e) {

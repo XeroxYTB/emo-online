@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle, ImagePlus, X } from "lucide-react";
+import { Send, Code, Lightbulb, Flame, ChevronDown, Cpu, Square, Bot, MessageCircle, ImagePlus, X, FolderOpen } from "lucide-react";
 import { filesToAttachments, mergeAttachments, MAX_IMAGES } from "../lib/imageAttachments";
 
 const MODES = [
@@ -12,6 +12,7 @@ export const ChatComposer = ({
   mode, onChangeMode,
   modelPreference, onChangeModelPreference, availableModels,
   useAgentTools, onChangeUseAgentTools,
+  agentProjectPath, onChangeAgentProjectPath, agentStatus,
   onSend, onCancel, disabled, streaming,
 }) => {
   const [value, setValue] = useState("");
@@ -211,6 +212,26 @@ export const ChatComposer = ({
             </div>
           </div>
         </div>
+        {useAgentTools && (
+          <div className="px-3 pb-1 flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-[11px] text-secondary-em">
+              <FolderOpen size={12} className="shrink-0 opacity-70" />
+              <input
+                type="text"
+                value={agentProjectPath || ""}
+                onChange={(e) => onChangeAgentProjectPath?.(e.target.value)}
+                placeholder="Dossier projet agent (ex. C:\Users\admin\Desktop\JarvisProjects\mon_projet)"
+                className="flex-1 min-w-0 bg-transparent border-b border-[var(--emo-border)] py-0.5 font-code text-[10px] outline-none focus:border-[var(--emo-accent)]"
+                spellCheck={false}
+              />
+            </div>
+            {agentStatus ? (
+              <p className="text-[10px] text-[var(--emo-accent)] pl-5 truncate" title={agentStatus}>
+                {agentStatus}
+              </p>
+            ) : null}
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="emo-attachment-strip" data-testid="composer-attachments">
             {attachments.map((a) => (

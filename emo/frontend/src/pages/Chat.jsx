@@ -14,7 +14,7 @@ import ProfileDrawer from "../components/ProfileDrawer";
 import FeedbackPrompt from "../components/FeedbackPrompt";
 import { cleanDisplayText } from "../lib/messageClean";
 import { isHtmlPath, normalizeFilePath } from "../lib/filePreview";
-import { buildImagePreviewSrc, buildImagePreviewPair } from "../lib/resolveToolPreview";
+import { buildImagePreviewSrc } from "../lib/resolveToolPreview";
 import { useVisualViewportKeyboard } from "../lib/useVisualViewportKeyboard";
 
 const MODE_LABELS = { tech: "Tech", creatif: "Créatif", brutal: "Brutal" };
@@ -115,6 +115,10 @@ export default function Chat() {
   const [useAgentTools, setUseAgentTools] = useState(
     typeof window !== "undefined" ? localStorage.getItem("emo_use_agent_tools") !== "0" : true
   );
+  const [agentProjectPath, setAgentProjectPath] = useState(
+    () => (typeof window !== "undefined" ? localStorage.getItem("emo_agent_project_path") || "" : "")
+  );
+  const [agentStatus, setAgentStatus] = useState("");
   const [availableModels, setAvailableModels] = useState([{ id: "auto", label: "Auto" }]);
   const chatAreaRef = useRef(null);
   const stickyBottomRef = useRef(true);
@@ -294,6 +298,12 @@ export default function Chat() {
   }, [useAgentTools]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("emo_agent_project_path", agentProjectPath || "");
+    }
+  }, [agentProjectPath]);
+
+  useEffect(() => {
     const html = document.documentElement;
     const apply = (modeVal) => {
       let resolved = modeVal;
@@ -430,6 +440,7 @@ export default function Chat() {
     http.get(`/conversations/${activeId}/messages`).then((r) => setMessages(r.data));
     const c = conversations.find((cv) => cv.conversation_id === activeId);
     if (c?.mode) setMode(c.mode);
+    if (c?.agent_project_path) setAgentProjectPath(c.agent_project_path);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
@@ -603,15 +614,22 @@ export default function Chat() {
     setStreaming(true);
     setStreamingMsg({ content: "" });
     setStreamingTools([]);
+    setAgentStatus("");
 
     let buffer = "";
     const turnTools = [];
     const abortController = new AbortController();
     streamAbortRef.current = abortController;
-    const streamTimeout = setTimeout(() => {
-      abortController.abort();
-      toast.error("Délai dépassé.");
-    }, 180000);
+    const streamTimeoutRef = { id: null };
+    const resetStreamTimeout = () => {
+      if (streamTimeoutRef.id) clearTimeout(streamTimeoutRef.id);
+      const ms = useAgentTools ? 30 * 60 * 1000 : 3 * 60 * 1000;
+      streamTimeoutRef.id = setTimeout(() => {
+        abortController.abort();
+        toast.error(useAgentTools ? "Délai agent dépassé (30 min)." : "Délai dépassé.");
+      }, ms);
+    };
+    resetStreamTimeout();
 
     try {
       await streamChat({
@@ -620,10 +638,16 @@ export default function Chat() {
         mode,
         model_preference: modelPreference || "auto",
         use_agent_tools: useAgentTools,
+        agent_project_path: agentProjectPath,
         signal: abortController.signal,
         onEvent: (evt) => {
+          if (["delta", "ping", "tool_start", "tool_executing", "tool_result", "agent_status"].includes(evt.type)) {
+            resetStreamTimeout();
+          }
           pushDebug(evt);
-          if (evt.type === "delta") {
+          if (evt.type === "agent_status") {
+            setAgentStatus(evt.message || "");
+          } else if (evt.type === "delta") {
             buffer += evt.content;
             const display = cleanStreamText(buffer);
             setStreamingMsg({ content: display });
@@ -853,11 +877,12 @@ export default function Chat() {
       setStreamingMsg(null);
       setStreamingTools([]);
     } finally {
-      clearTimeout(streamTimeout);
+      if (streamTimeoutRef.id) clearTimeout(streamTimeoutRef.id);
       if (streamAbortRef.current === abortController) {
         streamAbortRef.current = null;
       }
       setStreaming(false);
+      setAgentStatus("");
     }
   };
 
@@ -1054,6 +1079,9 @@ export default function Chat() {
               availableModels={availableModels}
               useAgentTools={useAgentTools}
               onChangeUseAgentTools={setUseAgentTools}
+              agentProjectPath={agentProjectPath}
+              onChangeAgentProjectPath={setAgentProjectPath}
+              agentStatus={agentStatus}
               onSend={handleSend}
               onCancel={handleCancel}
               disabled={false}
