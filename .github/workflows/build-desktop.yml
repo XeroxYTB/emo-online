@@ -33,4 +33,12 @@ jobs:
           path: emo/backend/agent_binaries/Emo-Desktop.exe
           retention-days: 90
 
-      # Exe >100 Mo — artifact CI uniquement (pas de commit git)
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view desktop-exe-latest 2>/dev/null || \
+            gh release create desktop-exe-latest --title "Emo Desktop (Windows)" --notes "Build PyInstaller Windows x64"
+          gh release upload desktop-exe-latest emo/backend/agent_binaries/Emo-Desktop.exe --clobber
+
+      # Exe >100 Mo — artifact + GitHub Release (pas de commit git)

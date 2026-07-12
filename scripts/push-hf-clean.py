@@ -14,6 +14,7 @@ EXCLUDE = {
     ".git", "login_test_artifacts", "scripts/login_test_output",
     "node_modules", "emo/frontend/node_modules", "emo/frontend/build",
     "__pycache__", ".pytest_cache", "emo/backend/.env",
+    "build", "dist", ".github",
 }
 
 
@@ -39,6 +40,13 @@ def should_skip(rel: str) -> bool:
     if rel.endswith((".png", ".jpg", ".exe", ".dll", ".py")) and "login_browser" in rel:
         return True
     if rel.endswith((".png", ".jpg", ".exe", ".dll")) and "login_test" in rel:
+        return True
+    # HF git refuse >10 Mo — exe servi via GitHub Release (EMO_DESKTOP_EXE_URL)
+    if rel.endswith(".exe") and "agent_binaries" in rel:
+        return True
+    if rel.endswith((".txt", ".jpg", ".png")) and rel in {
+        "stderr.txt", "sync_out.txt", "test_img.jpg", "orange_cat_api.jpg", "deployed_main.js",
+    }:
         return True
     return False
 

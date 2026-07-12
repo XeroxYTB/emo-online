@@ -142,6 +142,10 @@ STRIPE_BASIC_LINK = os.environ.get('STRIPE_BASIC_LINK', 'https://buy.stripe.com/
 STRIPE_PREMIUM_LINK = os.environ.get('STRIPE_PREMIUM_LINK', '')
 STRIPE_ULTRA_LINK = os.environ.get('STRIPE_ULTRA_LINK', '')
 EMO_PUBLIC_BACKEND_URL = os.environ.get('EMO_PUBLIC_BACKEND_URL', 'https://xroxx-emo-online-api.hf.space').rstrip('/')
+EMO_DESKTOP_EXE_URL = os.environ.get(
+    'EMO_DESKTOP_EXE_URL',
+    'https://github.com/XeroxYTB/emo-online/releases/download/desktop-exe-latest/Emo-Desktop.exe',
+).strip()
 
 
 def _cors_origins() -> list[str]:
@@ -4226,6 +4230,16 @@ async def serve_desktop_exe(os_name: str, user: User = Depends(get_current_user)
     exe_path = ROOT_DIR / "agent_binaries" / DESKTOP_EXE_NAME
 
     if not exe_path.is_file():
+        if EMO_DESKTOP_EXE_URL:
+            logger.info("Desktop exe missing locally — redirect to release URL")
+            return RedirectResponse(
+                EMO_DESKTOP_EXE_URL,
+                status_code=302,
+                headers={
+                    "X-Emo-Agent-Token": token,
+                    "X-Emo-Backend-Url": backend_url,
+                },
+            )
         logger.warning("Desktop exe missing at %s — falling back to Python zip", exe_path)
         data = _agent_python_bundle(os_name, token, backend_url)
         return Response(
