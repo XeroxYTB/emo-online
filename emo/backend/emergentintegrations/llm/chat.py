@@ -409,61 +409,75 @@ class LlmChat:
         base, headers = self._openai_base()
         headers["Content-Type"] = "application/json"
         max_tokens = 2048 if self._provider in ("groq", "huggingface") else 8192
-        prune_n = 18 if self._provider == "groq" else 28
-        self.prune_context(max_messages=prune_n, max_tool_chars=5000 if self._provider == "groq" else 8000)
-        body: dict[str, Any] = {
-            "model": self._model,
-            "messages": self._openai_messages(),
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
-        if self._openai_tools and self._provider != "huggingface":
-            body["tools"] = self._openai_tools
-            if self._provider == "groq":
-                body["tool_choice"] = "auto"
 
         tool_calls: dict[int, dict] = {}
         turn_text = ""
         finish_reason = None
 
         async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream("POST", f"{base}/chat/completions", headers=headers, json=body) as resp:
-                if resp.is_error:
-                    err_body = await resp.aread()
-                    detail = err_body.decode("utf-8", errors="replace")[:500]
-                    raise httpx.HTTPStatusError(
-                        f"{self._provider} API {resp.status_code}: {detail}",
-                        request=resp.request,
-                        response=resp,
-                    )
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data: "):
+            for attempt in range(2):
+                prune_n = 18 if self._provider == "groq" else 28
+                tool_cap = 5000 if self._provider == "groq" else 8000
+                if attempt == 1:
+                    prune_n, tool_cap = 8, 2500
+                self.prune_context(max_messages=prune_n, max_tool_chars=tool_cap)
+
+                body: dict[str, Any] = {
+                    "model": self._model,
+                    "messages": self._openai_messages(),
+                    "max_tokens": max_tokens,
+                    "stream": True,
+                }
+                tools = self._openai_tools
+                if tools and self._provider != "huggingface":
+                    if attempt == 1 and self._provider == "groq":
+                        tools = tools[:8]
+                    body["tools"] = tools
+                    if self._provider == "groq":
+                        body["tool_choice"] = "auto"
+
+                async with client.stream(
+                    "POST", f"{base}/chat/completions", headers=headers, json=body
+                ) as resp:
+                    if resp.status_code == 413 and attempt == 0 and self._provider == "groq":
                         continue
-                    chunk = line[6:].strip()
-                    if chunk == "[DONE]":
-                        break
-                    try:
-                        data = json.loads(chunk)
-                    except json.JSONDecodeError:
-                        continue
-                    choice = (data.get("choices") or [{}])[0]
-                    delta = choice.get("delta") or {}
-                    finish_reason = choice.get("finish_reason") or finish_reason
-                    if delta.get("content"):
-                        turn_text += delta["content"]
-                        yield TextDelta(content=delta["content"])
-                    for tc_delta in delta.get("tool_calls") or []:
-                        idx = tc_delta.get("index", 0)
-                        if idx not in tool_calls:
-                            tool_calls[idx] = {"id": "", "name": "", "arguments": ""}
-                        if tc_delta.get("id"):
-                            tool_calls[idx]["id"] = tc_delta["id"]
-                        fn = tc_delta.get("function") or {}
-                        if fn.get("name"):
-                            tool_calls[idx]["name"] = fn["name"]
-                            yield ToolCallStart(id=tool_calls[idx]["id"] or f"call_{idx}", name=fn["name"])
-                        if fn.get("arguments"):
-                            tool_calls[idx]["arguments"] += fn["arguments"]
+                    if resp.is_error:
+                        err_body = await resp.aread()
+                        detail = err_body.decode("utf-8", errors="replace")[:500]
+                        raise httpx.HTTPStatusError(
+                            f"{self._provider} API {resp.status_code}: {detail}",
+                            request=resp.request,
+                            response=resp,
+                        )
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        chunk = line[6:].strip()
+                        if chunk == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(chunk)
+                        except json.JSONDecodeError:
+                            continue
+                        choice = (data.get("choices") or [{}])[0]
+                        delta = choice.get("delta") or {}
+                        finish_reason = choice.get("finish_reason") or finish_reason
+                        if delta.get("content"):
+                            turn_text += delta["content"]
+                            yield TextDelta(content=delta["content"])
+                        for tc_delta in delta.get("tool_calls") or []:
+                            idx = tc_delta.get("index", 0)
+                            if idx not in tool_calls:
+                                tool_calls[idx] = {"id": "", "name": "", "arguments": ""}
+                            if tc_delta.get("id"):
+                                tool_calls[idx]["id"] = tc_delta["id"]
+                            fn = tc_delta.get("function") or {}
+                            if fn.get("name"):
+                                tool_calls[idx]["name"] = fn["name"]
+                                yield ToolCallStart(id=tool_calls[idx]["id"] or f"call_{idx}", name=fn["name"])
+                            if fn.get("arguments"):
+                                tool_calls[idx]["arguments"] += fn["arguments"]
+                    break
 
         parsed_tools: list[ToolCall] = []
         for idx in sorted(tool_calls.keys()):

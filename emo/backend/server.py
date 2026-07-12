@@ -3117,9 +3117,14 @@ def _compact_llm_payload(
     )
     non_system = [m for m in initial_messages if m.get("role") != "system"]
     keep = 14 if mega_project else (10 if large_project else (4 if provider == "groq" else 8))
-    compact_msgs = [{"role": "system", "content": compact_sys}]
+    if provider == "groq" and mega_project:
+        keep = 6
+    max_msg_chars = 3500 if mega_project else (5000 if large_project else 8000)
+    compact_msgs = [{"role": "system", "content": compact_sys[:12000] if mega_project else compact_sys}]
     for m in non_system[-keep:]:
         entry: dict = {"role": m.get("role"), "content": m.get("content", "")}
+        if isinstance(entry["content"], str) and len(entry["content"]) > max_msg_chars:
+            entry["content"] = entry["content"][:max_msg_chars] + "\n…[historique tronqué]"
         if m.get("role") == "user":
             if m.get("images"):
                 entry["images"] = m["images"]
@@ -3129,6 +3134,8 @@ def _compact_llm_payload(
                 entry["image_media_type"] = m["image_media_type"]
         compact_msgs.append(entry)
     max_tools = 14 if provider == "groq" else 18
+    if provider == "groq" and mega_project:
+        max_tools = 10
     compact_tools = select_tools_for_message(
         user_message, tools,
         agent_online=agent_online,
@@ -3649,12 +3656,7 @@ async def chat_stream(
                     )
                 if model_uncensored:
                     effective_system += "\n\n" + UNCENSORED_SYSTEM_APPEND.strip()
-                if project_plan:
-                    effective_system += build_phase_context_prompt(project_plan)
-                if use_agent_cognition:
-                    effective_system += build_cognition_context_prompt(
-                        agent_cog, content=body.content, mega=mega_project,
-                    )
+                # project_plan + cognition déjà injectés via build_system_prompt (évite doublon → 413)
                 if need_planning and not agent_cog.get("planning_complete"):
                     yield _sse({
                         "type": "agent_status",
