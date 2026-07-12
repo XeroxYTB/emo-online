@@ -11,7 +11,7 @@ def run(args: dict) -> Any:
     loaded = list_skills()
     msg = (
         f"Emo Desktop — {len(loaded)} skills chargés.\n"
-        "Modes: CHAT, VOCAL, AGENT.\n"
+        "Modes: CHAT, VOCAL, AGENT — dites « passe en mode vocal » ou « mode agent ».\n"
         "Exemples: « cherche … », « ouvre notepad », « météo Paris », « liste dossier ».\n"
         "Configurez gemini_api_key et agent_token dans Paramètres."
     )

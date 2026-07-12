@@ -211,7 +211,8 @@ class CloudClient:
                                 elif etype == "done":
                                     return evt.get("content") or "".join(parts) or "…"
                                 elif etype == "error":
-                                    return evt.get("content") or "Erreur cloud"
+                                    err = evt.get("content") or "Erreur cloud"
+                                    return "".join(parts) or err
                     return "".join(parts) or "Pas de réponse du cloud."
         except Exception as e:
             return f"Impossible de joindre le cloud: {e}"

@@ -1,8 +1,7 @@
-"""Reconnaissance vocale — locale sounddevice (fiable) ou Gemini Live."""
+"""Reconnaissance vocale — sounddevice + VAD + Google Speech (sans SAPI Windows)."""
 from __future__ import annotations
 
 import asyncio
-import platform
 import re
 import threading
 import time
@@ -15,9 +14,10 @@ CHANNELS = 1
 CHUNK_SIZE = 1024
 _DEFAULT_LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 _MAX_GEMINI_RETRIES = 1
-_ENERGY_THRESHOLD = 400.0
+_ENERGY_THRESHOLD = 150.0
 _SILENCE_SEC = 0.75
 _MAX_UTTERANCE_SEC = 14.0
+_ECHO_COOLDOWN_SEC = 1.0
 
 _CTRL_RE = re.compile(r"<ctrl\d+>", re.IGNORECASE)
 
@@ -34,6 +34,10 @@ def _get_live_model() -> str:
 
 def _get_api_key() -> str:
     return (load_config().get("gemini_api_key") or "").strip()
+
+
+def _has_cloud_session() -> bool:
+    return bool((load_config().get("session_token") or "").strip())
 
 
 def _is_quota_error(exc: BaseException) -> bool:
@@ -62,13 +66,14 @@ class EmoSTTEngine:
         self.on_log = on_log
         self.is_muted = is_muted or (lambda: False)
         self.is_speaking = is_speaking or (lambda: False)
-        self.prefer_local = prefer_local
+        self.prefer_local = prefer_local or _has_cloud_session()
         self._active = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._client = None
         self._session = None
         self._out_queue: asyncio.Queue | None = None
+        self._last_speaking_end = 0.0
 
     def _log(self, msg: str) -> None:
         if self.on_log:
@@ -76,6 +81,19 @@ class EmoSTTEngine:
                 self.on_log(msg)
             except Exception:
                 pass
+
+    def _mic_paused(self) -> bool:
+        if self.is_muted():
+            return True
+        if self.is_speaking():
+            return True
+        if time.monotonic() - self._last_speaking_end < _ECHO_COOLDOWN_SEC:
+            return True
+        return False
+
+    def _note_speaking_end(self) -> None:
+        if not self.is_speaking():
+            self._last_speaking_end = time.monotonic()
 
     def start(self) -> None:
         if self._active:
@@ -213,7 +231,8 @@ class EmoSTTEngine:
         loop = asyncio.get_event_loop()
 
         def callback(indata, _frames, _time_info, _status):
-            if not self._active or self.is_muted() or self.is_speaking():
+            if not self._active or self._mic_paused():
+                self._note_speaking_end()
                 return
             q = self._out_queue
             if q is None:
@@ -268,38 +287,56 @@ class EmoSTTEngine:
         loop = asyncio.get_event_loop()
         self._log("STT: écoute… parlez (français).")
         errors = 0
-        while self._active:
-            if self.is_muted() or self.is_speaking():
-                await asyncio.sleep(0.15)
-                continue
-            try:
-                pcm = await loop.run_in_executor(None, self._record_utterance_vad)
-            except Exception as e:
-                errors += 1
-                self._log(f"STT: micro — {e}")
-                if errors >= 5:
-                    self._log("STT: micro indisponible — vérifiez permissions Windows.")
-                    await asyncio.sleep(5)
-                    errors = 0
-                await asyncio.sleep(1)
-                continue
-            errors = 0
-            if not pcm:
-                await asyncio.sleep(0.05)
-                continue
-            try:
-                text = await loop.run_in_executor(None, self._recognize_pcm, pcm)
-            except Exception as e:
-                self._log(f"STT: reconnaissance — {e}")
-                await asyncio.sleep(0.5)
-                continue
-            text = _clean_transcript(text or "")
-            if text and self.on_transcript:
-                self._log(f"STT: « {text[:72]} »")
-                self.on_transcript(text)
-            await asyncio.sleep(0.1)
+        try:
+            import sounddevice as sd
+        except ImportError as e:
+            self._log(f"STT: sounddevice absent — {e}")
+            return
 
-    def _record_utterance_vad(self) -> bytes:
+        try:
+            with sd.InputStream(
+                samplerate=SEND_SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="int16",
+                blocksize=CHUNK_SIZE,
+            ) as stream:
+                while self._active:
+                    if self._mic_paused():
+                        self._note_speaking_end()
+                        await asyncio.sleep(0.1)
+                        continue
+                    try:
+                        pcm = await loop.run_in_executor(
+                            None, self._record_utterance_vad, stream
+                        )
+                    except Exception as e:
+                        errors += 1
+                        self._log(f"STT: micro — {e}")
+                        if errors >= 5:
+                            self._log("STT: micro indisponible — vérifiez permissions Windows.")
+                            await asyncio.sleep(5)
+                            errors = 0
+                        await asyncio.sleep(1)
+                        continue
+                    errors = 0
+                    if not pcm:
+                        await asyncio.sleep(0.05)
+                        continue
+                    try:
+                        text = await loop.run_in_executor(None, self._recognize_pcm, pcm)
+                    except Exception as e:
+                        self._log(f"STT: reconnaissance — {e}")
+                        await asyncio.sleep(0.5)
+                        continue
+                    text = _clean_transcript(text or "")
+                    if text and self.on_transcript:
+                        self._log(f"STT: « {text[:72]} »")
+                        self.on_transcript(text)
+                    await asyncio.sleep(0.1)
+        except Exception as e:
+            self._log(f"STT: micro — {e}")
+
+    def _record_utterance_vad(self, stream=None) -> bytes:
         import numpy as np
         import sounddevice as sd
 
@@ -310,29 +347,48 @@ class EmoSTTEngine:
         silent_blocks = 0
         started = False
 
-        with sd.InputStream(
-            samplerate=SEND_SAMPLE_RATE,
-            channels=CHANNELS,
-            dtype="int16",
-            blocksize=block,
-        ) as stream:
-            for _ in range(max_blocks):
-                if not self._active or self.is_muted() or self.is_speaking():
-                    return b""
-                data, _overflowed = stream.read(block)
-                if data is None or len(data) == 0:
-                    continue
-                chunk = np.asarray(data, dtype=np.int16)
-                rms = float(np.sqrt(np.mean(chunk.astype(np.float64) ** 2)))
-                if rms >= _ENERGY_THRESHOLD:
-                    started = True
-                    silent_blocks = 0
-                    frames.append(chunk.tobytes())
-                elif started:
-                    frames.append(chunk.tobytes())
-                    silent_blocks += 1
-                    if silent_blocks >= silence_blocks_limit:
+        def _read_block(active_stream) -> np.ndarray | None:
+            data, _overflowed = active_stream.read(block)
+            if data is None or len(data) == 0:
+                return None
+            return np.asarray(data, dtype=np.int16)
+
+        def _process_chunk(chunk: np.ndarray) -> bool:
+            nonlocal started, silent_blocks
+            if not self._active or self._mic_paused():
+                return False
+            rms = float(np.sqrt(np.mean(chunk.astype(np.float64) ** 2)))
+            if rms >= _ENERGY_THRESHOLD:
+                started = True
+                silent_blocks = 0
+                frames.append(chunk.tobytes())
+            elif started:
+                frames.append(chunk.tobytes())
+                silent_blocks += 1
+                if silent_blocks >= silence_blocks_limit:
+                    return False
+            return True
+
+        if stream is None:
+            with sd.InputStream(
+                samplerate=SEND_SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="int16",
+                blocksize=block,
+            ) as local_stream:
+                for _ in range(max_blocks):
+                    chunk = _read_block(local_stream)
+                    if chunk is None:
+                        continue
+                    if not _process_chunk(chunk):
                         break
+        else:
+            for _ in range(max_blocks):
+                chunk = _read_block(stream)
+                if chunk is None:
+                    continue
+                if not _process_chunk(chunk):
+                    break
         if not frames:
             return b""
         return b"".join(frames)
@@ -346,6 +402,8 @@ class EmoSTTEngine:
             return ""
 
         r = sr.Recognizer()
+        r.energy_threshold = _ENERGY_THRESHOLD
+        r.dynamic_energy_threshold = True
         audio = sr.AudioData(pcm, SEND_SAMPLE_RATE, 2)
         return self._recognize_audio(r, audio)
 
@@ -362,34 +420,4 @@ class EmoSTTEngine:
             if "UnknownValue" in type(e).__name__:
                 return ""
             self._log(f"STT: {e}")
-
-        if platform.system() == "Windows":
-            return self._recognize_windows_sapi(audio)
-        return ""
-
-    def _recognize_windows_sapi(self, audio) -> str:
-        try:
-            import tempfile
-            from pathlib import Path
-
-            import win32com.client  # type: ignore
-
-            path = Path(tempfile.mktemp(suffix=".wav"))
-            try:
-                with path.open("wb") as f:
-                    f.write(audio.get_wav_data())
-                context = win32com.client.Dispatch("SAPI.SpSharedRecognizer").CreateRecoContext()
-                stream = win32com.client.Dispatch("SAPI.SpFileStream")
-                stream.Open(str(path))
-                context.Recognizer.SetInput(stream, False)
-                result = context.Recognition()
-                if result and result.PhraseInfo:
-                    text = str(result.PhraseInfo.GetText()).strip()
-                    if text:
-                        self._log("STT: repli Windows SAPI.")
-                    return text
-            finally:
-                path.unlink(missing_ok=True)
-        except Exception:
-            return ""
         return ""

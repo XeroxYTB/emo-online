@@ -40,6 +40,7 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
   const [copied, setCopied] = useState("");
   const [os, setOs] = useState(detectOS());
   const [downloading, setDownloading] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
   const [status, setStatus] = useState({
     connected: false,
     online: false,
@@ -90,53 +91,83 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
     toast.success("Token régénéré");
   };
 
-  const downloadAgent = async () => {
+  const fetchAgentDownload = async (url, fallbackFilename) => {
+    const headers = {};
+    const session = getSessionToken();
+    if (session) {
+      headers.Authorization = `Bearer ${session}`;
+      headers["X-Emo-Session"] = session;
+    }
+    const resp = await fetch(url, { credentials: "include", headers });
+    if (!resp.ok) {
+      let detail = `HTTP ${resp.status}`;
+      try {
+        const err = await resp.json();
+        detail = err.detail || detail;
+      } catch (_) {}
+      throw new Error(typeof detail === "string" ? detail : "Téléchargement impossible");
+    }
+    const blob = await resp.blob();
+    const buf = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const isZipFile = bytes[0] === 0x50 && bytes[1] === 0x4b;
+    const isZip =
+      isZipFile ||
+      resp.headers.get("content-type")?.includes("zip") ||
+      resp.headers.get("content-disposition")?.includes(".zip");
+    const cd = resp.headers.get("content-disposition") || "";
+    const cdMatch = cd.match(/filename="?([^";]+)"?/i);
+    const filename = cdMatch?.[1] || (isZip ? "Emo-Desktop.zip" : fallbackFilename);
+    const outBlob = new Blob([buf], { type: isZip ? "application/zip" : blob.type });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(outBlob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    return { isZip, isFallback: resp.headers.get("X-Emo-Fallback") === "python-zip" };
+  };
+
+  const downloadDesktopExe = async () => {
     setDownloading(true);
     try {
-      const url = `${getApiBase()}/agent/binary/${os}`;
-      const headers = {};
-      const session = getSessionToken();
-      if (session) {
-        headers.Authorization = `Bearer ${session}`;
-        headers["X-Emo-Session"] = session;
-      }
-      const resp = await fetch(url, { credentials: "include", headers });
-      if (!resp.ok) {
-        let detail = `HTTP ${resp.status}`;
-        try {
-          const err = await resp.json();
-          detail = err.detail || detail;
-        } catch (_) {}
-        throw new Error(typeof detail === "string" ? detail : "Téléchargement impossible");
-      }
-      const blob = await resp.blob();
-      const buf = await blob.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      const isZipFile = bytes[0] === 0x50 && bytes[1] === 0x4b;
-      const isZip =
-        isZipFile ||
-        resp.headers.get("content-type")?.includes("zip") ||
-        resp.headers.get("content-disposition")?.includes(".zip");
-      const filename = "Emo-Desktop.zip";
-      const outBlob = new Blob([buf], { type: isZip ? "application/zip" : blob.type });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(outBlob);
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(a.href);
-      toast.success(
-        isZip
-          ? "Émo Desktop téléchargé — extrais et lance start-emo-desktop.bat"
-          : "Émo Desktop téléchargé — double-clic pour lancer"
+      const { isZip, isFallback } = await fetchAgentDownload(
+        `${getApiBase()}/agent/desktop-exe/windows`,
+        "Emo-Desktop.exe"
       );
+      if (isZip || isFallback) {
+        toast.success("Version Python (zip) — extrais et lance start.bat");
+      } else {
+        toast.success("Emo-Desktop.exe téléchargé — double-clic pour lancer");
+      }
     } catch (e) {
       toast.error(e.message || "Téléchargement impossible");
     } finally {
       setDownloading(false);
     }
   };
+
+  const downloadAgentZip = async () => {
+    setDownloadingZip(true);
+    try {
+      const { isZip } = await fetchAgentDownload(
+        `${getApiBase()}/agent/binary/${os}`,
+        "Emo-Desktop.zip"
+      );
+      toast.success(
+        isZip
+          ? "Émo Desktop (Python) téléchargé — extrais et lance start.bat ou start.sh"
+          : "Émo Desktop téléchargé"
+      );
+    } catch (e) {
+      toast.error(e.message || "Téléchargement impossible");
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
+  const isWindows = os === "windows" || os === "windows-arm";
 
   const handleRefresh = () => {
     refreshLocal();
@@ -207,7 +238,11 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
           <Link2 size={13} /> Connexion
         </div>
         <ol className="text-[11px] text-secondary-em space-y-1.5 list-decimal list-inside leading-relaxed">
-          <li>Télécharge et lance Émo Desktop</li>
+          <li>
+            {isWindows
+              ? "Télécharge Emo-Desktop.exe et double-clic pour lancer"
+              : "Télécharge et lance Émo Desktop (zip Python)"}
+          </li>
           <li>Clique <strong>link</strong> — le site s&apos;ouvre</li>
           <li>Connecte-toi si besoin → <strong>Accepter</strong></li>
           <li>Le voyant passe au vert ici</li>
@@ -241,20 +276,56 @@ export default function AgentSettingsPanel({ agentOnline, onRefreshStatus }) {
         </div>
       </div>
 
-      <button
-        type="button"
-        data-testid="download-agent-btn"
-        onClick={downloadAgent}
-        disabled={downloading}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-medium text-sm transition-all hover:scale-[1.01] disabled:opacity-50"
-        style={{
-          background: "var(--mode-color)",
-          color: "var(--emo-on-mode)",
-          boxShadow: "0 0 24px var(--mode-glow)",
-        }}
-      >
-        <Download size={15} /> {downloading ? "Téléchargement…" : "Télécharger Émo Desktop"}
-      </button>
+      {isWindows ? (
+        <>
+          <button
+            type="button"
+            data-testid="download-desktop-exe-btn"
+            onClick={downloadDesktopExe}
+            disabled={downloading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-medium text-sm transition-all hover:scale-[1.01] disabled:opacity-50"
+            style={{
+              background: "var(--mode-color)",
+              color: "var(--emo-on-mode)",
+              boxShadow: "0 0 24px var(--mode-glow)",
+            }}
+          >
+            <Download size={15} />{" "}
+            {downloading ? "Téléchargement…" : "Télécharger Emo-Desktop.exe (Windows)"}
+          </button>
+          <button
+            type="button"
+            data-testid="download-agent-btn"
+            onClick={downloadAgentZip}
+            disabled={downloadingZip}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[12px] transition disabled:opacity-50 em-hover"
+            style={{
+              background: "var(--emo-surface-raised)",
+              border: "1px solid var(--emo-border)",
+              color: "var(--emo-text-secondary)",
+            }}
+          >
+            <Download size={13} />{" "}
+            {downloadingZip ? "Téléchargement…" : "Version Python (zip)"}
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          data-testid="download-agent-btn"
+          onClick={downloadAgentZip}
+          disabled={downloadingZip}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-medium text-sm transition-all hover:scale-[1.01] disabled:opacity-50"
+          style={{
+            background: "var(--mode-color)",
+            color: "var(--emo-on-mode)",
+            boxShadow: "0 0 24px var(--mode-glow)",
+          }}
+        >
+          <Download size={15} />{" "}
+          {downloadingZip ? "Téléchargement…" : "Télécharger Émo Desktop"}
+        </button>
+      )}
 
       <details className="text-xs">
         <summary className="cursor-pointer text-muted-em hover:text-[var(--emo-text)]">Token agent (avancé)</summary>

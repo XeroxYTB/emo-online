@@ -1,0 +1,955 @@
+{
+  "preferences": {},
+  "facts": [],
+  "journal": [
+    {
+      "text": "Relais: connexion à https://xroxx-emo-online-api.hf.space",
+      "at": "2026-07-11T22:51:14.717926+00:00"
+    },
+    {
+      "text": "Relais: hors ligne",
+      "at": "2026-07-11T22:51:15.928863+00:00"
+    },
+    {
+      "text": "Gemini: client initialisé",
+      "at": "2026-07-11T22:54:14.656608+00:00"
+    },
+    {
+      "text": "TTS: mode local (pyttsx3 / edge-tts).",
+      "at": "2026-07-11T22:54:14.660000+00:00"
+    },
+    {
+      "text": "SYS: Dashboard http://127.0.0.1:8000/pair (LAN: port 8000)",
+      "at": "2026-07-11T22:54:14.668873+00:00"
+    },
+    {
+      "text": "Relais: connexion à https://xroxx-emo-online-api.hf.space",
+      "at": "2026-07-11T22:54:14.686639+00:00"
+    },
+    {
+      "text": "SYS: Overlay vocal actif (coin haut-droit).",
+      "at": "2026-07-11T22:54:16.091471+00:00"
+    },
+    {
+      "text": "Relais: hors ligne",
+      "at": "2026-07-11T22:54:16.177241+00:00"
+    },
+    {
+      "text": "SYS: Mode vocal désactivé.",
+      "at": "2026-07-11T22:54:16.613206+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:54:16.702800+00:00"
+    },
+    {
+      "text": "Gemini: client initialisé",
+      "at": "2026-07-11T22:57:03.417653+00:00"
+    },
+    {
+      "text": "TTS: mode local (pyttsx3 / edge-tts).",
+      "at": "2026-07-11T22:57:03.423655+00:00"
+    },
+    {
+      "text": "SYS: Dashboard http://127.0.0.1:8000/pair (LAN: port 8000)",
+      "at": "2026-07-11T22:57:03.435172+00:00"
+    },
+    {
+      "text": "Relais: connexion à https://xroxx-emo-online-api.hf.space",
+      "at": "2026-07-11T22:57:03.450197+00:00"
+    },
+    {
+      "text": "Relais: hors ligne",
+      "at": "2026-07-11T22:57:04.945960+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:57:05.571445+00:00"
+    },
+    {
+      "text": "SYS: Cloud hors ligne · Desktop offline · Outils offline · huglostalatac@gmail.com",
+      "at": "2026-07-11T22:57:10.109784+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:57:10.475761+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:57:13.564694+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:57:18.429976+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:57:21.448604+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:57:26.581834+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:57:29.610375+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:57:35.999329+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:57:39.015564+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:57:43.968055+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:57:46.988962+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:57:52.035528+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:57:55.060724+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:00.212534+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:58:03.226020+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:08.117540+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:58:11.134713+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:16.104315+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:58:19.128729+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:24.452978+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:58:27.455140+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:33.276052+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:58:36.298917+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:41.336604+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:58:44.348523+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:49.362201+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:58:52.371143+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:58:57.304179+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:00.328088+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:59:05.131390+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:08.149998+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:59:13.023645+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:16.037135+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:59:20.814050+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:23.821964+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:59:28.594835+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:31.612932+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:59:36.772707+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:39.802965+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:59:44.737916+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:47.740903+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T22:59:52.797914+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T22:59:55.806031+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:00.883481+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:00:03.910339+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:08.903722+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:00:11.919942+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:17.009847+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:00:20.028431+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:25.341011+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:00:28.356745+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:33.202135+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:00:36.217277+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:41.332744+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:00:44.357471+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:49.375299+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:00:52.411484+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:00:59.156445+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:02.182731+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:01:07.253450+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:10.270752+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:01:15.263105+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:18.293411+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:01:23.314109+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:26.347675+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:01:31.190969+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:34.211864+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:01:39.168769+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:42.183357+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:01:47.539666+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:50.558477+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:01:55.658869+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:01:58.676031+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:02:03.699033+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:02:06.728769+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:02:11.584651+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:02:14.605712+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:02:19.482837+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:02:22.555988+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:02:27.892271+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:02:30.901169+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:02:35.808645+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:02:38.823286+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:02:43.707688+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:02:46.736906+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:02:51.890122+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:02:54.914984+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:03:00.172030+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:03:03.182779+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:03:08.062012+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:03:11.080689+00:00"
+    },
+    {
+      "text": "Live: SSLCertVerificationError — [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)",
+      "at": "2026-07-11T23:03:15.935367+00:00"
+    },
+    {
+      "text": "Gemini: client initialisé",
+      "at": "2026-07-11T23:04:21.523205+00:00"
+    },
+    {
+      "text": "TTS: mode local (pyttsx3 / edge-tts).",
+      "at": "2026-07-11T23:04:21.526938+00:00"
+    },
+    {
+      "text": "SYS: Dashboard http://127.0.0.1:8000/pair (LAN: port 8000)",
+      "at": "2026-07-11T23:04:21.537639+00:00"
+    },
+    {
+      "text": "Relais: connexion à https://xroxx-emo-online-api.hf.space",
+      "at": "2026-07-11T23:04:22.643698+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-11T23:04:24.899820+00:00"
+    },
+    {
+      "text": "[sync] Vous: dans un dossier nommé test, codes moi un site d'achat revente complet tel que vinted ou leboncoin*",
+      "at": "2026-07-11T23:04:26.360649+00:00"
+    },
+    {
+      "text": "[sync] Vous: dans un dossier nommé test, codes moi un site d'achat revente complet tel que vinted ou leboncoin",
+      "at": "2026-07-11T23:04:26.363649+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site marketplace achat-revente clé en main** — **ReMarket** créé avec succès.",
+      "at": "2026-07-11T23:04:26.366647+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-11T23:04:26.370174+00:00"
+    },
+    {
+      "text": "📁 `C:\\Users\\admin\\Desktop\\test`",
+      "at": "2026-07-11T23:04:26.389756+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-11T23:04:26.393272+00:00"
+    },
+    {
+      "text": "- `style.css` — d",
+      "at": "2026-07-11T23:04:26.396271+00:00"
+    },
+    {
+      "text": "[sync] Vous: salut?",
+      "at": "2026-07-11T23:04:26.399772+00:00"
+    },
+    {
+      "text": "[sync] Vous: et moi tu m'entends",
+      "at": "2026-07-11T23:04:26.425191+00:00"
+    },
+    {
+      "text": "[sync] Vous: salut",
+      "at": "2026-07-11T23:04:26.428189+00:00"
+    },
+    {
+      "text": "[sync] Vous: termine le site complet",
+      "at": "2026-07-11T23:04:26.433692+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site e-commerce clé en main** — **Complet** créé avec succès.",
+      "at": "2026-07-11T23:04:26.436690+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-11T23:04:26.467335+00:00"
+    },
+    {
+      "text": "📁 `site`",
+      "at": "2026-07-11T23:04:26.493083+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-11T23:04:26.537932+00:00"
+    },
+    {
+      "text": "- `style.css` — design moderne responsive",
+      "at": "2026-07-11T23:04:26.541454+00:00"
+    },
+    {
+      "text": "- `script.js` ",
+      "at": "2026-07-11T23:04:26.544451+00:00"
+    },
+    {
+      "text": "[sync] Vous: je veux que tu codes tout un site avec un style moderne",
+      "at": "2026-07-11T23:04:26.547449+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site e-commerce clé en main** — **Avec Un Style Moderne** créé avec succès.",
+      "at": "2026-07-11T23:04:26.550953+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-11T23:04:26.553953+00:00"
+    },
+    {
+      "text": "📁 `site`",
+      "at": "2026-07-11T23:04:26.556951+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-11T23:04:26.559452+00:00"
+    },
+    {
+      "text": "- `style.css` — design moderne responsive",
+      "at": "2026-07-11T23:04:26.562468+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-11T23:04:26.565466+00:00"
+    },
+    {
+      "text": "[sync] Vous: pierre dicte à son ordinateur",
+      "at": "2026-07-11T23:04:26.569463+00:00"
+    },
+    {
+      "text": "SYS: 25 messages cloud synchronisés.",
+      "at": "2026-07-11T23:04:26.571970+00:00"
+    },
+    {
+      "text": "SYS: Cloud OK · Desktop OK · Outils OK · u@test.com",
+      "at": "2026-07-11T23:04:29.675845+00:00"
+    },
+    {
+      "text": "Live: APIError — 1007 None. The requested combination of response modalities (TEXT) is not supported by the model. models/gemini-2.5-flash-native-audio",
+      "at": "2026-07-11T23:04:29.981933+00:00"
+    },
+    {
+      "text": "ERR: Clé API invalide — vérifiez Paramètres.",
+      "at": "2026-07-11T23:04:30.057252+00:00"
+    },
+    {
+      "text": "SYS: Paramètres enregistrés.",
+      "at": "2026-07-11T23:05:26.692667+00:00"
+    },
+    {
+      "text": "Gemini: client initialisé",
+      "at": "2026-07-11T23:05:29.744688+00:00"
+    },
+    {
+      "text": "TTS: mode local (pyttsx3 / edge-tts).",
+      "at": "2026-07-11T23:05:29.763713+00:00"
+    },
+    {
+      "text": "Relais: connexion à https://xroxx-emo-online-api.hf.space",
+      "at": "2026-07-11T23:05:29.794245+00:00"
+    },
+    {
+      "text": "SYS: Cloud OK · Desktop OK · Outils OK · u@test.com",
+      "at": "2026-07-11T23:05:36.117186+00:00"
+    },
+    {
+      "text": "Vous: emo?",
+      "at": "2026-07-11T23:05:44.558098+00:00"
+    },
+    {
+      "text": "Émo: J'suis toujours là pour encoder ce putain de site. Dis-moi les couleurs, la typographie, l'animation que tu veux. Je code jusqu'à ce que ça ressemble à ton idée de bordel.  \n[MOOD:bienveillante]",
+      "at": "2026-07-11T23:06:06.320950+00:00"
+    },
+    {
+      "text": "TTS: pyttsx3 (local).",
+      "at": "2026-07-11T23:06:23.533984+00:00"
+    },
+    {
+      "text": "Gemini: client initialisé",
+      "at": "2026-07-12T02:35:53.638303+00:00"
+    },
+    {
+      "text": "TTS: mode local (pyttsx3 / edge-tts).",
+      "at": "2026-07-12T02:35:53.642588+00:00"
+    },
+    {
+      "text": "SYS: Dashboard http://127.0.0.1:8000/pair (LAN: port 8000)",
+      "at": "2026-07-12T02:35:53.654041+00:00"
+    },
+    {
+      "text": "Relais: connexion à https://xroxx-emo-online-api.hf.space",
+      "at": "2026-07-12T02:35:53.675244+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-12T02:35:55.270962+00:00"
+    },
+    {
+      "text": "[sync] Vous: dans un dossier nommé test, codes moi un site d'achat revente complet tel que vinted ou leboncoin*",
+      "at": "2026-07-12T02:35:58.158547+00:00"
+    },
+    {
+      "text": "[sync] Vous: dans un dossier nommé test, codes moi un site d'achat revente complet tel que vinted ou leboncoin",
+      "at": "2026-07-12T02:35:58.162545+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site marketplace achat-revente clé en main** — **ReMarket** créé avec succès.",
+      "at": "2026-07-12T02:35:58.168084+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:35:58.171081+00:00"
+    },
+    {
+      "text": "📁 `C:\\Users\\admin\\Desktop\\test`",
+      "at": "2026-07-12T02:35:58.179099+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-12T02:35:58.183095+00:00"
+    },
+    {
+      "text": "- `style.css` — d",
+      "at": "2026-07-12T02:35:58.186117+00:00"
+    },
+    {
+      "text": "[sync] Vous: salut?",
+      "at": "2026-07-12T02:35:58.189117+00:00"
+    },
+    {
+      "text": "[sync] Vous: et moi tu m'entends",
+      "at": "2026-07-12T02:35:58.193116+00:00"
+    },
+    {
+      "text": "[sync] Vous: salut",
+      "at": "2026-07-12T02:35:58.196619+00:00"
+    },
+    {
+      "text": "[sync] Vous: termine le site complet",
+      "at": "2026-07-12T02:35:58.200620+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site e-commerce clé en main** — **Complet** créé avec succès.",
+      "at": "2026-07-12T02:35:58.205122+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:35:58.209145+00:00"
+    },
+    {
+      "text": "📁 `site`",
+      "at": "2026-07-12T02:35:58.213142+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-12T02:35:58.221646+00:00"
+    },
+    {
+      "text": "- `style.css` — design moderne responsive",
+      "at": "2026-07-12T02:35:58.225149+00:00"
+    },
+    {
+      "text": "- `script.js` ",
+      "at": "2026-07-12T02:35:58.228170+00:00"
+    },
+    {
+      "text": "[sync] Vous: je veux que tu codes tout un site avec un style moderne",
+      "at": "2026-07-12T02:35:58.235668+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site e-commerce clé en main** — **Avec Un Style Moderne** créé avec succès.",
+      "at": "2026-07-12T02:35:58.238671+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:35:58.242668+00:00"
+    },
+    {
+      "text": "📁 `site`",
+      "at": "2026-07-12T02:35:58.246243+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-12T02:35:58.250243+00:00"
+    },
+    {
+      "text": "- `style.css` — design moderne responsive",
+      "at": "2026-07-12T02:35:58.253240+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:35:58.257747+00:00"
+    },
+    {
+      "text": "[sync] Vous: pierre dicte à son ordinateur",
+      "at": "2026-07-12T02:35:58.261744+00:00"
+    },
+    {
+      "text": "[sync] Vous: emo?",
+      "at": "2026-07-12T02:35:58.265247+00:00"
+    },
+    {
+      "text": "SYS: 26 messages cloud synchronisés.",
+      "at": "2026-07-12T02:35:58.268264+00:00"
+    },
+    {
+      "text": "Live: Émo en ligne (micro Gemini Live — Mark-XLVIII).",
+      "at": "2026-07-12T02:36:00.838029+00:00"
+    },
+    {
+      "text": "SYS: Cloud OK · Desktop OK · Outils OK · u@test.com",
+      "at": "2026-07-12T02:36:01.918739+00:00"
+    },
+    {
+      "text": "Vous: salut",
+      "at": "2026-07-12T02:36:28.818857+00:00"
+    },
+    {
+      "text": "Émo: Salut Hugo ! Qu'est-ce que je peux faire pour toi aujourd'hui ? Tu veux continuer à travailler sur le site e-commerce que nous avions commencé à créer ?\n[MOOD:concentree]",
+      "at": "2026-07-12T02:36:38.619591+00:00"
+    },
+    {
+      "text": "Vous: passes en mode vocal",
+      "at": "2026-07-12T02:37:09.584382+00:00"
+    },
+    {
+      "text": "SYS: Overlay vocal actif (coin haut-droit).",
+      "at": "2026-07-12T02:37:09.613661+00:00"
+    },
+    {
+      "text": "Émo: Mode VOCAL — vocal — micro actif.",
+      "at": "2026-07-12T02:37:09.618674+00:00"
+    },
+    {
+      "text": "Vous: passes en mode agent",
+      "at": "2026-07-12T02:37:32.725582+00:00"
+    },
+    {
+      "text": "Émo: Mode AGENT — agent — planification et outils.",
+      "at": "2026-07-12T02:37:32.737743+00:00"
+    },
+    {
+      "text": "Vous: quite l’agent",
+      "at": "2026-07-12T02:37:45.358172+00:00"
+    },
+    {
+      "text": "[THINK] Route: run_skill — mot-clé « agent »",
+      "at": "2026-07-12T02:37:45.397778+00:00"
+    },
+    {
+      "text": "[PLAN] 1. Analyser: quite l’agent\n2. Action: run_skill\n3. Skill: agent_actions",
+      "at": "2026-07-12T02:37:45.416609+00:00"
+    },
+    {
+      "text": "[EXECUTE] Terminé",
+      "at": "2026-07-12T02:37:45.434129+00:00"
+    },
+    {
+      "text": "Émo: Spécifiez tool=<skill_name> ou utilisez le routeur.",
+      "at": "2026-07-12T02:37:45.469777+00:00"
+    },
+    {
+      "text": "Vous: quitte le mode agent",
+      "at": "2026-07-12T02:38:43.929273+00:00"
+    },
+    {
+      "text": "Émo: Mode CHAT — discussion texte.",
+      "at": "2026-07-12T02:38:43.933404+00:00"
+    },
+    {
+      "text": "SYS: Micro coupé.",
+      "at": "2026-07-12T02:39:02.326653+00:00"
+    },
+    {
+      "text": "SYS: Micro actif.",
+      "at": "2026-07-12T02:39:06.458906+00:00"
+    },
+    {
+      "text": "Gemini: client initialisé",
+      "at": "2026-07-12T02:39:35.814986+00:00"
+    },
+    {
+      "text": "TTS: mode local (pyttsx3 / edge-tts).",
+      "at": "2026-07-12T02:39:35.819448+00:00"
+    },
+    {
+      "text": "SYS: Dashboard http://127.0.0.1:8000/pair (LAN: port 8000)",
+      "at": "2026-07-12T02:39:35.830514+00:00"
+    },
+    {
+      "text": "Relais: connexion à https://xroxx-emo-online-api.hf.space",
+      "at": "2026-07-12T02:39:35.846057+00:00"
+    },
+    {
+      "text": "Live: connexion Gemini…",
+      "at": "2026-07-12T02:39:39.359178+00:00"
+    },
+    {
+      "text": "[sync] Vous: dans un dossier nommé test, codes moi un site d'achat revente complet tel que vinted ou leboncoin*",
+      "at": "2026-07-12T02:39:41.162972+00:00"
+    },
+    {
+      "text": "[sync] Vous: dans un dossier nommé test, codes moi un site d'achat revente complet tel que vinted ou leboncoin",
+      "at": "2026-07-12T02:39:41.166473+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site marketplace achat-revente clé en main** — **ReMarket** créé avec succès.",
+      "at": "2026-07-12T02:39:41.170491+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:39:41.174486+00:00"
+    },
+    {
+      "text": "📁 `C:\\Users\\admin\\Desktop\\test`",
+      "at": "2026-07-12T02:39:41.180010+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-12T02:39:41.184007+00:00"
+    },
+    {
+      "text": "- `style.css` — d",
+      "at": "2026-07-12T02:39:41.187511+00:00"
+    },
+    {
+      "text": "[sync] Vous: salut?",
+      "at": "2026-07-12T02:39:41.191511+00:00"
+    },
+    {
+      "text": "[sync] Vous: et moi tu m'entends",
+      "at": "2026-07-12T02:39:41.194508+00:00"
+    },
+    {
+      "text": "[sync] Vous: salut",
+      "at": "2026-07-12T02:39:41.199033+00:00"
+    },
+    {
+      "text": "[sync] Vous: termine le site complet",
+      "at": "2026-07-12T02:39:41.202030+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site e-commerce clé en main** — **Complet** créé avec succès.",
+      "at": "2026-07-12T02:39:41.206530+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:39:41.210533+00:00"
+    },
+    {
+      "text": "📁 `site`",
+      "at": "2026-07-12T02:39:41.214530+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-12T02:39:41.223049+00:00"
+    },
+    {
+      "text": "- `style.css` — design moderne responsive",
+      "at": "2026-07-12T02:39:41.226551+00:00"
+    },
+    {
+      "text": "- `script.js` ",
+      "at": "2026-07-12T02:39:41.230553+00:00"
+    },
+    {
+      "text": "[sync] Vous: je veux que tu codes tout un site avec un style moderne",
+      "at": "2026-07-12T02:39:41.234293+00:00"
+    },
+    {
+      "text": "[sync] Émo: **Site e-commerce clé en main** — **Avec Un Style Moderne** créé avec succès.",
+      "at": "2026-07-12T02:39:41.237797+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:39:41.241797+00:00"
+    },
+    {
+      "text": "📁 `site`",
+      "at": "2026-07-12T02:39:41.244794+00:00"
+    },
+    {
+      "text": "- `index.html` — page complète (annonces, vendre, messagerie, profil)",
+      "at": "2026-07-12T02:39:41.248807+00:00"
+    },
+    {
+      "text": "- `style.css` — design moderne responsive",
+      "at": "2026-07-12T02:39:41.252804+00:00"
+    },
+    {
+      "text": "",
+      "at": "2026-07-12T02:39:41.256305+00:00"
+    },
+    {
+      "text": "[sync] Vous: pierre dicte à son ordinateur",
+      "at": "2026-07-12T02:39:41.260326+00:00"
+    },
+    {
+      "text": "[sync] Vous: emo?",
+      "at": "2026-07-12T02:39:41.265323+00:00"
+    },
+    {
+      "text": "[sync] Vous: salut",
+      "at": "2026-07-12T02:39:41.269366+00:00"
+    },
+    {
+      "text": "SYS: 27 messages cloud synchronisés.",
+      "at": "2026-07-12T02:39:41.273363+00:00"
+    },
+    {
+      "text": "SYS: Cloud OK · Desktop OK · Outils OK · u@test.com",
+      "at": "2026-07-12T02:39:44.611168+00:00"
+    },
+    {
+      "text": "Live: Émo en ligne (micro Gemini Live — Mark-XLVIII).",
+      "at": "2026-07-12T02:39:44.942281+00:00"
+    },
+    {
+      "text": "Vous: regardes ma camera",
+      "at": "2026-07-12T02:39:55.822202+00:00"
+    },
+    {
+      "text": "Émo: Je n'ai pas d'accès direct à ta caméra. Tu veux que je regarde un snapshot de ta maison ou un lien Web vers l'application de vidéosurveillance que tu utilises ?",
+      "at": "2026-07-12T02:40:03.779383+00:00"
+    }
+  ],
+  "updated_at": "2026-07-12T02:40:03.780381+00:00"
+}

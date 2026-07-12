@@ -1,0 +1,36 @@
+name: Build Emo Desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "emo/desktop/**"
+      - "scripts/build-emo-desktop.ps1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build Emo-Desktop.exe
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts/build-emo-desktop.ps1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: emo-desktop-windows
+          path: emo/backend/agent_binaries/Emo-Desktop.exe
+          retention-days: 90
+
+      # Exe >100 Mo — artifact CI uniquement (pas de commit git)

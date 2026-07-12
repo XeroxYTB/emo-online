@@ -23,6 +23,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "dashboard_pair_code": "",
     "site_url": "https://xeroxytb.com",
     "language": "fr",
+    "gemini_live_model": "models/gemini-2.5-flash-native-audio-preview-12-2025",
+    "agent_folder": "",
+    "camera_index": 0,
+    "codegen_api_key": "",
+    "codegen_provider": "ollama",
+    "codegen_model": "llama3.2",
+    "fallback_url": "http://localhost:11434",
+    "os_system": "Windows",
 }
 
 

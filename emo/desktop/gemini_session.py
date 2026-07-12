@@ -16,6 +16,10 @@ def _is_quota_error(exc: BaseException) -> bool:
     )
 
 
+def _has_cloud_session() -> bool:
+    return bool((load_config().get("session_token") or "").strip())
+
+
 class GeminiSession:
     """Wrapper session IA — Gemini si clé dispo, sinon backend Emo."""
 
@@ -34,7 +38,8 @@ class GeminiSession:
         cfg = load_config()
         key = (cfg.get("gemini_api_key") or "").strip()
         if not key:
-            self._log("Gemini: configurez gemini_api_key dans Paramètres (ou connectez le cloud).")
+            if not _has_cloud_session():
+                self._log("Gemini: configurez gemini_api_key dans Paramètres (ou connectez le cloud).")
             return
         try:
             from google import genai  # type: ignore
@@ -54,7 +59,10 @@ class GeminiSession:
         return self._quota_exhausted
 
     async def chat_text(self, message: str, history: list[dict] | None = None) -> str:
-        """Réponse texte — Gemini ou fallback backend cloud."""
+        """Réponse texte — cloud Emo Online si appairé, sinon Gemini avec repli cloud."""
+        if _has_cloud_session():
+            return await self._cloud_chat(message)
+
         if self._genai and not self._quota_exhausted:
             try:
                 prompt = message
@@ -72,10 +80,7 @@ class GeminiSession:
             except Exception as e:
                 if _is_quota_error(e):
                     self._quota_exhausted = True
-                    self._log(
-                        "Gemini: quota épuisé (429) — bascule vers Emo Online. "
-                        "Connectez-vous dans Paramètres si besoin."
-                    )
+                    self._log("Gemini: quota épuisé (429) — repli cloud Emo Online.")
                 else:
                     self._log(f"Gemini erreur: {e} — repli cloud")
 
@@ -88,44 +93,30 @@ class GeminiSession:
                 "Mode cloud indisponible : connectez-vous à Emo Online "
                 "(Paramètres → email/mot de passe) ou configurez gemini_api_key."
             )
-        reply = await self._cloud.chat(message)
-        if self._quota_exhausted and reply and not reply.startswith("Mode cloud"):
-            return reply
-        if self._quota_exhausted:
-            prefix = (
-                "⚠ Quota Gemini gratuit épuisé — réponse via Emo Online :\n\n"
-            )
-            return prefix + reply if not reply.startswith("⚠") else reply
-        return reply
+        return await self._cloud.chat(message)
 
     def start_voice_session(self) -> dict[str, Any]:
         """Démarre session vocale Gemini Live ou retourne message de repli."""
-        if self._quota_exhausted:
+        has_cloud = _has_cloud_session()
+        if has_cloud or self._quota_exhausted:
             return {
                 "ok": True,
-                "message": "Mode vocal : micro local + réponses via Emo Online (quota Gemini épuisé).",
-                "mode": "cloud_stt",
+                "message": (
+                    "Mode vocal : micro Gemini Live (STT) + réponses cloud "
+                    "+ voix Charon via Live (repli edge-tts si indisponible)."
+                ),
+                "mode": "cloud_hybrid",
             }
         if not self._genai:
-            cfg = load_config()
-            if (cfg.get("session_token") or "").strip():
-                return {
-                    "ok": True,
-                    "message": "Mode vocal : micro local + chat cloud Emo Online.",
-                    "mode": "cloud_stt",
-                }
             return {
                 "ok": False,
                 "message": "Configurez gemini_api_key ou connectez-vous à Emo Online.",
             }
-        try:
-            return {
-                "ok": True,
-                "message": "Mode vocal : micro Gemini Live + synthèse Charon.",
-                "mode": "gemini_live",
-            }
-        except Exception as e:
-            return {"ok": False, "message": str(e)}
+        return {
+            "ok": True,
+            "message": "Mode vocal : Gemini Live Mark-XLVIII (micro + voix Charon).",
+            "mode": "gemini_live",
+        }
 
     async def stream_voice_placeholder(self) -> AsyncIterator[str]:
         """Générateur stub pour flux vocal."""

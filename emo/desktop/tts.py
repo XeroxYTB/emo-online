@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import warnings
 from pathlib import Path
 from typing import Callable, cast
@@ -22,6 +23,7 @@ CHUNK_SIZE = 1024
 _AUDIO_SLICE = 2400
 _DEFAULT_LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 _MAX_SPEAK_CHARS = 800
+_MAX_SPEAKING_SEC = 90.0
 
 
 def _get_live_model() -> str:
@@ -31,6 +33,24 @@ def _get_live_model() -> str:
 
 def _get_api_key() -> str:
     return (load_config().get("gemini_api_key") or "").strip()
+
+
+def _prefer_local_tts() -> bool:
+    cfg = load_config()
+    if (cfg.get("session_token") or "").strip():
+        return True
+    return not _get_api_key()
+
+
+def _is_live_unavailable_error(exc: BaseException) -> bool:
+    s = str(exc).lower()
+    return (
+        _is_quota_error(exc)
+        or "1011" in s
+        or "1007" in s
+        or "unavailable" in s
+        or "api key not valid" in s
+    )
 
 
 class EmoSpeechEngine:
@@ -57,9 +77,11 @@ class EmoSpeechEngine:
         self._turn_done_event: asyncio.Event | None = None
         self._speaking = False
         self._speaking_lock = threading.Lock()
+        self._speaking_deadline = 0.0
         self._interrupted = False
-        self._use_fallback = prefer_local or not _get_api_key()
+        self._use_fallback = prefer_local or _prefer_local_tts()
         self._running = False
+        self._live_error_logged = False
 
     def _log(self, msg: str) -> None:
         if self.on_log:
@@ -69,6 +91,7 @@ class EmoSpeechEngine:
         self._prefer_local = prefer
         if prefer:
             self._use_fallback = True
+            self.interrupt()
 
     def set_muted(self, muted: bool) -> None:
         self._muted = muted
@@ -78,6 +101,10 @@ class EmoSpeechEngine:
     @property
     def is_speaking(self) -> bool:
         with self._speaking_lock:
+            if self._speaking and self._speaking_deadline and time.monotonic() > self._speaking_deadline:
+                self._speaking = False
+                self._speaking_deadline = 0.0
+                self._log("TTS: watchdog — fin parole forcée.")
             return self._speaking
 
     def _set_speaking(self, value: bool) -> None:
@@ -85,6 +112,7 @@ class EmoSpeechEngine:
             if self._speaking == value:
                 return
             self._speaking = value
+            self._speaking_deadline = time.monotonic() + _MAX_SPEAKING_SEC if value else 0.0
         if value:
             if self.on_speaking_start:
                 self.on_speaking_start()
@@ -94,7 +122,7 @@ class EmoSpeechEngine:
     def start(self) -> None:
         if self._running:
             return
-        if self._prefer_local or not _get_api_key():
+        if self._prefer_local or not _get_api_key() or _prefer_local_tts():
             self._use_fallback = True
         self._running = True
         self._thread = threading.Thread(target=self._thread_main, daemon=True, name="emo-tts")
@@ -212,13 +240,17 @@ class EmoSpeechEngine:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self._log(f"TTS: Gemini Live — {e}")
-                if _is_quota_error(e) or "API key not valid" in str(e) or "1007" in str(e):
+                if _is_live_unavailable_error(e):
                     self._use_fallback = True
                     self._prefer_local = True
-                    self._log("TTS: repli local (quota Gemini ou clé invalide).")
+                    if not self._live_error_logged:
+                        self._live_error_logged = True
+                        self._log("TTS: Gemini Live indisponible — repli local (pyttsx3 / edge-tts).")
                     await self._fallback_loop()
                     return
+                if not self._live_error_logged:
+                    self._live_error_logged = True
+                    self._log(f"TTS: Gemini Live — {e}")
                 backoff = min(backoff * 2, 60)
             if self._running:
                 await asyncio.sleep(backoff)
@@ -274,8 +306,7 @@ class EmoSpeechEngine:
                     turn_complete=True,
                 )
             except Exception as e:
-                self._log(f"TTS: envoi Gemini — {e}")
-                if _is_quota_error(e):
+                if _is_live_unavailable_error(e):
                     self._use_fallback = True
                     self._prefer_local = True
                 threading.Thread(
@@ -310,11 +341,17 @@ class EmoSpeechEngine:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                self._log(f"TTS: réception audio — {e}")
-                if _is_quota_error(e):
+                if _is_live_unavailable_error(e):
                     self._use_fallback = True
                     self._prefer_local = True
-                await asyncio.sleep(0.5)
+                    if not self._live_error_logged:
+                        self._live_error_logged = True
+                        self._log("TTS: Gemini Live indisponible — repli local (pyttsx3 / edge-tts).")
+                    raise
+                if not self._live_error_logged:
+                    self._live_error_logged = True
+                    self._log(f"TTS: réception audio — {e}")
+                raise
 
     async def _play_audio(self) -> None:
         try:
@@ -427,25 +464,23 @@ class EmoSpeechEngine:
                 path.unlink(missing_ok=True)
 
     def _play_mp3(self, path: Path) -> bool:
-        try:
-            from playsound import playsound
-
-            playsound(str(path))
-            return True
-        except ImportError:
-            pass
-        except Exception as e:
-            self._log(f"TTS: playsound — {e}")
         if platform.system() == "Windows":
             try:
+                ps_path = str(path).replace("'", "''")
                 subprocess.run(
                     [
                         "powershell",
                         "-NoProfile",
                         "-Command",
-                        f"(New-Object -ComObject WMP.MediaPlayer).openPlayer('{path}'); "
-                        "Start-Sleep -Seconds 2; "
-                        "while ((New-Object -ComObject WMP.MediaPlayer).playState -eq 3) { Start-Sleep -Milliseconds 200 }",
+                        (
+                            "Add-Type -AssemblyName presentationCore; "
+                            f"$p = New-Object System.Windows.Media.MediaPlayer; "
+                            f"$p.Open([Uri]::new('file:///{ps_path.replace(chr(92), '/')}')); "
+                            "$p.Play(); "
+                            "while ($p.NaturalDuration.HasTimeSpan -eq $false) { Start-Sleep -Milliseconds 80 }; "
+                            "$sec = [Math]::Max(1, [Math]::Ceiling($p.NaturalDuration.TimeSpan.TotalSeconds)); "
+                            "Start-Sleep -Seconds ($sec + 1)"
+                        ),
                     ],
                     check=False,
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -453,7 +488,7 @@ class EmoSpeechEngine:
                 )
                 return True
             except Exception as e:
-                self._log(f"TTS: WMP — {e}")
+                self._log(f"TTS: lecture mp3 — {e}")
         try:
             if sys.platform == "darwin":
                 subprocess.run(["afplay", str(path)], check=False, timeout=120)

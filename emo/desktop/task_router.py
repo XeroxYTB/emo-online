@@ -34,7 +34,7 @@ SKILL_KEYWORDS: dict[str, list[str]] = {
     "computer_settings": ["paramètres", "parametres", "settings", "volume", "wifi"],
     "screen_processor": ["écran", "ecran", "screenshot", "capture"],
     "flight_finder": ["vol", "flight", "avion"],
-    "game_updater": ["jeu", "game", "mod", "minecraft"],
+    "game_updater": ["steam", "epic", "fortnite", "minecraft mod"],
     "proactive": ["suggestion", "proactif", "idée", "idee"],
     "agent_actions": ["agent", "outil", "tool"],
     "fallback_agent": ["aide", "help", "que peux-tu"],
@@ -72,11 +72,17 @@ def _best_skill(text: str) -> tuple[str | None, str]:
     return best_name, best_kw
 
 
+from emo.desktop.mode_switch import parse_mode_switch
+
+
 def route_message(text: str, *, agent_online: bool = False) -> RouteResult:
     """Route un message utilisateur vers l'action appropriée."""
     text = (text or "").strip()
     if not text:
         return RouteResult(action="respond", reason="message vide")
+
+    if parse_mode_switch(text):
+        return RouteResult(action="respond", reason="changement de mode")
 
     if _match_any(text, PROJECT_PATTERNS):
         return RouteResult(action="run_project", reason="exécution projet")
@@ -89,10 +95,14 @@ def route_message(text: str, *, agent_online: bool = False) -> RouteResult:
 
     skill, kw = _best_skill(text)
     if skill:
+        args = {"query": text, "prompt": text}
+        if skill == "file_controller":
+            args["action"] = "list"
+            args["path"] = "."
         return RouteResult(
             action="run_skill",
             skill=skill,
-            args={"query": text, "prompt": text},
+            args=args,
             reason=f"mot-clé « {kw} »",
         )
 

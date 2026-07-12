@@ -106,6 +106,8 @@ def run(args: dict) -> Any:
     q = (args.get("query") or "").lower()
     if "liste" in q or "list" in q or "dossier" in q:
         action = "list"
+        if not Path(str(path)).expanduser().exists():
+            path = "."
 
     if action == "list":
         r = list_dir(path)

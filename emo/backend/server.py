@@ -4198,13 +4198,11 @@ def _agent_python_bundle(os_name: str, token: str, backend_url: str) -> bytes:
     return buf.getvalue()
 
 
-@api.get("/agent/binary/{os_name}", include_in_schema=False)
-async def serve_agent_binary(os_name: str, user: User = Depends(get_current_user)):
-    """Package Émo Desktop (PyQt6) — relais agent intégré, appairage via le site."""
-    if os_name not in AGENT_BINARIES:
-        raise HTTPException(status_code=404, detail="OS non supporté")
+DESKTOP_EXE_NAME = "Emo-Desktop.exe"
+DESKTOP_EXE_OS = frozenset({"windows", "windows-arm"})
 
-    backend_url = EMO_PUBLIC_BACKEND_URL
+
+async def _ensure_agent_token(user: User) -> str:
     doc = await db.agent_tokens.find_one({"user_id": user.user_id}, {"_id": 0})
     token = (doc or {}).get("agent_token") or ""
     if not token:
@@ -4214,6 +4212,60 @@ async def serve_agent_binary(os_name: str, user: User = Depends(get_current_user
             "user_id": user.user_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
+    return token
+
+
+@api.get("/agent/desktop-exe/{os_name}", include_in_schema=False)
+async def serve_desktop_exe(os_name: str, user: User = Depends(get_current_user)):
+    """Binaire Windows compilé (PyInstaller) — double-clic pour lancer Émo Desktop."""
+    if os_name not in DESKTOP_EXE_OS:
+        raise HTTPException(status_code=404, detail="Exe desktop disponible uniquement pour Windows")
+
+    token = await _ensure_agent_token(user)
+    backend_url = EMO_PUBLIC_BACKEND_URL
+    exe_path = ROOT_DIR / "agent_binaries" / DESKTOP_EXE_NAME
+
+    if not exe_path.is_file():
+        logger.warning("Desktop exe missing at %s — falling back to Python zip", exe_path)
+        data = _agent_python_bundle(os_name, token, backend_url)
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": 'attachment; filename="Emo-Desktop.zip"',
+                "X-Emo-Fallback": "python-zip",
+                "X-Emo-Agent-Token": token,
+            },
+        )
+
+    exe_bytes = exe_path.read_bytes()
+    if len(exe_bytes) >= 2 and exe_bytes[:2] != b"MZ":
+        logger.error("Invalid desktop exe (not PE): %s", exe_path)
+        raise HTTPException(
+            status_code=503,
+            detail="Binaire desktop corrompu — téléchargez la version Python (zip) ou réessayez plus tard",
+        )
+
+    return Response(
+        content=exe_bytes,
+        media_type="application/vnd.microsoft.portable-executable",
+        headers={
+            "Content-Disposition": f'attachment; filename="{DESKTOP_EXE_NAME}"',
+            "Cache-Control": "no-store",
+            "X-Emo-Agent-Token": token,
+            "X-Emo-Backend-Url": backend_url,
+        },
+    )
+
+
+@api.get("/agent/binary/{os_name}", include_in_schema=False)
+async def serve_agent_binary(os_name: str, user: User = Depends(get_current_user)):
+    """Package Émo Desktop (PyQt6) — relais agent intégré, appairage via le site."""
+    if os_name not in AGENT_BINARIES:
+        raise HTTPException(status_code=404, detail="OS non supporté")
+
+    backend_url = EMO_PUBLIC_BACKEND_URL
+    token = await _ensure_agent_token(user)
     data = _agent_python_bundle(os_name, token, backend_url)
     return Response(
         content=data,

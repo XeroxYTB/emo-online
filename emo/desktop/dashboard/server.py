@@ -26,6 +26,10 @@ from emo.desktop.config import load_config, save_config
 _log_subscribers: list[Any] = []
 _command_handler: Any = None
 _pair_handler: Any = None
+_wake_handler: Any = None
+_phone_audio_handler: Any = None
+_live_session_ref: Any = None
+_phone_audio_queue: asyncio.Queue | None = None
 _pair_code: str = ""
 
 
@@ -50,6 +54,33 @@ def set_command_handler(handler) -> None:
 def set_pair_handler(handler) -> None:
     global _pair_handler
     _pair_handler = handler
+
+
+def set_wake_handler(handler) -> None:
+    global _wake_handler
+    _wake_handler = handler
+
+
+def set_live_session(session) -> None:
+    """Lie la session Live pour le relais audio téléphone."""
+    global _live_session_ref, _phone_audio_queue
+    _live_session_ref = session
+    if session is not None:
+        if _phone_audio_queue is None:
+            _phone_audio_queue = asyncio.Queue(maxsize=200)
+        session.phone_audio_queue = _phone_audio_queue
+
+
+def get_phone_audio_queue() -> asyncio.Queue:
+    global _phone_audio_queue
+    if _phone_audio_queue is None:
+        _phone_audio_queue = asyncio.Queue(maxsize=200)
+    return _phone_audio_queue
+
+
+def set_phone_audio_handler(handler) -> None:
+    global _phone_audio_handler
+    _phone_audio_handler = handler
 
 
 def _notify_paired(source: str) -> None:
@@ -236,6 +267,11 @@ def create_app() -> Any:
         if not text:
             return {"ok": False, "error": "commande vide"}
         broadcast_log(f"[mobile] {text}")
+        if _wake_handler:
+            try:
+                _wake_handler()
+            except Exception:
+                pass
         if _command_handler:
             try:
                 result = _command_handler(text)
@@ -245,6 +281,34 @@ def create_app() -> Any:
             except Exception as e:
                 return {"ok": False, "error": str(e)}
         return {"ok": True, "queued": text}
+
+    @app.post("/api/wake")
+    async def wake_ep():
+        if _wake_handler:
+            try:
+                _wake_handler()
+            except Exception:
+                pass
+        return {"ok": True}
+
+    @app.websocket("/ws/phone-audio")
+    async def phone_audio_ws(websocket: WebSocket):
+        await websocket.accept()
+        broadcast_log("SYS: Microphone téléphone actif.")
+        q = get_phone_audio_queue()
+        try:
+            while True:
+                data = await websocket.receive_bytes()
+                try:
+                    q.put_nowait({"data": data, "mime_type": "audio/pcm"})
+                except asyncio.QueueFull:
+                    pass
+        except WebSocketDisconnect:
+            pass
+        finally:
+            broadcast_log("SYS: Microphone téléphone arrêté.")
+            if _live_session_ref is not None:
+                _live_session_ref._phone_active = False
 
     @app.post("/upload")
     async def upload(file: UploadFile = File(...)):
@@ -274,11 +338,20 @@ def create_app() -> Any:
 
 
 class DashboardServer(threading.Thread):
-    def __init__(self, port: int = 8000, command_handler=None, pair_handler=None):
+    def __init__(
+        self,
+        port: int = 8000,
+        command_handler=None,
+        pair_handler=None,
+        wake_handler=None,
+        phone_audio_handler=None,
+    ):
         super().__init__(daemon=True, name="emo-dashboard")
         self.port = port
         self.command_handler = command_handler
         self.pair_handler = pair_handler
+        self.wake_handler = wake_handler
+        self.phone_audio_handler = phone_audio_handler
         self._server = None
 
     def run(self) -> None:
@@ -288,6 +361,10 @@ class DashboardServer(threading.Thread):
             set_command_handler(self.command_handler)
         if self.pair_handler:
             set_pair_handler(self.pair_handler)
+        if self.wake_handler:
+            set_wake_handler(self.wake_handler)
+        if self.phone_audio_handler:
+            set_phone_audio_handler(self.phone_audio_handler)
         app = create_app()
         config = uvicorn.Config(app, host="0.0.0.0", port=self.port, log_level="warning")
         self._server = uvicorn.Server(config)

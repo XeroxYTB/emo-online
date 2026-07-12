@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
-    from PyQt6.QtGui import QFont, QKeySequence, QShortcut
+    from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, QUrl
+    from PyQt6.QtGui import QFont, QKeySequence, QShortcut, QDragEnterEvent, QDropEvent
     from PyQt6.QtWidgets import (
         QApplication,
         QDialog,
@@ -44,7 +44,7 @@ from emo.desktop.brain.dev_agent import DevAgent
 from emo.desktop.cloud_client import CloudClient
 from emo.desktop.config import load_config, save_config
 from emo.desktop.dashboard.server import DashboardServer, broadcast_log, dashboard_local_url, site_link_url
-from emo.desktop.dashboard.server import _get_pair_code
+from emo.desktop.dashboard.server import _get_pair_code, set_live_session, set_wake_handler
 from emo.desktop.gemini_session import GeminiSession
 from emo.desktop.hud_widget import (
     C,
@@ -59,8 +59,9 @@ from emo.desktop.hud_widget import (
     btn_style,
 )
 from emo.desktop.memory import append_journal
+from emo.desktop.core.live_session import EmoLiveSession
+from emo.desktop.mode_switch import parse_mode_switch
 from emo.desktop.relay import start_relay_from_env
-from emo.desktop.stt import EmoSTTEngine
 from emo.desktop.system_monitor import SystemMonitor
 from emo.desktop.task_router import route_message
 from emo.desktop.tts import EmoSpeechEngine
@@ -101,6 +102,8 @@ class SettingsDialog(QDialog):
         self.session = QLineEdit(cfg.get("session_token", ""))
         self.token = QLineEdit(cfg.get("agent_token", ""))
         self.port = QLineEdit(str(cfg.get("dashboard_port", 8000)))
+        self.agent_folder = QLineEdit(cfg.get("agent_folder", ""))
+        self.camera_index = QLineEdit(str(cfg.get("camera_index", 0)))
         for w in (self.gemini, self.openai, self.session, self.token):
             w.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addRow("Gemini API", self.gemini)
@@ -117,6 +120,8 @@ class SettingsDialog(QDialog):
         layout.addRow("Session token", self.session)
         layout.addRow("Agent token", self.token)
         layout.addRow("Dashboard port", self.port)
+        layout.addRow("Dossier agent", self.agent_folder)
+        layout.addRow("Index caméra", self.camera_index)
         self._status_lbl = QLabel("")
         self._status_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; font-size: 8pt;")
         layout.addRow(self._status_lbl)
@@ -183,49 +188,90 @@ class SettingsDialog(QDialog):
             "session_token": self.session.text().strip(),
             "agent_token": self.token.text().strip(),
             "dashboard_port": int(self.port.text() or "8000"),
+            "agent_folder": self.agent_folder.text().strip(),
+            "camera_index": int(self.camera_index.text() or "0"),
         }
 
 
 class VoiceOverlay(QWidget):
-    """Overlay vocal compact — bulle HUD coin écran."""
+    """Overlay vocal compact — bulle HUD coin écran (Mark-XLVIII)."""
 
-    def __init__(self):
-        super().__init__(None)
+    exit_requested = pyqtSignal()
+
+    _W, _MIN_H = 280, 340
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedSize(280, 360)
+        self.setFixedWidth(self._W)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 8, 8, 8)
-        self.bubble = HudBubbleWidget()
-        lay.addWidget(self.bubble, alignment=Qt.AlignmentFlag.AlignCenter)
+        lay.setContentsMargins(8, 8, 8, 12)
+        lay.setSpacing(6)
+        self.bubble = HudBubbleWidget(self)
+        lay.addWidget(self.bubble, alignment=Qt.AlignmentFlag.AlignHCenter)
         self.user_lbl = QLabel("Vous: …")
+        self.user_lbl.setWordWrap(True)
         self.user_lbl.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
         self.user_lbl.setFont(QFont(FONT_HUD, 8))
+        lay.addWidget(self.user_lbl)
         self.emo_lbl = QLabel("Émo: …")
+        self.emo_lbl.setWordWrap(True)
         self.emo_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent;")
         self.emo_lbl.setFont(QFont(FONT_HUD, 8))
-        self.emo_lbl.setWordWrap(True)
-        lay.addWidget(self.user_lbl)
         lay.addWidget(self.emo_lbl)
         hint = QLabel("double-clic · quitter")
         hint.setStyleSheet(f"color: {C.TEXT_DIM}; font-size: 7pt;")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(hint)
 
-    def mouseDoubleClickEvent(self, _):
-        self.hide()
-
     def set_state(self, state: str) -> None:
         self.bubble.set_state(state)
+
+    def set_user_text(self, text: str) -> None:
+        t = (text or "").strip()
+        self.user_lbl.setText(f"Vous: {t[:80]}" if t else "Vous: …")
+        self._reflow()
+
+    def set_emo_text(self, text: str) -> None:
+        t = (text or "").strip()
+        self.emo_lbl.setText(f"Émo: {t[:120]}" if t else "Émo: …")
+        self._reflow()
+
+    def _reflow(self) -> None:
+        self.adjustSize()
+        h = max(self._MIN_H, self.sizeHint().height())
+        self.setFixedHeight(h)
+        self.position_top_right()
+
+    def position_top_right(self) -> None:
+        screen = QApplication.primaryScreen()
+        if not screen:
+            self.move(100, 40)
+            return
+        geo = screen.availableGeometry()
+        self.move(geo.right() - self.width() - 18, geo.top() + 14)
+
+    def show_overlay(self) -> None:
+        self.position_top_right()
+        self.show()
+        self.raise_()
+
+    def mouseDoubleClickEvent(self, event):
+        self.exit_requested.emit()
+        event.accept()
 
 
 class EmoMainWindow(QMainWindow):
     _stt_transcript = pyqtSignal(str)
     _stt_partial = pyqtSignal(str)
+    _live_assistant = pyqtSignal(str)
+    _live_log = pyqtSignal(str)
+    _hud_state_sig = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -234,12 +280,17 @@ class EmoMainWindow(QMainWindow):
         self.setMinimumSize(820, 580)
         self._muted = False
         self._worker: AsyncWorker | None = None
+        self._voice_gen = 0
         self._status_worker: AsyncWorker | None = None
         self._sync_worker: AsyncWorker | None = None
+        self._synced_message_ids: set[str] = set()
         self._mode = "CHAT"
         self._explorer_root = Path.home()
-        self._voice_overlay: VoiceOverlay | None = None
-        self._stt: EmoSTTEngine | None = None
+        self._current_file = ""
+        self._voice_overlay = VoiceOverlay()
+        self._voice_overlay.hide()
+        self._live: EmoLiveSession | None = None
+        self._voice_queue: list[str] = []
         self._cloud = CloudClient(on_log=self._journal)
 
         self._build_ui()
@@ -247,14 +298,36 @@ class EmoMainWindow(QMainWindow):
         self._bind_shortcuts()
         self._stt_transcript.connect(self._on_stt_transcript)
         self._stt_partial.connect(self._on_stt_partial)
+        self._live_assistant.connect(self._on_live_assistant)
+        self._live_log.connect(self._journal)
+        self._hud_state_sig.connect(self._set_hud_state)
+        self._voice_overlay.exit_requested.connect(self._on_voice_overlay_exit)
 
-        self.gemini = GeminiSession(on_log=self._journal)
+        cfg = load_config()
+        paired = bool((cfg.get("session_token") or "").strip())
+        agent_folder = str(cfg.get("agent_folder") or "").strip()
+        self.gemini = GeminiSession(on_log=lambda m: self._live_log.emit(m))
+        # Charon via EmoLiveSession uniquement — pas de 2e session Live TTS.
         self.tts = EmoSpeechEngine(
-            on_speaking_start=lambda: self._set_hud_state("SPEAKING"),
-            on_speaking_end=lambda: self._set_hud_state("MUTED" if self._muted else "LISTENING"),
-            on_log=self._journal,
+            on_speaking_start=lambda: self._hud_state_sig.emit("SPEAKING"),
+            on_speaking_end=lambda: self._hud_state_sig.emit("MUTED" if self._muted else "LISTENING"),
+            on_log=lambda m: self._live_log.emit(m),
+            prefer_local=True,
         )
         self.tts.start()
+        self._live = EmoLiveSession(
+            on_log=lambda m: self._live_log.emit(m),
+            on_user_speech=lambda t: self._stt_transcript.emit(t),
+            on_assistant_speech=lambda t: self._live_assistant.emit(t),
+            on_state=lambda s: self._hud_state_sig.emit(s),
+            is_muted=lambda: self._muted,
+            cloud_hybrid=paired,
+            agent_folder=agent_folder,
+            current_file=lambda: self._current_file,
+        )
+        self._live.start()
+        set_live_session(self._live)
+        set_wake_handler(self._wake_from_dashboard)
         self.dev_agent = DevAgent(on_log=self._journal)
         self.brain = AgentBrain(
             on_step=self._on_brain_step,
@@ -273,6 +346,8 @@ class EmoMainWindow(QMainWindow):
             port=port,
             command_handler=self._handle_mobile_command,
             pair_handler=self._on_paired_from_browser,
+            wake_handler=lambda: self._hud_state_sig.emit("LISTENING"),
+            phone_audio_handler=self._on_phone_audio,
         )
         self.dashboard.start()
         pair_url = dashboard_local_url(port)
@@ -430,6 +505,9 @@ class EmoMainWindow(QMainWindow):
         lay.addWidget(sec("journal"))
         self.journal = JournalWidget()
         self.journal.setReadOnly(True)
+        self.journal.setAcceptDrops(True)
+        self.journal.dragEnterEvent = self._journal_drag_enter  # type: ignore[method-assign]
+        self.journal.dropEvent = self._journal_drop  # type: ignore[method-assign]
         lay.addWidget(self.journal, stretch=1)
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
@@ -498,8 +576,48 @@ class EmoMainWindow(QMainWindow):
 
     def _set_hud_state(self, state: str) -> None:
         self.hud.set_state(state)
-        if self._voice_overlay and self._voice_overlay.isVisible():
+        if self._voice_overlay.isVisible():
             self._voice_overlay.set_state(state)
+
+    def _on_voice_overlay_exit(self) -> None:
+        if self._voice_btn.isChecked():
+            self._voice_btn.setChecked(False)
+
+    def _wake_from_dashboard(self) -> None:
+        if self._live:
+            self._live.set_phone_active(False)
+        self._hud_state_sig.emit("LISTENING")
+
+    def _journal_drag_enter(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def _journal_drop(self, event: QDropEvent) -> None:
+        urls = event.mimeData().urls()
+        if not urls:
+            return
+        path = urls[0].toLocalFile()
+        if path:
+            self._set_uploaded_file(path)
+        event.acceptProposedAction()
+
+    def _set_uploaded_file(self, path: str) -> None:
+        p = Path(path)
+        if not p.is_file():
+            return
+        self._current_file = str(p.resolve())
+        self._journal(f"SYS: Fichier chargé — {p.name}")
+
+    def _pick_file_for_processor(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(self, "Choisir un fichier")
+        if path:
+            self._set_uploaded_file(path)
+
+    def _on_phone_audio(self, active: bool, _data: bytes | None = None) -> None:
+        if self._live:
+            self._live.set_phone_active(bool(active))
 
     def _journal(self, text: str) -> None:
         journal = getattr(self, "journal", None)
@@ -523,100 +641,184 @@ class EmoMainWindow(QMainWindow):
                 self._bar_net.set_value(0, "0KB/s")
         self._bar_gpu.set_value(0, "N/A")
 
-    def _toggle_voice_mode(self, on: bool) -> None:
-        if on:
-            self._mode = "VOCAL"
-            self._mode_lbl.setText("VOCAL")
-            if self._agent_btn.isChecked():
-                self._agent_btn.blockSignals(True)
+    def _set_mode(self, mode: str) -> str:
+        mode = (mode or "").upper()
+        labels = {
+            "CHAT": "discussion texte",
+            "VOCAL": "vocal — micro actif",
+            "AGENT": "agent — planification et outils",
+        }
+        if mode not in labels:
+            return "Mode inconnu. Utilisez CHAT, VOCAL ou AGENT."
+
+        if self._mode == mode:
+            return f"Déjà en mode {mode} ({labels[mode]})."
+
+        if mode == "CHAT":
+            if self._voice_btn.isChecked():
+                self._voice_btn.setChecked(False)
+            elif self._agent_btn.isChecked():
                 self._agent_btn.setChecked(False)
-                self._agent_btn.blockSignals(False)
-            if self._voice_overlay is None:
-                self._voice_overlay = VoiceOverlay()
-            screen = QApplication.primaryScreen().availableGeometry()
-            self._voice_overlay.move(screen.width() - 300, 40)
-            self._voice_overlay.show()
-            r = self.gemini.start_voice_session()
-            self._journal(r.get("message", ""))
-            use_local = (
-                self.gemini.quota_exhausted
-                or r.get("mode") != "gemini_live"
-                or not r.get("ok")
-            )
-            self._start_stt(prefer_local=use_local)
-            self._set_hud_state("LISTENING")
+            else:
+                self._mode = "CHAT"
+                self._mode_lbl.setText("CHAT")
+        elif mode == "VOCAL":
+            if self._agent_btn.isChecked():
+                self._agent_btn.setChecked(False)
+            if not self._voice_btn.isChecked():
+                self._voice_btn.setChecked(True)
+        elif mode == "AGENT":
+            if not self._agent_btn.isChecked():
+                self._agent_btn.setChecked(True)
+
+        return f"Mode {mode} — {labels[mode]}."
+
+    def _try_mode_switch(self, text: str) -> bool:
+        target = parse_mode_switch(text)
+        if not target:
+            return False
+        if target == "STATUS":
+            labels = {
+                "CHAT": "discussion texte",
+                "VOCAL": "vocal — micro actif",
+                "AGENT": "agent — planification et outils",
+            }
+            msg = f"Mode actuel : {self._mode} ({labels.get(self._mode, '')})."
         else:
-            self._mode = "CHAT"
-            self._mode_lbl.setText("CHAT")
-            self._stop_stt()
-            if self._voice_overlay:
-                self._voice_overlay.hide()
-            self._set_hud_state("LISTENING")
+            msg = self._set_mode(target)
+        self._journal(f"Émo: {msg}")
+        if self._voice_overlay and self._voice_overlay.isVisible():
+            self._voice_overlay.set_emo_text(msg)
+        return True
 
-    def _start_stt(self, prefer_local: bool = False) -> None:
-        if self._stt:
+    def _is_paired(self) -> bool:
+        return bool((load_config().get("session_token") or "").strip())
+
+    def _speak_response(self, text: str) -> None:
+        """Charon via Live quand possible ; repli edge-tts/pyttsx3 sinon."""
+        text = (text or "").strip()
+        if not text or self._muted:
             return
-        self._stt = EmoSTTEngine(
-            on_transcript=lambda t: self._stt_transcript.emit(t),
-            on_partial=lambda t: self._stt_partial.emit(t),
-            on_log=self._journal,
-            is_muted=lambda: self._muted,
-            is_speaking=lambda: self.tts.is_speaking,
-            prefer_local=prefer_local or self.gemini.quota_exhausted,
-        )
-        self._stt.start()
+        if self._live and self._live.session:
+            self._live.speak(text)
+        elif self.tts:
+            self.tts.speak(text)
 
-    def _stop_stt(self) -> None:
-        if self._stt:
-            self._stt.stop()
-            self._stt = None
-            self._journal("STT: micro arrêté.")
+    def _toggle_voice_mode(self, on: bool) -> None:
+        try:
+            if on:
+                if self._agent_btn.isChecked():
+                    self._agent_btn.blockSignals(True)
+                    self._agent_btn.setChecked(False)
+                    self._agent_btn.blockSignals(False)
+                    self._toggle_agent_mode(False)
+                self._mode = "VOCAL"
+                self._mode_lbl.setText("VOCAL")
+                self._voice_overlay.set_user_text("")
+                self._voice_overlay.set_emo_text("")
+                self._voice_overlay.set_state(self.hud.state)
+                self._voice_overlay.show_overlay()
+                self._journal("SYS: Overlay vocal actif (coin haut-droit).")
+                self._set_hud_state("MUTED" if self._muted else "LISTENING")
+            else:
+                self._mode = "CHAT"
+                self._mode_lbl.setText("CHAT")
+                self._voice_overlay.hide()
+                self._journal("SYS: Mode vocal désactivé.")
+                self._set_hud_state("MUTED" if self._muted else "LISTENING")
+        except Exception as e:
+            self._journal(f"ERR: Mode vocal — {e}")
+
+    def _on_live_assistant(self, text: str) -> None:
+        text = (text or "").strip()
+        if not text:
+            return
+        if self._live and self._live.cloud_hybrid:
+            return
+        self._journal(f"Émo: {text}")
+        if self._voice_overlay.isVisible():
+            self._voice_overlay.set_emo_text(text)
+
+    def _pump_voice_queue(self) -> None:
+        if not self._voice_queue:
+            return
+        if self._worker and self._worker.isRunning():
+            return
+        text = self._voice_queue.pop(0)
+        gen = self._voice_gen
+        self._worker = AsyncWorker(lambda: self._process_chat(text), parent=self)
+
+        def _done(r: str):
+            if gen != self._voice_gen:
+                QTimer.singleShot(100, self._pump_voice_queue)
+                return
+            self._journal(f"Émo: {r}")
+            if self._voice_overlay.isVisible():
+                self._voice_overlay.set_emo_text(r)
+            if not self._muted:
+                self._speak_response(r)
+            QTimer.singleShot(100, self._pump_voice_queue)
+
+        self._worker.finished.connect(_done)
+        self._worker.error.connect(lambda e: self._journal(f"Erreur: {e}"))
+        self._worker.start()
 
     def _on_stt_partial(self, text: str) -> None:
-        if self._voice_overlay and self._voice_overlay.isVisible():
-            self._voice_overlay.user_lbl.setText(f"Vous: {text[:80]}")
+        if self._voice_overlay.isVisible():
+            self._voice_overlay.set_user_text(text)
 
     def _on_stt_transcript(self, text: str) -> None:
         text = (text or "").strip()
         if not text or self._muted:
             return
-        if self._worker and self._worker.isRunning():
-            self._journal("SYS: Parole ignorée (traitement en cours).")
-            return
         self._journal(f"Vous: {text}")
-        if self._voice_overlay and self._voice_overlay.isVisible():
-            self._voice_overlay.user_lbl.setText(f"Vous: {text[:80]}")
+        if self._voice_overlay.isVisible():
+            self._voice_overlay.set_user_text(text)
+        if self._try_mode_switch(text):
+            return
+        if self._live and not self._live.cloud_hybrid:
+            return
+        self.tts.interrupt()
+        if self._live:
+            self._live.interrupt()
+        if self._worker and self._worker.isRunning():
+            self._journal("SYS: Interruption — nouvelle commande vocale.")
+        self._voice_gen += 1
+        gen = self._voice_gen
         self._worker = AsyncWorker(lambda: self._process_chat(text), parent=self)
 
         def _done(r: str):
+            if gen != self._voice_gen:
+                return
             self._journal(f"Émo: {r}")
-            if self._voice_overlay and self._voice_overlay.isVisible():
-                self._voice_overlay.emo_lbl.setText(f"Émo: {r[:120]}")
+            if self._voice_overlay.isVisible():
+                self._voice_overlay.set_emo_text(r)
             if not self._muted:
-                self.tts.speak(r)
+                self._speak_response(r)
 
         self._worker.finished.connect(_done)
         self._worker.error.connect(lambda e: self._journal(f"Erreur: {e}"))
         self._worker.start()
 
     def _toggle_agent_mode(self, on: bool) -> None:
-        if on:
-            self._mode = "AGENT"
-            self._mode_lbl.setText("AGENT")
-            if self._voice_btn.isChecked():
-                self._voice_btn.blockSignals(True)
-                self._voice_btn.setChecked(False)
-                self._voice_btn.blockSignals(False)
-                self._stop_stt()
-                if self._voice_overlay:
+        try:
+            if on:
+                if self._voice_btn.isChecked():
+                    self._voice_btn.blockSignals(True)
+                    self._voice_btn.setChecked(False)
+                    self._voice_btn.blockSignals(False)
                     self._voice_overlay.hide()
-            self._agent_panel.show()
-            self._set_hud_state("THINKING")
-        else:
-            self._mode = "CHAT"
-            self._mode_lbl.setText("CHAT")
-            self._agent_panel.hide()
-            self._set_hud_state("LISTENING")
+                self._mode = "AGENT"
+                self._mode_lbl.setText("AGENT")
+                self._agent_panel.show()
+                self._set_hud_state("THINKING")
+            else:
+                self._mode = "CHAT"
+                self._mode_lbl.setText("CHAT")
+                self._agent_panel.hide()
+                self._set_hud_state("MUTED" if self._muted else "LISTENING")
+        except Exception as e:
+            self._journal(f"ERR: Mode agent — {e}")
 
     def _toggle_fullscreen(self):
         if self.isFullScreen():
@@ -626,11 +828,35 @@ class EmoMainWindow(QMainWindow):
 
     def _on_paired_from_browser(self, source: str) -> None:
         self._journal(f"SYS: Appairage réussi ({source}).")
+        muted = self._muted
+        self.tts.stop()
+        self.tts = EmoSpeechEngine(
+            on_speaking_start=lambda: self._hud_state_sig.emit("SPEAKING"),
+            on_speaking_end=lambda: self._hud_state_sig.emit("MUTED" if self._muted else "LISTENING"),
+            on_log=lambda m: self._live_log.emit(m),
+            prefer_local=True,
+        )
+        self.tts.set_muted(muted)
+        self.tts.start()
         if self.relay:
             self.relay.stop()
-        self.relay = start_relay_from_env(on_status=self._journal)
-        self.gemini = GeminiSession(on_log=self._journal)
-        self._cloud = CloudClient(on_log=self._journal)
+        self.relay = start_relay_from_env(on_status=lambda m: self._live_log.emit(m))
+        self.gemini = GeminiSession(on_log=lambda m: self._live_log.emit(m))
+        self._cloud = CloudClient(on_log=lambda m: self._live_log.emit(m))
+        if self._live:
+            self._live.stop()
+        self._live = EmoLiveSession(
+            on_log=lambda m: self._live_log.emit(m),
+            on_user_speech=lambda t: self._stt_transcript.emit(t),
+            on_assistant_speech=lambda t: self._live_assistant.emit(t),
+            on_state=lambda s: self._hud_state_sig.emit(s),
+            is_muted=lambda: self._muted,
+            cloud_hybrid=True,
+            agent_folder=str(load_config().get("agent_folder") or ""),
+            current_file=lambda: self._current_file,
+        )
+        self._live.start()
+        set_live_session(self._live)
         QTimer.singleShot(300, self._check_cloud_status)
         QTimer.singleShot(800, self._sync_cloud_history)
 
@@ -689,6 +915,7 @@ class EmoMainWindow(QMainWindow):
                 on_speaking_start=lambda: self._set_hud_state("SPEAKING"),
                 on_speaking_end=lambda: self._set_hud_state("MUTED" if self._muted else "LISTENING"),
                 on_log=self._journal,
+                prefer_local=True,
             )
             self.tts.set_muted(self._muted)
             self.tts.start()
@@ -707,6 +934,8 @@ class EmoMainWindow(QMainWindow):
         worker.start()
 
     def _check_cloud_status(self) -> None:
+        if getattr(self, "_status_worker", None) and self._status_worker.isRunning():
+            return
         cloud = self._cloud
 
         async def _status():
@@ -729,7 +958,7 @@ class EmoMainWindow(QMainWindow):
             desktop_s = "OK" if parts[1] == "1" else "offline"
             tools_s = "OK" if parts[2] == "1" else "offline"
             self._journal(f"SYS: Cloud {cloud_s} · Desktop {desktop_s} · Outils {tools_s} · {parts[3]}")
-            if self.gemini.quota_exhausted:
+            if self.gemini.quota_exhausted and not (load_config().get("session_token") or "").strip():
                 self._journal(
                     "SYS: Quota Gemini épuisé — mode cloud actif (Paramètres → Connecter)."
                 )
@@ -743,17 +972,25 @@ class EmoMainWindow(QMainWindow):
         cfg = load_config()
         if not (cfg.get("session_token") or "").strip():
             return
+        if getattr(self, "_sync_worker", None) and self._sync_worker.isRunning():
+            return
         cloud = self._cloud
 
         async def _pull():
             msgs = await cloud.pull_messages(20)
             lines = []
             for m in msgs:
-                role = m.get("role", "user")
+                mid = str(m.get("message_id") or m.get("created_at") or "")
                 content = (m.get("content") or "")[:200]
-                if content:
-                    prefix = "Vous" if role == "user" else "Émo"
-                    lines.append(f"[sync] {prefix}: {content}")
+                if not content:
+                    continue
+                if mid and mid in self._synced_message_ids:
+                    continue
+                if mid:
+                    self._synced_message_ids.add(mid)
+                role = m.get("role", "user")
+                prefix = "Vous" if role == "user" else "Émo"
+                lines.append(f"[sync] {prefix}: {content}")
             return "\n".join(lines) if lines else ""
 
         worker = AsyncWorker(_pull, parent=self)
@@ -765,7 +1002,8 @@ class EmoMainWindow(QMainWindow):
                 return
             for line in raw.split("\n"):
                 self._journal(line)
-            self._journal(f"SYS: {raw.count(chr(10)) + 1} messages cloud synchronisés.")
+            if raw:
+                self._journal(f"SYS: {raw.count(chr(10)) + 1} messages cloud synchronisés.")
             self._sync_worker = None
 
         worker.finished.connect(_done)
@@ -782,7 +1020,11 @@ class EmoMainWindow(QMainWindow):
 
     def _interrupt(self) -> None:
         self.brain.interrupt()
+        if self._live:
+            self._live.interrupt()
         self.tts.interrupt()
+        self._voice_gen += 1
+        self._voice_queue.clear()
         self._set_hud_state("LISTENING")
         self._journal("SYS: Interrompu.")
 
@@ -868,8 +1110,10 @@ class EmoMainWindow(QMainWindow):
             return
         self.input.clear()
         self._journal(f"Vous: {text}")
-        if self._voice_overlay and self._voice_overlay.isVisible():
-            self._voice_overlay.user_lbl.setText(f"Vous: {text[:80]}")
+        if self._voice_overlay.isVisible():
+            self._voice_overlay.set_user_text(text)
+        if self._try_mode_switch(text):
+            return
         if self._worker and self._worker.isRunning():
             self._journal("SYS: Traitement en cours…")
             return
@@ -877,10 +1121,10 @@ class EmoMainWindow(QMainWindow):
 
         def _done(r: str):
             self._journal(f"Émo: {r}")
-            if self._voice_overlay and self._voice_overlay.isVisible():
-                self._voice_overlay.emo_lbl.setText(f"Émo: {r[:120]}")
+            if self._voice_overlay.isVisible():
+                self._voice_overlay.set_emo_text(r)
             if not self._muted:
-                self.tts.speak(r)
+                self._speak_response(r)
 
         self._worker.finished.connect(_done)
         self._worker.error.connect(lambda e: self._journal(f"Erreur: {e}"))
@@ -889,7 +1133,7 @@ class EmoMainWindow(QMainWindow):
     async def _handle_mobile_command(self, text: str) -> str:
         reply = await self._process_chat(text)
         if not self._muted:
-            self.tts.speak(reply)
+            self._speak_response(reply)
         return reply
 
     def _wait_worker(self, worker: AsyncWorker | None, timeout_ms: int = 3000) -> None:
@@ -906,7 +1150,8 @@ class EmoMainWindow(QMainWindow):
         self.tts.on_speaking_start = None
         self.tts.on_speaking_end = None
         self.tts.on_log = None
-        self._stop_stt()
+        if self._live:
+            self._live.stop()
         self.tts.stop()
         if self.dashboard:
             self.dashboard.stop()

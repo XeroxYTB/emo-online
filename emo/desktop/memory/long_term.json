@@ -1,0 +1,18 @@
+{
+  "identity": {
+    "name": {
+      "value": "TestUser",
+      "updated": "2026-07-12"
+    }
+  },
+  "preferences": {},
+  "projects": {},
+  "relationships": {},
+  "wishes": {},
+  "notes": {
+    "test_suite": {
+      "value": "ok",
+      "updated": "2026-07-12"
+    }
+  }
+}
